@@ -1,6 +1,4 @@
 node_modules/
-dist/win-unpacked/
-dist/builder-debug.yml
-dist/*.7z
+dist/
 .claude/
 *.log
