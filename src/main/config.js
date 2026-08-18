@@ -1,4 +1,4 @@
-// 設定の読み書き (%APPDATA%/widgetwall/config.json)
+// 設定の読み書き (%APPDATA%/widgetwall/config.json)  — スキーマ v2 (マルチモニタ対応)
 'use strict';
 
 const { app } = require('electron');
@@ -8,24 +8,26 @@ const path = require('path');
 
 const emitter = new EventEmitter();
 
+function defaultWallpaper() {
+  return { type: 'preset', value: 'aurora', dim: 12, blur: 0, animate: false };
+}
+
 function defaults() {
   return {
-    version: 1,
-    wallpaper: {
-      type: 'preset',      // 'preset' | 'image' | 'video' | 'color'
-      value: 'aurora',     // プリセット名 / ファイルパス / カラーコード
-      dim: 12,             // 暗くする (0-70 %)
-      blur: 0,             // ぼかし (0-30 px)
+    version: 2,
+    wallpapers: {
+      default: defaultWallpaper(),
+      byDisplay: {},          // { "1": {type,value,dim,blur,animate} } キーはモニタ index
     },
     widgets: [
       {
-        id: 'w-clock', type: 'clock', x: 50, y: 40,
+        id: 'w-clock', type: 'clock', display: 0, x: 50, y: 40,
         font: 'Segoe UI', size: 128, weight: 200, color: '#ffffff',
         opacity: 1, shadow: 'soft', letterSpacing: 4,
         options: { showSeconds: false, hour12: false, showAmPm: false },
       },
       {
-        id: 'w-date', type: 'date', x: 50, y: 53,
+        id: 'w-date', type: 'date', display: 0, x: 50, y: 53,
         font: 'Segoe UI', size: 26, weight: 300, color: '#ffffff',
         opacity: 0.85, shadow: 'soft', letterSpacing: 6,
         options: { style: 'ja-long' },
@@ -33,6 +35,10 @@ function defaults() {
     ],
     settings: {
       weatherIntervalMin: 30,
+      pauseOnFullscreen: true,     // フルスクリーンアプリ実行中は描画を止める (省電力)
+      customPresets: [],           // 保存したカスタム壁紙 [{kind,colors,angle}]
+      googleFonts: [],             // [{family, cssFile}]
+      lhmUrl: 'http://127.0.0.1:8085/data.json',
     },
   };
 }
@@ -44,14 +50,37 @@ function filePath() {
   return path.join(app.getPath('userData'), 'config.json');
 }
 
+// v1 → v2 マイグレーション
+function migrate(parsed) {
+  if (!parsed || typeof parsed !== 'object') return defaults();
+  if (parsed.version >= 2) return parsed;
+  const d = defaults();
+  if (parsed.wallpaper) {
+    d.wallpapers.default = Object.assign(defaultWallpaper(), parsed.wallpaper);
+  }
+  if (Array.isArray(parsed.widgets)) {
+    d.widgets = parsed.widgets.map(w => ({ display: 0, ...w }));
+  }
+  if (parsed.settings) Object.assign(d.settings, parsed.settings);
+  return d;
+}
+
 function load() {
   try {
     const raw = fs.readFileSync(filePath(), 'utf8');
-    const parsed = JSON.parse(raw);
-    cfg = Object.assign(defaults(), parsed);
-    cfg.wallpaper = Object.assign(defaults().wallpaper, parsed.wallpaper || {});
-    cfg.settings = Object.assign(defaults().settings, parsed.settings || {});
-    if (!Array.isArray(cfg.widgets)) cfg.widgets = defaults().widgets;
+    const parsed = migrate(JSON.parse(raw));
+    const d = defaults();
+    cfg = Object.assign(d, parsed);
+    cfg.wallpapers = {
+      default: Object.assign(defaultWallpaper(), (parsed.wallpapers || {}).default || {}),
+      byDisplay: (parsed.wallpapers || {}).byDisplay || {},
+    };
+    cfg.settings = Object.assign(d.settings, parsed.settings || {});
+    if (!Array.isArray(cfg.widgets)) cfg.widgets = d.widgets;
+    for (const w of cfg.widgets) {
+      if (typeof w.display !== 'number') w.display = 0;
+      if (!w.options) w.options = {};
+    }
   } catch (_) {
     cfg = defaults();
   }
@@ -87,11 +116,17 @@ function update(mutator) {
   return c;
 }
 
+// 指定モニタの壁紙設定を解決
+function wallpaperFor(displayIndex) {
+  const c = get();
+  return c.wallpapers.byDisplay[String(displayIndex)] || c.wallpapers.default;
+}
+
 let seq = 0;
 function newWidget(type) {
   const id = 'w' + Date.now().toString(36) + (seq++).toString(36);
   const base = {
-    id, type, x: 50, y: 70,
+    id, type, display: 0, x: 50, y: 70,
     font: 'Segoe UI', size: 32, weight: 400, color: '#ffffff',
     opacity: 1, shadow: 'soft', letterSpacing: 1, options: {},
   };
@@ -105,10 +140,35 @@ function newWidget(type) {
     case 'text':
       return { ...base, size: 28, weight: 300, options: { text: 'Stay hungry, stay foolish.' } };
     case 'stats':
-      return { ...base, size: 20, font: 'Consolas', options: { showCpu: true, showMem: true } };
+      return {
+        ...base, size: 18, font: 'Consolas', shadow: 'soft', options: {
+          source: 'auto', showCpu: true, showGpu: true, showMem: true,
+          showDrives: false, showNet: false, showTemps: true, compact: false,
+        },
+      };
+    case 'zone':
+      return {
+        ...base, x: 25, y: 35, size: 16, weight: 500, letterSpacing: 2, color: '#9ec5ff', opacity: 1, shadow: 'none',
+        options: {
+          w: 22, h: 34, radius: 16,
+          fill: '#4f8cff', fillOpacity: 0.08,
+          borderColor: '#7db4ff', borderWidth: 1.5, borderStyle: 'dashed', borderOpacity: 0.55,
+          label: 'ゲーム', labelPos: 'tl',
+        },
+      };
+    case 'line':
+      return {
+        ...base, x: 50, y: 60, size: 12, color: '#8fb8ff', opacity: 0.65, shadow: 'none',
+        options: { orient: 'h', len: 26, thick: 2, style: 'solid' },
+      };
+    case 'folder':
+      return {
+        ...base, x: 18, y: 78, size: 12, color: '#e8ecf4', opacity: 1, shadow: 'none',
+        options: { items: [], columns: 0, iconSize: 34, showLabels: true, title: 'アプリ', bgOpacity: 0.55 },
+      };
     default:
       return base;
   }
 }
 
-module.exports = { get, load, update, newWidget, defaults, on: (...a) => emitter.on(...a) };
+module.exports = { get, load, update, newWidget, defaults, wallpaperFor, on: (...a) => emitter.on(...a) };

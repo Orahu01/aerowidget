@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file:; media-src 'self' file:; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
   <title>WidgetWall</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -15,12 +15,13 @@
     <div class="guide guide-v" id="guide-v"></div>
     <div class="guide guide-h" id="guide-h"></div>
     <div id="edit-bar">
-      <span class="edit-hint">ドラッグで移動 ・ ホイールで文字サイズ ・ <b>Esc</b> でも保存</span>
+      <span class="edit-hint">ドラッグで移動 ・ ホイールでサイズ ・ 枠の右下でリサイズ ・ <b>Esc</b> でも保存</span>
       <button id="edit-done">保存して完了</button>
     </div>
     <div id="size-badge"></div>
   </div>
 
+  <style id="gfonts"></style>
   <script src="wallpaper.js"></script>
 </body>
 </html>

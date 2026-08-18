@@ -1,10 +1,14 @@
 // デスクトップアイコンの背面 (WorkerW / Progman) に Electron ウィンドウを差し込むモジュール。
 // Wallpaper Engine / Lively と同じ手法。Win10 と Win11 24H2 以降の両方のレイアウトに対応する。
+//
+// - attachAt():    アイコンの「背面」に配置 (壁紙ウィンドウ用)
+// - attachAbove(): アイコンの「前面」かつ全アプリの背面に配置 (フォルダウィジェット用、クリック可能)
 'use strict';
 
 const koffi = require('koffi');
 
 const user32 = koffi.load('user32.dll');
+const gdi32 = koffi.load('gdi32.dll');
 
 const FindWindowW = user32.func('__stdcall', 'FindWindowW', 'uint64', ['str16', 'str16']);
 const FindWindowExW = user32.func('__stdcall', 'FindWindowExW', 'uint64', ['uint64', 'uint64', 'str16', 'str16']);
@@ -18,41 +22,36 @@ const GetWindowLongPtrW = user32.func('__stdcall', 'GetWindowLongPtrW', 'int64',
 const SetWindowLongPtrW = user32.func('__stdcall', 'SetWindowLongPtrW', 'int64', ['uint64', 'int', 'int64']);
 const SystemParametersInfoW = user32.func('__stdcall', 'SystemParametersInfoW', 'bool', ['uint32', 'uint32', 'void *', 'uint32']);
 const InvalidateRect = user32.func('__stdcall', 'InvalidateRect', 'bool', ['uint64', 'void *', 'bool']);
+const GetWindowRect = user32.func('__stdcall', 'GetWindowRect', 'bool', ['uint64', koffi.out('void *')]);
+const SetWindowRgn = user32.func('__stdcall', 'SetWindowRgn', 'int', ['uint64', 'uint64', 'bool']);
+const CreateRoundRectRgn = gdi32.func('__stdcall', 'CreateRoundRectRgn', 'uint64', ['int', 'int', 'int', 'int', 'int', 'int']);
 
 const EnumWindowsProc = koffi.proto('__stdcall', 'EnumWindowsProc', 'bool', ['uint64', 'int64']);
 const EnumWindows = user32.func('__stdcall', 'EnumWindows', 'bool', [koffi.pointer(EnumWindowsProc), 'int64']);
 
-const GetWindowRect = user32.func('__stdcall', 'GetWindowRect', 'bool', ['uint64', koffi.out('void *')]);
-
 const SM_XVIRTUALSCREEN = 76;
 const SM_YVIRTUALSCREEN = 77;
-const SM_CXSCREEN = 0;
-const SM_CYSCREEN = 1;
 const GWL_STYLE = -16;
 const GWL_EXSTYLE = -20;
 const WS_CHILD = 0x40000000;
 const WS_POPUP = 0x80000000;
 const WS_EX_TOOLWINDOW = 0x00000080;
 const WS_EX_APPWINDOW = 0x00040000;
+const SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
 
-const state = {
-  attached: false,
-  parent: 0,        // 差し込み先 (WorkerW もしくは Progman)
-  mode: 'none',     // 'workerw-sibling' | 'workerw-child' | 'progman'
-  savedStyle: null, // detach 時に戻す元の GWL_STYLE
-};
+const num = (v) => (typeof v === 'bigint' ? Number(v) : v);
 
-function num(v) { return typeof v === 'bigint' ? Number(v) : v; }
+// hwnd → { parent, mode, above, savedStyle, rect }
+const attached = new Map();
 
 // Progman に 0x052C を送って WorkerW を生成させ、差し込み先ウィンドウを探す
 function findTarget() {
   const progman = num(FindWindowW('Progman', null));
   if (!progman) return null;
 
-  // WorkerW を生成させるおまじない (Wallpaper Engine と同じ)
   SendMessageTimeoutW(progman, 0x052C, 0xD, 0x1, 0x0, 1000, null);
 
-  // --- Win10 型レイアウト: SHELLDLL_DefView を持つ WorkerW の「次の兄弟」の WorkerW ---
+  // --- Win10 型: SHELLDLL_DefView を持つウィンドウの「次の兄弟」の WorkerW ---
   let sibling = 0;
   const cb = koffi.register((hwnd, _l) => {
     const h = num(hwnd);
@@ -68,27 +67,17 @@ function findTarget() {
   } finally {
     koffi.unregister(cb);
   }
-  if (sibling) return { parent: sibling, mode: 'workerw-sibling' };
+  if (sibling) return { progman, parent: sibling, mode: 'workerw-sibling' };
 
-  // --- Win11 24H2 型レイアウト: SHELLDLL_DefView が Progman 直下、WorkerW も Progman の子 ---
+  // --- Win11 24H2 型: SHELLDLL_DefView も WorkerW も Progman の子 ---
   const defView = num(FindWindowExW(progman, 0, 'SHELLDLL_DefView', null));
   const childWorker = num(FindWindowExW(progman, 0, 'WorkerW', null));
-  if (childWorker) return { parent: childWorker, mode: 'workerw-child', defView };
-  if (defView) return { parent: progman, mode: 'progman', defView };
-
-  return { parent: progman, mode: 'progman', defView: 0 };
+  if (childWorker) return { progman, parent: childWorker, mode: 'workerw-child', defView };
+  return { progman, parent: progman, mode: 'progman', defView };
 }
 
-// プライマリモニタの物理ピクセル領域を、親ウィンドウ(仮想スクリーン原点)基準の座標で返す
-function primaryRectInParent() {
-  const vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
-  const vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
-  return {
-    x: -vx,
-    y: -vy,
-    w: GetSystemMetrics(SM_CXSCREEN),
-    h: GetSystemMetrics(SM_CYSCREEN),
-  };
+function virtualOrigin() {
+  return { x: GetSystemMetrics(SM_XVIRTUALSCREEN), y: GetSystemMetrics(SM_YVIRTUALSCREEN) };
 }
 
 function screenRect(hwnd) {
@@ -97,78 +86,119 @@ function screenRect(hwnd) {
   return { l: b.readInt32LE(0), t: b.readInt32LE(4), r: b.readInt32LE(8), b: b.readInt32LE(12) };
 }
 
-// hwnd (Electron ウィンドウ) をアイコン背面に差し込む
-function attach(hwnd) {
+function makeChildStyle(hwnd) {
+  const ex = num(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+  SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
+  const st = num(GetWindowLongPtrW(hwnd, GWL_STYLE));
+  SetWindowLongPtrW(hwnd, GWL_STYLE, ((st | WS_CHILD) & ~WS_POPUP) >>> 0);
+  return st;
+}
+
+function moveToPhysRect(hwnd, rect) {
+  const vo = virtualOrigin();
+  MoveWindow(hwnd, rect.x - vo.x, rect.y - vo.y, rect.w, rect.h, true);
+}
+
+// 壁紙ウィンドウ: アイコンの背面に配置
+function attachAt(hwnd, rect) {
   const target = findTarget();
   if (!target || !target.parent) return false;
 
-  // タスクバー/Alt+Tab に出さない
-  const ex = num(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
-  SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
-
-  // WS_CHILD にしてから差し込む (座標系が親クライアント基準で安定する)
-  const st = num(GetWindowLongPtrW(hwnd, GWL_STYLE));
-  if (state.savedStyle === null) state.savedStyle = st;
-  SetWindowLongPtrW(hwnd, GWL_STYLE, ((st | WS_CHILD) & ~WS_POPUP) >>> 0);
+  const prev = attached.get(hwnd);
+  const savedStyle = prev ? prev.savedStyle : makeChildStyle(hwnd);
+  if (!prev) attached.set(hwnd, { savedStyle });
 
   SetParent(hwnd, target.parent);
+  moveToPhysRect(hwnd, rect);
 
-  const r = primaryRectInParent();
-  MoveWindow(hwnd, r.x, r.y, r.w, r.h, true);
-
-  // Progman 直下に入れた場合はアイコン(SHELLDLL_DefView)のすぐ下に配置する
+  // Progman 直下しかない場合はアイコンのすぐ下の Z 位置へ
   if (target.mode === 'progman' && target.defView) {
-    const SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOACTIVATE = 0x10;
     SetWindowPos(hwnd, target.defView, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   }
 
-  state.attached = true;
-  state.parent = target.parent;
-  state.mode = target.mode;
+  Object.assign(attached.get(hwnd), { parent: target.parent, mode: target.mode, above: false, rect });
   return true;
 }
 
-// 通常のトップレベルウィンドウに戻す (レイアウト編集用 / 終了時)
+// フォルダウィジェット: アイコンの前面 (かつ全アプリの背面 = デスクトップ上) に配置。
+// Progman の子の最前面に置くことで、クリックを受け取れてアプリには隠れない。
+function attachAbove(hwnd, rect) {
+  const target = findTarget();
+  if (!target || !target.progman) return false;
+
+  const prev = attached.get(hwnd);
+  const savedStyle = prev ? prev.savedStyle : makeChildStyle(hwnd);
+  if (!prev) attached.set(hwnd, { savedStyle });
+
+  SetParent(hwnd, target.progman);
+  moveToPhysRect(hwnd, rect);
+  SetWindowPos(hwnd, 0 /* HWND_TOP */, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+
+  Object.assign(attached.get(hwnd), { parent: target.progman, mode: target.mode, above: true, rect });
+  return true;
+}
+
+// 通常のトップレベルウィンドウに戻す (レイアウト編集 / 終了時)
 function detach(hwnd) {
-  if (!state.attached) return;
+  const st = attached.get(hwnd);
+  if (!st) return;
   SetParent(hwnd, 0);
-  if (state.savedStyle !== null) {
-    SetWindowLongPtrW(hwnd, GWL_STYLE, state.savedStyle);
-    state.savedStyle = null;
-  }
-  state.attached = false;
-  state.parent = 0;
-  state.mode = 'none';
+  if (st.savedStyle != null) SetWindowLongPtrW(hwnd, GWL_STYLE, st.savedStyle);
+  attached.delete(hwnd);
   refreshDesktop();
 }
 
-// アタッチ中にモニタ構成が変わった場合のリサイズ
-function resize(hwnd) {
-  if (!state.attached) return;
-  const r = primaryRectInParent();
-  MoveWindow(hwnd, r.x, r.y, r.w, r.h, true);
-}
-
-// Electron 側の勝手な再配置を検知して正しい位置に戻す。
-// 期待: プライマリモニタ全面 (スクリーン座標 0,0 - cx,cy)
-function ensurePlacement(hwnd) {
-  if (!state.attached) return;
-  const cx = GetSystemMetrics(SM_CXSCREEN);
-  const cy = GetSystemMetrics(SM_CYSCREEN);
+// Electron 側の勝手な再配置を検知して正しい物理位置へ戻す
+function ensurePlacement(hwnd, rect) {
+  const st = attached.get(hwnd);
+  if (!st) return;
+  const target = rect || st.rect;
+  if (!target) return;
+  st.rect = target;
   const r = screenRect(hwnd);
-  if (r.l !== 0 || r.t !== 0 || r.r !== cx || r.b !== cy) {
-    const p = primaryRectInParent();
-    MoveWindow(hwnd, p.x, p.y, p.w, p.h, true);
+  if (r.l !== target.x || r.t !== target.y || r.r !== target.x + target.w || r.b !== target.y + target.h) {
+    moveToPhysRect(hwnd, target);
+  }
+  if (st.above) {
+    SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   }
 }
 
-// explorer.exe が再起動されると親ウィンドウが消えるので、生存確認に使う
-function isParentAlive() {
-  return state.attached && !!IsWindow(state.parent);
+function isAttached(hwnd) {
+  return attached.has(hwnd);
+}
+
+function isParentAlive(hwnd) {
+  const st = attached.get(hwnd);
+  return !!(st && st.parent && IsWindow(st.parent));
 }
 
 function isWindowAlive(hwnd) {
   return !!IsWindow(hwnd);
+}
+
+// 角丸ウィンドウリージョン (子ウィンドウは DWM の角丸が効かないため GDI で切り抜く)
+function setRoundRegion(hwnd, w, h, radius) {
+  try {
+    const rgn = CreateRoundRectRgn(0, 0, w + 1, h + 1, radius, radius);
+    SetWindowRgn(hwnd, rgn, true); // リージョンの所有権は OS に移る
+  } catch (_) { /* best-effort */ }
+}
+
+// 現在の Windows 壁紙のファイルパス (透過モード用)
+function getSystemWallpaperPath() {
+  try {
+    const SPI_GETDESKWALLPAPER = 0x0073;
+    const buf = Buffer.alloc(2 * 512);
+    SystemParametersInfoW(SPI_GETDESKWALLPAPER, 511, buf, 0);
+    const p = buf.toString('utf16le').replace(/\0.*$/, '');
+    if (p) return p;
+  } catch (_) {}
+  // スライドショー等でパスが取れない場合のフォールバック
+  const path = require('path');
+  const fs = require('fs');
+  const t = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Themes', 'TranscodedWallpaper');
+  return fs.existsSync(t) ? t : '';
 }
 
 // 現在の壁紙を再適用してデスクトップを再描画させる
@@ -178,10 +208,20 @@ function refreshDesktop() {
     const SPI_SETDESKWALLPAPER = 0x0014;
     const buf = Buffer.alloc(2 * 512);
     SystemParametersInfoW(SPI_GETDESKWALLPAPER, 511, buf, 0);
-    SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, buf, 0x01); // SPIF_UPDATEINIFILE のみ (レジストリ書換なし相当)
+    SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, buf, 0x01);
     const progman = num(FindWindowW('Progman', null));
     if (progman) InvalidateRect(progman, null, true);
-  } catch (_) { /* 再描画は best-effort */ }
+  } catch (_) { /* best-effort */ }
 }
 
-module.exports = { attach, detach, resize, ensurePlacement, isParentAlive, isWindowAlive, refreshDesktop, findTarget, state };
+// 現在の物理スクリーン矩形
+function getRect(hwnd) {
+  const r = screenRect(hwnd);
+  return { x: r.l, y: r.t, w: r.r - r.l, h: r.b - r.t };
+}
+
+module.exports = {
+  findTarget, attachAt, attachAbove, detach, ensurePlacement, getRect,
+  isAttached, isParentAlive, isWindowAlive,
+  setRoundRegion, getSystemWallpaperPath, refreshDesktop,
+};

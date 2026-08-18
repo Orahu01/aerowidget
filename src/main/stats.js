@@ -3,9 +3,10 @@
 
 const os = require('os');
 const { EventEmitter } = require('events');
+const heartbeat = require('./heartbeat');
 
 const emitter = new EventEmitter();
-let timer = null;
+let active = false;
 let prev = null;
 
 function cpuTimes() {
@@ -36,15 +37,15 @@ function sample() {
 }
 
 function start() {
-  if (timer) return;
+  if (active) return;
+  active = true;
   prev = cpuTimes();
-  timer = setInterval(sample, 2000);
-  timer.unref?.();
+  heartbeat.register('stats', 2000, sample);
 }
 
 function stop() {
-  clearInterval(timer);
-  timer = null;
+  active = false;
+  heartbeat.unregister('stats');
 }
 
 module.exports = { start, stop, on: (...a) => emitter.on(...a) };

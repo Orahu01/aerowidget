@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
   <title>WidgetWall 設定</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -30,10 +30,44 @@
       <!-- ================= 壁紙 ================= -->
       <section class="tab active" id="tab-wallpaper">
         <h2>壁紙</h2>
-        <p class="hint">プリセットのグラデーション、または好きな画像・動画 (mp4 / webm) を壁紙にできます。</p>
+        <p class="hint">プリセット / 自作グラデーション / 画像・動画 (mp4, webm) / 今の壁紙のまま (ウィジェットだけ追加) が選べます。</p>
+
+        <div id="wp-target-row" style="display:none">
+          <h3>設定するモニタ</h3>
+          <div id="wp-target-chips" class="chip-row"></div>
+        </div>
 
         <h3>プリセット</h3>
         <div id="preset-grid"></div>
+
+        <h3>カスタム (好きな色で作る)</h3>
+        <div class="card" id="custom-builder">
+          <div class="ctl-row">
+            <label>タイプ</label>
+            <select id="cb-kind">
+              <option value="linear">グラデーション (直線)</option>
+              <option value="radial">グラデーション (放射)</option>
+              <option value="solid">単色</option>
+            </select>
+            <div class="ctl-right">
+              <label style="font-size:12px; color:var(--text-dim)">角度</label>
+              <input type="range" id="cb-angle" min="0" max="360" step="5" value="135" style="width:120px">
+              <span class="val" id="cb-angle-val">135°</span>
+            </div>
+          </div>
+          <div class="ctl-row">
+            <label>色</label>
+            <div id="cb-colors" class="color-row"></div>
+            <button class="btn mini" id="cb-add-color">＋</button>
+            <button class="btn mini" id="cb-del-color">−</button>
+          </div>
+          <div id="cb-preview"></div>
+          <div class="ctl-row" style="margin-top:10px">
+            <button class="btn primary" id="cb-apply">この壁紙にする</button>
+            <button class="btn" id="cb-save">パレットに保存</button>
+          </div>
+          <div id="cb-saved" class="saved-grid"></div>
+        </div>
 
         <h3>画像・動画</h3>
         <div class="card row-card">
@@ -53,6 +87,13 @@
             <input type="range" id="wp-blur" min="0" max="30" step="1">
             <span class="val" id="wp-blur-val"></span>
           </div>
+          <div class="ctl-row">
+            <label>ゆっくり動かす (グラデーションのみ)</label>
+            <div class="ctl-right">
+              <label class="switch"><input type="checkbox" id="wp-animate"><span class="knob"></span></label>
+            </div>
+          </div>
+          <p class="note">💡 省電力のため既定はオフ。オンにしても transform ベースの軽量アニメです。</p>
         </div>
       </section>
 
@@ -77,6 +118,26 @@
             </div>
           </div>
           <p class="note" id="autostart-note"></p>
+        </div>
+
+        <div class="card">
+          <div class="ctl-row">
+            <label>フルスクリーンアプリ実行中は描画を停止 (省電力)</label>
+            <div class="ctl-right">
+              <label class="switch"><input type="checkbox" id="pause-fs"><span class="knob"></span></label>
+            </div>
+          </div>
+          <p class="note">ゲームや全画面動画の間、そのモニタの壁紙描画を自動で止めて GPU 負荷をゼロにします。</p>
+        </div>
+
+        <div class="card">
+          <h4>Google Fonts</h4>
+          <div class="ctl-row">
+            <input type="text" id="gf-input" placeholder="フォント名 (例: Noto Sans JP, Orbitron, Zen Maru Gothic)" style="flex:1">
+            <button class="btn" id="gf-add">⬇ 追加</button>
+          </div>
+          <p class="note" id="gf-status">fonts.google.com のフォント名を入れるとダウンロードして使えるようになります。</p>
+          <div id="gf-list" class="gf-list"></div>
         </div>
 
         <div class="card">
@@ -109,7 +170,8 @@
     </main>
   </div>
 
-  <datalist id="fonts"></datalist>
+  <div id="font-dropdown"></div>
+  <style id="gfonts"></style>
   <script src="settings.js"></script>
 </body>
 </html>

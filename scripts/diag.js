@@ -4,6 +4,12 @@
 const koffi = require('koffi');
 const user32 = koffi.load('user32.dll');
 
+// node.exe は DPI 非対応で座標が仮想化されるため、Per-Monitor V2 を宣言して実座標を得る
+try {
+  const SetProcessDpiAwarenessContext = user32.func('__stdcall', 'SetProcessDpiAwarenessContext', 'bool', ['int64']);
+  SetProcessDpiAwarenessContext(-4); // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+} catch (_) {}
+
 const FindWindowW = user32.func('__stdcall', 'FindWindowW', 'uint64', ['str16', 'str16']);
 const FindWindowExW = user32.func('__stdcall', 'FindWindowExW', 'uint64', ['uint64', 'uint64', 'str16', 'str16']);
 const GetClassNameW = user32.func('__stdcall', 'GetClassNameW', 'int', ['uint64', koffi.out('str16'), 'int']);

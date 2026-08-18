@@ -2,6 +2,7 @@
 'use strict';
 
 const { EventEmitter } = require('events');
+const heartbeat = require('./heartbeat');
 
 const emitter = new EventEmitter();
 
@@ -20,7 +21,6 @@ const CODES = {
 };
 
 let latest = null;   // { city, temp, code, emoji, desc, hi, lo, humidity, wind, fetchedAt }
-let timer = null;
 
 async function fetchJson(url, timeoutMs = 12000) {
   const ac = new AbortController();
@@ -90,15 +90,17 @@ async function refresh(widget) {
 
 // 定期更新を(再)開始する。getWidget() で現在の天気ウィジェット設定を取り出す
 function schedule(getWidget, intervalMin) {
-  clearInterval(timer);
   const run = () => {
     const w = getWidget();
     if (w) refresh(w.options);
   };
-  timer = setInterval(run, Math.max(5, intervalMin || 30) * 60 * 1000);
-  run();
+  heartbeat.register('weather', Math.max(5, intervalMin || 30) * 60 * 1000, run, true);
+}
+
+function stopSchedule() {
+  heartbeat.unregister('weather');
 }
 
 function getLatest() { return latest; }
 
-module.exports = { searchCity, refresh, schedule, getLatest, on: (...a) => emitter.on(...a) };
+module.exports = { searchCity, refresh, schedule, stopSchedule, getLatest, on: (...a) => emitter.on(...a) };

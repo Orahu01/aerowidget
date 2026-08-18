@@ -1,6 +1,6 @@
 {
   "name": "widgetwall",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "PoohS",
@@ -13,13 +13,20 @@
   "build": {
     "appId": "com.antigravity.widgetwall",
     "productName": "WidgetWall",
+    "compression": "maximum",
+    "electronLanguages": [
+      "ja",
+      "en-US"
+    ],
     "directories": {
       "output": "dist"
     },
     "files": [
       "src/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "!src/renderer/settings/preview.html",
+      "!assets/screenshot.png"
     ],
     "win": {
       "target": [
