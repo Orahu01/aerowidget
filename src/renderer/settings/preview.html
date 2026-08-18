@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<!-- 開発用プレビュー (window.api をスタブして実CSSと実JSを読み込む) -->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>WidgetWall 設定 (preview)</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    const mockCfg = {
+      version: 1,
+      wallpaper: { type: 'preset', value: 'aurora', dim: 12, blur: 0 },
+      widgets: [
+        { id: 'w-clock', type: 'clock', x: 50, y: 40, font: 'Segoe UI', size: 128, weight: 200, color: '#ffffff', opacity: 1, shadow: 'soft', letterSpacing: 4, options: { showSeconds: false, hour12: false, showAmPm: false } },
+        { id: 'w-date', type: 'date', x: 50, y: 53, font: 'Segoe UI', size: 26, weight: 300, color: '#ffffff', opacity: 0.85, shadow: 'soft', letterSpacing: 6, options: { style: 'ja-long' } },
+        { id: 'w-weather', type: 'weather', x: 85, y: 12, font: 'Segoe UI', size: 30, weight: 300, color: '#ffffff', opacity: 1, shadow: 'soft', letterSpacing: 1, options: { city: '東京', lat: 35.6, lon: 139.7, showIcon: true, showCity: true, showDesc: true, showHiLow: false } },
+      ],
+      settings: { weatherIntervalMin: 30 },
+    };
+    window.api = {
+      getConfig: async () => mockCfg,
+      onConfig: () => {},
+      onWeather: () => {},
+      setWallpaper: async () => {},
+      setSettings: async () => {},
+      addWidget: async (t) => ({ id: 'w' + Math.random(), type: t, x: 50, y: 70, font: 'Segoe UI', size: 32, weight: 400, color: '#ffffff', opacity: 1, shadow: 'soft', letterSpacing: 1, options: {} }),
+      removeWidget: async () => {},
+      updateWidget: async () => {},
+      pickFile: async () => null,
+      searchCity: async () => [{ name: '東京', admin: 'Tokyo, 日本', lat: 35.6, lon: 139.7 }, { name: '東京都', admin: '日本', lat: 35.69, lon: 139.69 }],
+      getWeather: async () => ({ city: '東京', temp: 28, desc: '晴れ', emoji: '🌤️', hi: 32, lo: 24, fetchedAt: Date.now(), error: false }),
+      refreshWeather: async () => {},
+      getAutostart: async () => ({ enabled: true, supported: true }),
+      setAutostart: async (v) => ({ enabled: v, supported: true }),
+      enterEditMode: async () => {},
+      getVersion: async () => '1.0.0',
+      minimize: () => {},
+      close: () => {},
+      quitApp: () => {},
+    };
+  </script>
+</head>
+<body>
+  <header id="titlebar">
+    <div class="app-mark"></div>
+    <span class="app-name">WidgetWall</span>
+    <span class="app-sub">ウィジェット壁紙</span>
+    <div class="tb-spacer"></div>
+    <button class="tb-btn" id="btn-min" title="最小化">─</button>
+    <button class="tb-btn tb-close" id="btn-close" title="閉じる">✕</button>
+  </header>
+
+  <div id="layout">
+    <nav id="sidebar">
+      <button class="nav-item active" data-tab="wallpaper"><span class="nav-ico">🖼️</span>壁紙</button>
+      <button class="nav-item" data-tab="widgets"><span class="nav-ico">🧩</span>ウィジェット</button>
+      <button class="nav-item" data-tab="general"><span class="nav-ico">⚙️</span>一般</button>
+      <div class="side-spacer"></div>
+      <button id="btn-edit-layout">🎯 レイアウトを編集</button>
+      <p class="side-note">デスクトップ上で直接<br>ドラッグして配置できます</p>
+    </nav>
+
+    <main id="content">
+      <section class="tab active" id="tab-wallpaper">
+        <h2>壁紙</h2>
+        <p class="hint">プリセットのグラデーション、または好きな画像・動画 (mp4 / webm) を壁紙にできます。</p>
+        <h3>プリセット</h3>
+        <div id="preset-grid"></div>
+        <h3>画像・動画</h3>
+        <div class="card row-card">
+          <button class="btn" id="btn-pick">📁 ファイルを選択…</button>
+          <span id="file-label" class="file-label">未選択</span>
+        </div>
+        <h3>効果</h3>
+        <div class="card">
+          <div class="ctl-row">
+            <label>暗くする</label>
+            <input type="range" id="wp-dim" min="0" max="70" step="1">
+            <span class="val" id="wp-dim-val"></span>
+          </div>
+          <div class="ctl-row">
+            <label>ぼかし</label>
+            <input type="range" id="wp-blur" min="0" max="30" step="1">
+            <span class="val" id="wp-blur-val"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab" id="tab-widgets">
+        <h2>ウィジェット</h2>
+        <p class="hint">追加して、フォント・サイズ・色を自由にカスタマイズ。位置は「レイアウトを編集」でドラッグ配置。</p>
+        <div id="add-row"></div>
+        <div id="widget-list"></div>
+      </section>
+
+      <section class="tab" id="tab-general">
+        <h2>一般</h2>
+        <div class="card">
+          <div class="ctl-row">
+            <label>Windows 起動時に自動で開始</label>
+            <div class="ctl-right">
+              <label class="switch"><input type="checkbox" id="autostart"><span class="knob"></span></label>
+            </div>
+          </div>
+          <p class="note" id="autostart-note"></p>
+        </div>
+        <div class="card">
+          <div class="ctl-row">
+            <label>天気の更新間隔</label>
+            <div class="ctl-right">
+              <select id="weather-interval">
+                <option value="15">15分</option>
+                <option value="30">30分</option>
+                <option value="60">60分</option>
+              </select>
+            </div>
+          </div>
+          <div class="ctl-row">
+            <label>天気を今すぐ更新</label>
+            <div class="ctl-right"><button class="btn" id="btn-weather-refresh">🔄 更新</button></div>
+          </div>
+          <p class="note" id="weather-status"></p>
+        </div>
+        <div class="card">
+          <div class="ctl-row">
+            <label>アプリを完全終了 (壁紙も消えます)</label>
+            <div class="ctl-right"><button class="btn danger" id="btn-quit">終了</button></div>
+          </div>
+        </div>
+        <p class="about">WidgetWall <span id="version"></span> — 閉じるボタンではトレイに常駐し、壁紙は表示されたままです。</p>
+      </section>
+    </main>
+  </div>
+
+  <datalist id="fonts"></datalist>
+  <script src="settings.js"></script>
+</body>
+</html>

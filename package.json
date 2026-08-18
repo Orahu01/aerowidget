@@ -1,0 +1,50 @@
+{
+  "name": "widgetwall",
+  "version": "1.0.0",
+  "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
+  "main": "src/main/main.js",
+  "author": "PoohS",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "genicon": "node scripts/genicon.js",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.antigravity.widgetwall",
+    "productName": "WidgetWall",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "WidgetWall"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  },
+  "dependencies": {
+    "koffi": "^3.1.5"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  }
+}

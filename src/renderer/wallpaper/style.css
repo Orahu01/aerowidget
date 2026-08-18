@@ -1,0 +1,181 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0d12;
+  user-select: none;
+  cursor: default;
+  font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif;
+}
+
+/* ---------------- 背景レイヤ ---------------- */
+#media {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+#media .preset-bg {
+  position: absolute;
+  inset: -12%;
+  background-size: 160% 160%;
+  animation: drift 80s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+
+#media img, #media video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#dim {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------------- ウィジェット ---------------- */
+#widgets {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+}
+
+.widget {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: pre;
+  text-align: center;
+  line-height: 1.25;
+  pointer-events: none;
+  will-change: left, top;
+}
+
+.widget .sub {
+  font-size: 0.42em;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+.widget .tiny {
+  font-size: 0.34em;
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+.widget .ampm {
+  font-size: 0.35em;
+  font-weight: 400;
+  vertical-align: 0.55em;
+  letter-spacing: 0.1em;
+  margin-left: 0.15em;
+}
+
+.widget .wicon { font-family: 'Segoe UI Emoji'; }
+
+/* ---------------- 編集モード ---------------- */
+#edit-ui { display: none; }
+
+body.edit #edit-ui { display: block; }
+
+body.edit #widgets::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(8, 10, 16, 0.18), rgba(8, 10, 16, 0.42)),
+    repeating-linear-gradient(0deg, transparent 0 47px, rgba(255,255,255,0.045) 47px 48px),
+    repeating-linear-gradient(90deg, transparent 0 47px, rgba(255,255,255,0.045) 47px 48px);
+}
+
+body.edit .widget {
+  pointer-events: auto;
+  cursor: grab;
+  border-radius: 10px;
+  outline: 1.5px dashed rgba(255, 255, 255, 0.35);
+  outline-offset: 10px;
+}
+
+body.edit .widget:hover { outline-color: rgba(120, 190, 255, 0.8); }
+body.edit .widget.dragging {
+  cursor: grabbing;
+  outline: 1.5px solid #5eb2ff;
+  outline-offset: 10px;
+}
+
+.guide {
+  position: fixed;
+  z-index: 5;
+  background: rgba(94, 178, 255, 0.9);
+  box-shadow: 0 0 12px rgba(94, 178, 255, 0.8);
+  display: none;
+}
+.guide-v { top: 0; bottom: 0; width: 1px; left: 50%; }
+.guide-h { left: 0; right: 0; height: 1px; top: 50%; }
+
+#edit-bar {
+  position: fixed;
+  z-index: 6;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 12px 10px 22px;
+  border-radius: 999px;
+  background: rgba(16, 20, 30, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.edit-hint {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13.5px;
+  letter-spacing: 0.04em;
+}
+.edit-hint b { color: #8fd0ff; font-weight: 600; }
+
+#edit-done {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #06210f;
+  background: linear-gradient(135deg, #34d399, #22d3ee);
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+#edit-done:hover { filter: brightness(1.1); }
+#edit-done:active { transform: scale(0.97); }
+
+#size-badge {
+  position: fixed;
+  z-index: 7;
+  display: none;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  color: #d7e7ff;
+  background: rgba(16, 20, 30, 0.9);
+  border: 1px solid rgba(120, 190, 255, 0.35);
+  pointer-events: none;
+  white-space: nowrap;
+}
