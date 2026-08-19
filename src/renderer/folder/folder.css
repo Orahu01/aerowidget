@@ -47,6 +47,7 @@ html, body {
   justify-content: center;
   gap: 4px;
   width: 100%;
+  min-width: 0;
   border: none;
   background: transparent;
   border-radius: 10px;

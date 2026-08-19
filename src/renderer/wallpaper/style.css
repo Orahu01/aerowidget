@@ -94,9 +94,100 @@ body.paused #media .preset-bg.anim { animation-play-state: paused; }
 
 .widget .wicon { font-family: 'Segoe UI Emoji'; }
 
+/* デジタル時計: 数字を 1 桁ずつ固定幅にして、秒更新のガタつきを防ぐ */
+.widget.clock .d {
+  display: inline-block;
+  width: 1ch;
+  text-align: center;
+}
+
 /* システム情報 */
-.widget.stats { text-align: left; }
+.widget.stats { text-align: left; font-variant-numeric: tabular-nums; }
 .widget.stats .row { display: block; line-height: 1.55; }
+
+/* 画像ウィジェット */
+.widget.image .img-body { width: 100%; height: auto; display: block; }
+.img-empty {
+  display: inline-block;
+  font-size: 14px;
+  padding: 18px 26px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  background: rgba(10, 12, 18, 0.5);
+  white-space: nowrap;
+}
+
+/* アナログ時計 */
+.widget.analog { white-space: normal; }
+.an-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--anface, rgba(8, 10, 14, 0.25));
+  border: 2px solid var(--anc-dim, rgba(255, 255, 255, 0.35));
+}
+.an-face.ticks::before {
+  content: '';
+  position: absolute;
+  inset: 3%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(var(--anc-dim, rgba(255,255,255,.35)) 0deg 1deg, transparent 1deg 30deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 84%, #000 84.5%);
+  mask: radial-gradient(closest-side, transparent 84%, #000 84.5%);
+}
+.an-hand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  border-radius: 99px;
+  background: var(--anc, #fff);
+}
+.an-h { width: 3%; min-width: 3px; height: 25%; }
+.an-m { width: 2%; min-width: 2px; height: 36%; }
+.an-s { width: 0.9%; min-width: 1px; height: 41%; background: #e3a94f; }
+.an-cap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6%;
+  height: 6%;
+  min-width: 6px;
+  min-height: 6px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--anc, #fff);
+  border: 2px solid rgba(8, 10, 14, 0.55);
+}
+
+/* カレンダー */
+.widget.calendar { white-space: normal; text-align: center; }
+.cal-head {
+  font-size: 1.02em;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.45em;
+  opacity: 0.95;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 2.15em);
+  gap: 0.1em 0;
+  justify-items: center;
+}
+.cal-wd { font-size: 0.68em; opacity: 0.6; padding: 0.2em 0 0.6em; }
+.cal-day {
+  font-size: 0.88em;
+  width: 1.95em;
+  height: 1.95em;
+  line-height: 1.95em;
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+.cal-day.today { background: var(--cal-acc, #e3a94f); color: #16130a; font-weight: 600; text-shadow: none; }
+.cal-day.sun, .cal-wd.sun { color: #ff929b; }
+.cal-day.sat, .cal-wd.sat { color: #85bcff; }
 
 /* ゾーン (色分け枠) */
 .widget.zone {
@@ -146,8 +237,8 @@ body:not(.edit) .widget.folderph { display: none; }
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  background: #5eb2ff;
-  border: 2px solid #0b1220;
+  background: #e3a94f;
+  border: 2px solid #141518;
   cursor: nwse-resize;
   pointer-events: auto;
 }
@@ -179,18 +270,18 @@ body.edit .widget {
   outline-offset: 10px;
 }
 
-body.edit .widget:hover { outline-color: rgba(120, 190, 255, 0.8); }
+body.edit .widget:hover { outline-color: rgba(227, 169, 79, 0.85); }
 body.edit .widget.dragging {
   cursor: grabbing;
-  outline: 1.5px solid #5eb2ff;
+  outline: 1.5px solid #e3a94f;
   outline-offset: 10px;
 }
 
 .guide {
   position: fixed;
   z-index: 5;
-  background: rgba(94, 178, 255, 0.9);
-  box-shadow: 0 0 12px rgba(94, 178, 255, 0.8);
+  background: rgba(227, 169, 79, 0.9);
+  box-shadow: 0 0 10px rgba(227, 169, 79, 0.55);
   display: none;
 }
 .guide-v { top: 0; bottom: 0; width: 1px; left: 50%; }
@@ -199,53 +290,53 @@ body.edit .widget.dragging {
 #edit-bar {
   position: fixed;
   z-index: 6;
-  top: 28px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 10px 12px 10px 22px;
-  border-radius: 999px;
-  background: rgba(16, 20, 30, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  gap: 16px;
+  padding: 8px 8px 8px 18px;
+  border-radius: 10px;
+  background: rgba(20, 21, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
 }
 
 .edit-hint {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13.5px;
+  color: rgba(230, 231, 234, 0.8);
+  font-size: 12.5px;
   letter-spacing: 0.04em;
 }
-.edit-hint b { color: #8fd0ff; font-weight: 600; }
+.edit-hint b { color: #e3a94f; font-weight: 600; }
 
 #edit-done {
   border: none;
-  border-radius: 999px;
-  padding: 9px 22px;
-  font-size: 13.5px;
+  border-radius: 7px;
+  padding: 8px 20px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: #06210f;
-  background: linear-gradient(135deg, #34d399, #22d3ee);
+  color: #1c1508;
+  background: #e3a94f;
   cursor: pointer;
-  transition: filter 0.15s, transform 0.1s;
+  transition: filter 0.12s, transform 0.1s;
 }
-#edit-done:hover { filter: brightness(1.1); }
+#edit-done:hover { filter: brightness(1.08); }
 #edit-done:active { transform: scale(0.97); }
 
 #size-badge {
   position: fixed;
   z-index: 7;
   display: none;
-  padding: 5px 12px;
-  border-radius: 8px;
+  padding: 5px 11px;
+  border-radius: 6px;
   font-size: 12px;
   letter-spacing: 0.05em;
-  color: #d7e7ff;
-  background: rgba(16, 20, 30, 0.9);
-  border: 1px solid rgba(120, 190, 255, 0.35);
+  color: #efe3c8;
+  background: rgba(20, 21, 24, 0.95);
+  border: 1px solid rgba(227, 169, 79, 0.4);
   pointer-events: none;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }

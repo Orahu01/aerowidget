@@ -75,7 +75,7 @@ function folderDims(o) {
   const icon = o.iconSize || 34;
   const labels = o.showLabels !== false;
   const cellW = Math.max(58, icon + 30);
-  const cellH = icon + (labels ? 30 : 12);
+  const cellH = icon + (labels ? 34 : 12);
   return { cols, rows, w: 20 + cols * cellW, h: 16 + (o.title ? 28 : 0) + rows * cellH };
 }
 
@@ -228,11 +228,34 @@ function placeFolder(id) {
   };
   const hwnd = getHwnd(win);
   attach.attachAbove(hwnd, rect);
-  fixAttachedSize(win, hwnd, rect, sf);
-  setTimeout(() => {
-    if (!editMode && win && !win.isDestroyed()) fixAttachedSize(win, hwnd, rect, sf);
-  }, 400);
-  attach.setRoundRegion(hwnd, pw, ph, Math.round(14 * sf));
+  try { win.webContents.setZoomFactor(sf); } catch (_) {}
+
+  // モニタごとに DPI 換算が異なり、Electron が遅れて自己流のサイズを再適用してくるため、
+  // 「実測 → ずれていれば DIP を逆算補正 → 物理位置を再適用」を一致するまで繰り返し、
+  // 安定してから実測値で角丸リージョンを切る (ズレたまま切ると見た目が崩れる)
+  const settle = (n) => {
+    if (editMode || !win || win.isDestroyed() || !attach.isWindowAlive(hwnd)) return;
+    const r = attach.getRect(hwnd);
+    if (r.x === rect.x && r.y === rect.y && r.w === rect.w && r.h === rect.h) {
+      attach.setRoundRegion(hwnd, rect.w, rect.h, Math.round(14 * sf));
+      return;
+    }
+    if (r.w !== rect.w || r.h !== rect.h) {
+      const b = win.getBounds();
+      const nw = Math.max(40, Math.round(rect.w / ((r.w / b.width) || 1)));
+      const nh = Math.max(30, Math.round(rect.h / ((r.h / b.height) || 1)));
+      win.setBounds({ width: nw, height: nh });
+    }
+    attach.ensurePlacement(hwnd, rect);
+    if (n > 0) {
+      setTimeout(() => settle(n - 1), 130);
+    } else {
+      // 収束しきらなくても、実測サイズに合わせてリージョンを切れば見た目は崩れない
+      const fin = attach.getRect(hwnd);
+      attach.setRoundRegion(hwnd, fin.w, fin.h, Math.round(14 * sf));
+    }
+  };
+  setTimeout(() => settle(6), 130);
 }
 
 function syncFolders() {
@@ -359,8 +382,7 @@ function openSettings() {
     x: Math.round(wa.x + (wa.width - sw) / 2),
     y: Math.round(wa.y + (wa.height - sh) / 2),
     frame: false, show: false,
-    backgroundColor: '#0d1017',
-    backgroundMaterial: 'acrylic',
+    backgroundColor: '#141518',
     icon: path.join(ASSETS, 'icon.png'),
     webPreferences: {
       preload: PRELOAD('settings.js'),
@@ -368,7 +390,8 @@ function openSettings() {
       nodeIntegration: false,
     },
   });
-  settingsWin.loadFile(RENDERER(path.join('settings', 'index.html')));
+  settingsWin.loadFile(RENDERER(path.join('settings', 'index.html')),
+    process.env.WW_TEST_TAB ? { query: { tab: process.env.WW_TEST_TAB } } : undefined);
   settingsWin.once('ready-to-show', () => settingsWin.show());
   settingsWin.on('closed', () => { settingsWin = null; });
 }
@@ -454,6 +477,39 @@ function syncServices() {
   } else {
     fullscreen.stop();
   }
+
+  // 壁紙スケジュール (昼 / 夜の自動切替)
+  const schedKey = JSON.stringify(c.settings.schedule || {});
+  if (schedKey !== lastScheduleKey) {
+    lastScheduleKey = schedKey;
+    lastScheduleMode = null; // 設定が変わったら次の判定で必ず適用し直す
+  }
+  if (c.settings.schedule && c.settings.schedule.enabled) {
+    heartbeat.register('schedule', 60000, applySchedule, true);
+  } else {
+    heartbeat.unregister('schedule');
+  }
+}
+
+let lastScheduleKey = '';
+let lastScheduleMode = null;
+
+function applySchedule() {
+  const s = config.get().settings.schedule;
+  if (!s || !s.enabled) return;
+  const parse = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return m ? (+m[1] * 60 + +m[2]) : null; };
+  const dayM = parse(s.dayStart), nightM = parse(s.nightStart);
+  if (dayM == null || nightM == null) return;
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  let mode;
+  if (dayM <= nightM) mode = (cur >= dayM && cur < nightM) ? 'day' : 'night';
+  else mode = (cur >= dayM || cur < nightM) ? 'day' : 'night';
+  if (mode === lastScheduleMode) return;
+  lastScheduleMode = mode;
+  const snap = s[mode];
+  if (!snap) return;
+  config.update(c => { c.wallpapers.default = JSON.parse(JSON.stringify(snap)); });
 }
 
 function mergedHw() {
@@ -618,6 +674,15 @@ ipcMain.handle('file:pick', async () => {
   return { path: p, kind: /\.(mp4|webm)$/i.test(p) ? 'video' : 'image' };
 });
 
+ipcMain.handle('file:pickImage', async () => {
+  const r = await dialog.showOpenDialog(settingsWin, {
+    title: 'ウィジェットとして表示する画像を選択',
+    properties: ['openFile'],
+    filters: [{ name: '画像', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] }],
+  });
+  return (r.canceled || !r.filePaths[0]) ? null : r.filePaths[0];
+});
+
 ipcMain.handle('folder:pick', async () => {
   const r = await dialog.showOpenDialog(settingsWin, {
     title: 'フォルダウィジェットに入れるアプリ・ファイルを選択',
@@ -640,17 +705,49 @@ function folderItemPaths() {
   return set;
 }
 
+// .lnk / .url はリンク自体でなく「指し先」のアイコンを解決する
+// (getFileIcon をショートカットに直接使うと汎用アイコンになることがある)
+async function resolveIcon(p) {
+  const tryIcon = async (target) => {
+    if (!target) return null;
+    try {
+      if (/\.(ico|png)$/i.test(target)) {
+        const img = nativeImage.createFromPath(target);
+        if (img && !img.isEmpty()) return img;
+      }
+      const img = await app.getFileIcon(target, { size: 'large' });
+      return (img && !img.isEmpty()) ? img : null;
+    } catch (_) { return null; }
+  };
+
+  if (/\.lnk$/i.test(p)) {
+    try {
+      const s = shell.readShortcutLink(p);
+      const img = (await tryIcon(s.icon)) || (await tryIcon(s.target));
+      if (img) return img;
+    } catch (_) { /* 展開できない .lnk は下のフォールバックへ */ }
+  }
+  if (/\.url$/i.test(p)) {
+    try {
+      const txt = require('fs').readFileSync(p, 'utf8');
+      const m = /^IconFile\s*=\s*(.+)$/im.exec(txt);
+      if (m) {
+        const img = await tryIcon(m[1].trim());
+        if (img) return img;
+      }
+    } catch (_) {}
+  }
+  return await tryIcon(p);
+}
+
 ipcMain.handle('icon:get', async (e, p) => {
   if (!folderItemPaths().has(p)) return null;
   if (iconCache.has(p)) return iconCache.get(p);
-  try {
-    const img = await app.getFileIcon(p, { size: 'large' });
-    const url = img.toDataURL();
-    iconCache.set(p, url);
-    return url;
-  } catch (_) {
-    return null;
-  }
+  const img = await resolveIcon(p);
+  if (!img) return null;
+  const url = img.toDataURL();
+  iconCache.set(p, url);
+  return url;
 });
 
 ipcMain.on('folder:launch', (e, id, p) => {

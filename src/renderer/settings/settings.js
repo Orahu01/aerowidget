@@ -1,4 +1,4 @@
-// WidgetWall — 設定画面 (v2)
+// WidgetWall — 設定画面 (v3)
 'use strict';
 
 const PRESETS = {
@@ -11,14 +11,17 @@ const PRESETS = {
 };
 
 const TYPES = {
-  clock: { icon: '🕐', label: '時計' },
-  date: { icon: '📅', label: '日付' },
-  weather: { icon: '⛅', label: '天気' },
-  text: { icon: '✏️', label: 'テキスト' },
-  stats: { icon: '📊', label: 'ハードウェアモニタ' },
-  zone: { icon: '🔲', label: 'ゾーン (色分け枠)' },
-  line: { icon: '📏', label: 'ライン (線)' },
-  folder: { icon: '📁', label: 'フォルダ (アプリまとめ)' },
+  clock: { icon: 'i-clock', label: '時計 (デジタル)' },
+  analog: { icon: 'i-analog', label: '時計 (アナログ)' },
+  date: { icon: 'i-date', label: '日付' },
+  calendar: { icon: 'i-caldays', label: 'カレンダー' },
+  weather: { icon: 'i-weather', label: '天気' },
+  text: { icon: 'i-text', label: 'テキスト' },
+  image: { icon: 'i-photo', label: '画像' },
+  stats: { icon: 'i-stats', label: 'ハードウェアモニタ' },
+  zone: { icon: 'i-zone', label: 'ゾーン (色分け枠)' },
+  line: { icon: 'i-line', label: 'ライン (線)' },
+  folder: { icon: 'i-folder', label: 'フォルダ (アプリまとめ)' },
 };
 
 const FALLBACK_FONTS = [
@@ -29,10 +32,12 @@ const FALLBACK_FONTS = [
   'Segoe Print', 'Segoe Script', 'Sylfaen', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana',
 ];
 
+const MAX_CUSTOM_COLORS = 10;
+
 let cfg = null;
 let sysWall = '';
 let displays = [];
-let wpTarget = null;          // null = すべて (default), number = モニタ index
+let wpTarget = null;          // null = すべて共通, number = モニタ index
 let lhmOnline = false;
 let systemFonts = [];
 let suppressUntil = 0;
@@ -46,12 +51,24 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function svgIcon(id, cls = 'ic') {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', cls);
+  const use = document.createElementNS(ns, 'use');
+  use.setAttribute('href', '#' + id);
+  svg.appendChild(use);
+  return svg;
+}
+
 function touch() { suppressUntil = Date.now() + 1500; }
 
 function debounced(key, ms, fn) {
   clearTimeout(debTimers.get(key));
   debTimers.set(key, setTimeout(fn, ms));
 }
+
+function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
 function patchWidget(id, patch, opts = {}) {
   touch();
@@ -69,10 +86,19 @@ function patchWidget(id, patch, opts = {}) {
 }
 
 function customCss(v) {
-  const colors = (v.colors && v.colors.length) ? v.colors : ['#223', '#112'];
+  const colors = (v && v.colors && v.colors.length) ? v.colors : ['#223', '#112'];
   if (v.kind === 'solid' || colors.length === 1) return colors[0];
   if (v.kind === 'radial') return `radial-gradient(120% 120% at 25% 20%, ${colors.join(', ')})`;
   return `linear-gradient(${v.angle ?? 135}deg, ${colors.join(', ')})`;
+}
+
+// 壁紙設定オブジェクト → プレビュー用 CSS
+function wpCss(wp) {
+  if (!wp) return '';
+  if (wp.type === 'preset') return (PRESETS[wp.value] || PRESETS.aurora).css;
+  if (wp.type === 'custom') return customCss(wp.value || {});
+  if (wp.type === 'color') return wp.value;
+  return 'linear-gradient(155deg, #202329, #16181c)';
 }
 
 // ---------------------------------------------------------------- タブ / タイトルバー
@@ -107,7 +133,7 @@ function setWp(patch) {
 function renderTargetChips() {
   const row = $('#wp-target-row');
   if (displays.length <= 1) { row.style.display = 'none'; return; }
-  row.style.display = 'block';
+  row.style.display = 'flex';
   const box = $('#wp-target-chips');
   box.innerHTML = '';
   const mkChip = (label, target, hasOverride) => {
@@ -137,36 +163,49 @@ function renderTargetChips() {
   }
 }
 
+function presetCard(inner, selected, name, onClick) {
+  const card = document.createElement('div');
+  card.className = 'preset-card' + (selected ? ' selected' : '');
+  const swatch = document.createElement('div');
+  swatch.className = 'swatch';
+  if (typeof inner === 'string') swatch.style.background = inner;
+  else if (inner) swatch.appendChild(inner);
+  const check = document.createElement('span');
+  check.className = 'p-check';
+  check.appendChild(svgIcon('i-check'));
+  const label = document.createElement('span');
+  label.className = 'p-name';
+  label.textContent = name;
+  card.appendChild(swatch);
+  card.appendChild(check);
+  card.appendChild(label);
+  card.addEventListener('click', onClick);
+  return card;
+}
+
 function renderPresets() {
   const grid = $('#preset-grid');
   grid.innerHTML = '';
   const wp = curWp();
 
-  // 「今の壁紙のまま」(透過モード相当)
-  const sys = document.createElement('div');
-  sys.className = 'preset-card sys-card';
-  if (wp.type === 'system') sys.classList.add('selected');
-  sys.innerHTML = `🖼️<span class="p-name">今の壁紙のまま</span>`;
+  // 透過モード: Windows の壁紙のままウィジェットだけ表示
+  const sys = presetCard(svgIcon('i-monitor'), wp.type === 'system', '今の壁紙のまま',
+    () => setWp({ type: 'system', value: '' }));
   sys.title = 'Windows の壁紙はそのままに、ウィジェットだけ表示します';
-  sys.addEventListener('click', () => setWp({ type: 'system', value: '' }));
   grid.appendChild(sys);
 
   for (const [key, p] of Object.entries(PRESETS)) {
-    const card = document.createElement('div');
-    card.className = 'preset-card';
-    card.style.background = p.css;
-    if (wp.type === 'preset' && wp.value === key) card.classList.add('selected');
-    card.innerHTML = `<span class="p-name">${p.label}</span>`;
-    card.addEventListener('click', () => setWp({ type: 'preset', value: key }));
-    grid.appendChild(card);
+    grid.appendChild(presetCard(p.css, wp.type === 'preset' && wp.value === key, p.label,
+      () => setWp({ type: 'preset', value: key })));
   }
 }
 
 // ---- カスタムビルダー ----
-const cb = { kind: 'linear', angle: 135, colors: ['#6366f1', '#22d3ee'] };
+const cb = { kind: 'linear', angle: 135, colors: ['#e3a94f', '#22262e'] };
 
 function renderCustomBuilder() {
-  $('#cb-kind').value = cb.kind;
+  $$('#cb-kind-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === cb.kind));
+  $('#cb-angle-row').style.display = cb.kind === 'linear' ? 'flex' : 'none';
   $('#cb-angle').value = cb.angle;
   $('#cb-angle-val').textContent = cb.angle + '°';
   const row = $('#cb-colors');
@@ -206,31 +245,38 @@ function renderSavedPresets() {
     });
     card.appendChild(del);
     card.addEventListener('click', () => {
-      Object.assign(cb, JSON.parse(JSON.stringify(v)));
+      Object.assign(cb, clone(v));
       renderCustomBuilder();
-      setWp({ type: 'custom', value: JSON.parse(JSON.stringify(v)) });
+      setWp({ type: 'custom', value: clone(v) });
     });
     grid.appendChild(card);
   });
 }
 
-$('#cb-kind').addEventListener('change', (e) => { cb.kind = e.target.value; renderCbPreview(); });
+$$('#cb-kind-seg button').forEach(b => b.addEventListener('click', () => {
+  cb.kind = b.dataset.v;
+  renderCustomBuilder();
+}));
 $('#cb-angle').addEventListener('input', (e) => {
   cb.angle = +e.target.value;
   $('#cb-angle-val').textContent = cb.angle + '°';
   renderCbPreview();
 });
 $('#cb-add-color').addEventListener('click', () => {
-  if (cb.colors.length < 5) { cb.colors.push('#8b5cf6'); renderCustomBuilder(); }
+  if (cb.colors.length < MAX_CUSTOM_COLORS) {
+    const palette = ['#8b5cf6', '#2dd4bf', '#f472b6', '#facc15', '#60a5fa', '#34d399', '#fb923c', '#e879f9'];
+    cb.colors.push(palette[cb.colors.length % palette.length]);
+    renderCustomBuilder();
+  }
 });
 $('#cb-del-color').addEventListener('click', () => {
   if (cb.colors.length > 1) { cb.colors.pop(); renderCustomBuilder(); }
 });
-$('#cb-apply').addEventListener('click', () => setWp({ type: 'custom', value: JSON.parse(JSON.stringify(cb)) }));
+$('#cb-apply').addEventListener('click', () => setWp({ type: 'custom', value: clone(cb) }));
 $('#cb-save').addEventListener('click', () => {
   touch();
-  const v = JSON.parse(JSON.stringify(cb));
-  cfg.settings.customPresets = [v, ...(cfg.settings.customPresets || [])].slice(0, 12);
+  const v = clone(cb);
+  cfg.settings.customPresets = [v, ...(cfg.settings.customPresets || [])].slice(0, 24);
   window.api.saveCustomPreset(v);
   renderSavedPresets();
 });
@@ -241,7 +287,7 @@ function renderWallpaperTab() {
   const wp = curWp();
   const label = $('#file-label');
   if (wp.type === 'image' || wp.type === 'video') {
-    label.textContent = (wp.type === 'video' ? '🎬 ' : '🖼️ ') + wp.value.split(/[\\/]/).pop();
+    label.textContent = (wp.type === 'video' ? '動画: ' : '画像: ') + wp.value.split(/[\\/]/).pop();
   } else {
     label.textContent = '未選択';
   }
@@ -283,14 +329,16 @@ function openFontDropdown(input, onPick) {
   renderFontDropdown();
   const r = input.getBoundingClientRect();
   fontDropdown.style.display = 'block';
-  fontDropdown.style.minWidth = Math.max(260, r.width) + 'px';
-  const maxH = 280;
+  fontDropdown.style.minWidth = Math.max(280, r.width) + 'px';
+  const maxH = 300;
   if (r.bottom + maxH + 8 > innerHeight && r.top > maxH + 8) {
-    fontDropdown.style.top = (r.top - Math.min(maxH, fontDropdown.offsetHeight || maxH) - 4) + 'px';
+    fontDropdown.style.top = Math.max(8, r.top - maxH - 4) + 'px';
+    fontDropdown.style.maxHeight = Math.min(maxH, r.top - 12) + 'px';
   } else {
     fontDropdown.style.top = (r.bottom + 4) + 'px';
+    fontDropdown.style.maxHeight = Math.min(maxH, innerHeight - r.bottom - 16) + 'px';
   }
-  fontDropdown.style.left = Math.min(r.left, innerWidth - 300) + 'px';
+  fontDropdown.style.left = Math.min(r.left, innerWidth - 320) + 'px';
 }
 
 function renderFontDropdown() {
@@ -301,8 +349,8 @@ function renderFontDropdown() {
   const sys = systemFonts.filter(match).slice(0, 400);
   let html = '';
   if (gf.length) {
-    html += '<div class="fd-group">GOOGLE FONTS</div>';
-    for (const f of gf) html += `<button class="fd-item" data-f="${esc(f)}" style="font-family:'${esc(f)}'"><span class="fd-cloud">☁</span>${esc(f)}</button>`;
+    html += '<div class="fd-group">Google Fonts</div>';
+    for (const f of gf) html += `<button class="fd-item" data-f="${esc(f)}" style="font-family:'${esc(f)}'"><span class="fd-cloud">G</span>${esc(f)}</button>`;
   }
   if (sys.length) {
     html += '<div class="fd-group">システムフォント</div>';
@@ -310,6 +358,7 @@ function renderFontDropdown() {
   }
   if (!html) html = '<div class="fd-empty">見つかりません</div>';
   fontDropdown.innerHTML = html;
+  fontDropdown.scrollTop = 0;
 }
 
 fontDropdown.addEventListener('mousedown', (e) => {
@@ -334,6 +383,7 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFontDropdown(); });
+// コンテンツ側を実際にスクロールした時だけ閉じる (ドロップダウン内のスクロールでは閉じない)
 $('#content').addEventListener('scroll', () => closeFontDropdown());
 
 function mkFontPicker(value, onPick) {
@@ -350,27 +400,10 @@ function mkFontPicker(value, onPick) {
   return wrap;
 }
 
-// ---------------------------------------------------------------- ウィジェットタブ
-function renderAddRow() {
-  const row = $('#add-row');
-  row.innerHTML = '';
-  for (const [type, meta] of Object.entries(TYPES)) {
-    const b = document.createElement('button');
-    b.className = 'add-btn';
-    b.textContent = `＋ ${meta.icon} ${meta.label}`;
-    b.addEventListener('click', async () => {
-      const created = await window.api.addWidget(type);
-      if (created) expanded.add(created.id);
-      cfg = (await window.api.getConfig()).config;
-      renderWidgetList();
-    });
-    row.appendChild(b);
-  }
-}
-
+// ---------------------------------------------------------------- 小さな UI 部品
 function ctlRow(labelText, ...els) {
   const row = document.createElement('div');
-  row.className = 'ctl-row';
+  row.className = 'row';
   const lab = document.createElement('label');
   lab.textContent = labelText;
   row.appendChild(lab);
@@ -401,6 +434,22 @@ function mkSelect(optionPairs, value, onChange) {
   return s;
 }
 
+function mkSeg(optionPairs, value, onChange) {
+  const seg = document.createElement('div');
+  seg.className = 'seg';
+  for (const [v, label] of optionPairs) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.classList.toggle('on', String(v) === String(value));
+    b.addEventListener('click', () => {
+      [...seg.children].forEach(x => x.classList.toggle('on', x === b));
+      onChange(v);
+    });
+    seg.appendChild(b);
+  }
+  return seg;
+}
+
 function mkCheck(labelText, checked, onChange) {
   const lab = document.createElement('label');
   const c = document.createElement('input');
@@ -429,6 +478,41 @@ function mkText(value, placeholder, onChange) {
   return t;
 }
 
+function mkDelBtn(onClick, title = '削除') {
+  const b = document.createElement('button');
+  b.className = 'wc-del';
+  b.title = title;
+  b.appendChild(svgIcon('i-trash'));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function noteEl(text) {
+  const p = document.createElement('p');
+  p.className = 'note';
+  p.textContent = text;
+  return p;
+}
+
+// ---------------------------------------------------------------- ウィジェットタブ
+function renderAddRow() {
+  const row = $('#add-row');
+  row.innerHTML = '';
+  for (const [type, meta] of Object.entries(TYPES)) {
+    const b = document.createElement('button');
+    b.className = 'add-btn';
+    b.appendChild(svgIcon(meta.icon));
+    b.appendChild(document.createTextNode(meta.label));
+    b.addEventListener('click', async () => {
+      const created = await window.api.addWidget(type);
+      if (created) expanded.add(created.id);
+      cfg = (await window.api.getConfig()).config;
+      renderWidgetList();
+    });
+    row.appendChild(b);
+  }
+}
+
 // ---- タイプ別オプション UI ----
 function typeOptionsUI(w) {
   const wrap = document.createElement('div');
@@ -442,10 +526,25 @@ function typeOptionsUI(w) {
     row.appendChild(mkCheck('12時間表示', o.hour12, v => patchWidget(w.id, { options: { hour12: v } })));
     row.appendChild(mkCheck('AM / PM を表示', o.showAmPm, v => patchWidget(w.id, { options: { showAmPm: v } })));
     wrap.appendChild(row);
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = '💡 秒を表示すると毎秒描画になります (省電力なら分表示のまま)。';
-    wrap.appendChild(note);
+    wrap.appendChild(noteEl('秒を表示すると毎秒描画になります。省電力を優先するなら分表示のままがおすすめです。'));
+
+  } else if (w.type === 'analog') {
+    const row = document.createElement('div');
+    row.className = 'chk-row';
+    row.appendChild(mkCheck('秒針', o.showSeconds !== false, v => patchWidget(w.id, { options: { showSeconds: v } })));
+    row.appendChild(mkCheck('目盛り', o.showTicks !== false, v => patchWidget(w.id, { options: { showTicks: v } })));
+    wrap.appendChild(row);
+    wrap.appendChild(ctlRow('文字盤', mkSeg(
+      [['dark', 'ダーク'], ['light', 'ライト'], ['none', 'なし']],
+      o.face || 'dark', v => patchWidget(w.id, { options: { face: v } }))));
+    {
+      const [r, val, show] = mkRange(0, 90, 5, Math.round((o.faceOpacity ?? 0.25) * 100), v => {
+        show(v + '%');
+        patchWidget(w.id, { options: { faceOpacity: v / 100 } }, { debounce: true });
+      });
+      val.textContent = Math.round((o.faceOpacity ?? 0.25) * 100) + '%';
+      wrap.appendChild(ctlRow('文字盤の濃さ', r, val));
+    }
 
   } else if (w.type === 'date') {
     wrap.appendChild(ctlRow('表示形式', mkSelect([
@@ -457,20 +556,36 @@ function typeOptionsUI(w) {
       ['en-md', 'Wed, Aug 19'],
     ], o.style || 'ja-long', v => patchWidget(w.id, { options: { style: v } }))));
 
+  } else if (w.type === 'calendar') {
+    const row = document.createElement('div');
+    row.className = 'chk-row';
+    row.appendChild(mkCheck('曜日の行', o.showWeekdays !== false, v => patchWidget(w.id, { options: { showWeekdays: v } })));
+    row.appendChild(mkCheck('日曜・土曜に色', o.sundayColor !== false, v => patchWidget(w.id, { options: { sundayColor: v } })));
+    row.appendChild(mkCheck('背景パネル', o.bg !== false, v => patchWidget(w.id, { options: { bg: v } })));
+    wrap.appendChild(row);
+    wrap.appendChild(ctlRow('今日の色', mkColor(o.accent || '#e3a94f', v => patchWidget(w.id, { options: { accent: v } }, { debounce: true }))));
+    {
+      const [r, val, show] = mkRange(0, 80, 5, Math.round((o.bgOpacity ?? 0.3) * 100), v => {
+        show(v + '%');
+        patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true });
+      });
+      val.textContent = Math.round((o.bgOpacity ?? 0.3) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+
   } else if (w.type === 'weather') {
-    const cur = document.createElement('p');
-    cur.className = 'note';
-    cur.textContent = `現在の都市: ${o.city || '未設定'}`;
+    const cur = noteEl(`現在の都市: ${o.city || '未設定'}`);
     wrap.appendChild(cur);
 
     const searchRow = document.createElement('div');
-    searchRow.className = 'ctl-row';
+    searchRow.className = 'row';
     const inp = mkText('', '都市名で検索 (例: 東京, Osaka)', () => {});
     const btn = document.createElement('button');
     btn.className = 'btn';
-    btn.textContent = '検索';
+    btn.appendChild(svgIcon('i-search'));
+    btn.appendChild(document.createTextNode('検索'));
     const results = document.createElement('div');
-    results.className = 'city-results';
+    results.className = 'city-results full';
     const doSearch = async () => {
       btn.disabled = true;
       const list = await window.api.searchCity(inp.value);
@@ -511,6 +626,38 @@ function typeOptionsUI(w) {
     ta.addEventListener('input', () => patchWidget(w.id, { options: { text: ta.value } }, { debounce: true }));
     wrap.appendChild(ta);
 
+  } else if (w.type === 'image') {
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'file-label';
+    nameSpan.textContent = o.path ? o.path.split(/[\\/]/).pop() : '未選択';
+    const pick = document.createElement('button');
+    pick.className = 'btn';
+    pick.textContent = '画像を選択…';
+    pick.addEventListener('click', async () => {
+      const p = await window.api.pickImage();
+      if (!p) return;
+      patchWidget(w.id, { options: { path: p } });
+      nameSpan.textContent = p.split(/[\\/]/).pop();
+    });
+    wrap.appendChild(ctlRow('ファイル', nameSpan, pick));
+    {
+      const [r, val, show] = mkRange(3, 100, 0.5, o.w ?? 18, v => {
+        show(v + '%');
+        patchWidget(w.id, { options: { w: v } }, { debounce: true });
+      });
+      val.textContent = (o.w ?? 18) + '%';
+      wrap.appendChild(ctlRow('幅 (画面比)', r, val));
+    }
+    {
+      const [r, val, show] = mkRange(0, 60, 1, o.radius ?? 12, v => {
+        show(v + 'px');
+        patchWidget(w.id, { options: { radius: v } }, { debounce: true });
+      });
+      val.textContent = (o.radius ?? 12) + 'px';
+      wrap.appendChild(ctlRow('角丸', r, val));
+    }
+    wrap.appendChild(noteEl('お気に入りの写真やロゴ、キャラクター画像 (透過 png も可) を壁紙の上に配置できます。編集モードのホイールで大きさを変えられます。'));
+
   } else if (w.type === 'stats') {
     const badge = document.createElement('span');
     badge.className = 'lhm-badge ' + (lhmOnline ? 'on' : 'off');
@@ -534,16 +681,12 @@ function typeOptionsUI(w) {
     row.appendChild(mkCheck('1行にまとめる', !!o.compact, v => patchWidget(w.id, { options: { compact: v } })));
     wrap.appendChild(row);
 
-    const urlRow = ctlRow('LHM URL', mkText(cfg.settings.lhmUrl, 'http://127.0.0.1:8085/data.json', v => {
+    wrap.appendChild(ctlRow('LHM URL', mkText(cfg.settings.lhmUrl, 'http://127.0.0.1:8085/data.json', v => {
       touch();
       cfg.settings.lhmUrl = v;
       window.api.setSettings({ lhmUrl: v });
-    }));
-    wrap.appendChild(urlRow);
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = '温度・GPU・SSD・ネット速度の表示には Libre Hardware Monitor が必要です。LHM を起動し、Options → Remote Web Server → Run を有効にしてください。';
-    wrap.appendChild(note);
+    })));
+    wrap.appendChild(noteEl('温度・GPU・SSD・ネット速度の表示には Libre Hardware Monitor が必要です。LHM を起動し、Options → Remote Web Server → Run を有効にしてください。'));
 
   } else if (w.type === 'zone') {
     {
@@ -578,13 +721,10 @@ function typeOptionsUI(w) {
     wrap.appendChild(ctlRow('ラベル位置', mkSelect([
       ['tl', '左上'], ['tc', '中央上'], ['tr', '右上'], ['bl', '左下'], ['out', '枠の外 (上)'],
     ], o.labelPos || 'tl', v => patchWidget(w.id, { options: { labelPos: v } }))));
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = '💡 デスクトップのアイコンを囲んで「ゲーム」「仕事」のように仕分けできます。編集モードで右下ハンドルからリサイズ。';
-    wrap.appendChild(note);
+    wrap.appendChild(noteEl('デスクトップのアイコンを囲んで「ゲーム」「仕事」のように仕分けできます。編集モードで右下ハンドルからリサイズ。'));
 
   } else if (w.type === 'line') {
-    wrap.appendChild(ctlRow('向き', mkSelect([['h', '横'], ['v', '縦']], o.orient || 'h', v => patchWidget(w.id, { options: { orient: v } }))));
+    wrap.appendChild(ctlRow('向き', mkSeg([['h', '横'], ['v', '縦']], o.orient || 'h', v => patchWidget(w.id, { options: { orient: v } }))));
     {
       const [r, val, show] = mkRange(3, 100, 0.5, o.len ?? 26, v => { show(v + '%'); patchWidget(w.id, { options: { len: v } }, { debounce: true }); });
       val.textContent = (o.len ?? 26) + '%';
@@ -595,14 +735,15 @@ function typeOptionsUI(w) {
       val.textContent = (o.thick ?? 2) + 'px';
       wrap.appendChild(ctlRow('太さ', r, val));
     }
-    wrap.appendChild(ctlRow('スタイル', mkSelect([['solid', '実線'], ['dashed', '破線'], ['dotted', '点線']], o.style || 'solid', v => patchWidget(w.id, { options: { style: v } }))));
+    wrap.appendChild(ctlRow('スタイル', mkSeg([['solid', '実線'], ['dashed', '破線'], ['dotted', '点線']], o.style || 'solid', v => patchWidget(w.id, { options: { style: v } }))));
 
   } else if (w.type === 'folder') {
     wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: ゲーム / ツール', v => patchWidget(w.id, { options: { title: v } }))));
 
     const addBtn = document.createElement('button');
     addBtn.className = 'btn';
-    addBtn.textContent = '＋ アプリ・ファイルを追加…';
+    addBtn.appendChild(svgIcon('i-plus'));
+    addBtn.appendChild(document.createTextNode('アプリ・ショートカットを追加…'));
     const list = document.createElement('div');
     list.className = 'fitem-list';
 
@@ -617,17 +758,13 @@ function typeOptionsUI(w) {
         name.className = 'fi-name';
         name.textContent = it.name || it.path;
         name.title = it.path;
-        const del = document.createElement('button');
-        del.className = 'wc-del';
-        del.textContent = '🗑';
-        del.addEventListener('click', () => {
+        row.appendChild(img);
+        row.appendChild(name);
+        row.appendChild(mkDelBtn(() => {
           o.items.splice(i, 1);
           patchWidget(w.id, { options: { items: o.items } });
           renderItems();
-        });
-        row.appendChild(img);
-        row.appendChild(name);
-        row.appendChild(del);
+        }));
         list.appendChild(row);
       }
     };
@@ -659,46 +796,52 @@ function typeOptionsUI(w) {
     row.className = 'chk-row';
     row.appendChild(mkCheck('名前を表示', o.showLabels !== false, v => patchWidget(w.id, { options: { showLabels: v } })));
     wrap.appendChild(row);
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = '💡 スマホのフォルダのように複数アプリを 1 つにまとめ、デスクトップ上でクリックして起動できます。';
-    wrap.appendChild(note);
+    wrap.appendChild(noteEl('.exe だけでなく .lnk (ショートカット) や .url もアイコン付きで追加できます。スマホのフォルダのようにまとめて、クリックで起動。'));
   }
   return wrap;
 }
 
-const NO_TEXT_TYPES = new Set(['line']);
+// タイプごとの表示コントロール
+const NO_FONT_TYPES = new Set(['line', 'image', 'analog']);
+const NO_SHADOW_TYPES = new Set(['line']);
 
 function widgetCard(w) {
-  const meta = TYPES[w.type] || { icon: '❔', label: w.type };
+  const meta = TYPES[w.type] || { icon: 'i-widgets', label: w.type };
   const card = document.createElement('div');
   card.className = 'widget-card' + (expanded.has(w.id) ? ' open' : '');
 
   const head = document.createElement('div');
   head.className = 'wc-head';
+  const glyph = document.createElement('span');
+  glyph.className = 'wc-glyph';
+  glyph.appendChild(svgIcon(meta.icon));
+  const title = document.createElement('span');
+  title.className = 'wc-title';
+  title.textContent = meta.label;
+  const sub = document.createElement('span');
+  sub.className = 'wc-sub';
   const dispLabel = displays.length > 1 ? ` ・ モニタ${(w.display || 0) + 1}` : '';
-  head.innerHTML = `
-    <span class="wc-ico">${meta.icon}</span>
-    <span class="wc-title">${meta.label}</span>
-    <span class="wc-sub">${esc(w.font)} ・ ${w.size}px${dispLabel}</span>
-    <span class="wc-spacer"></span>`;
-  const del = document.createElement('button');
-  del.className = 'wc-del';
-  del.title = '削除';
-  del.textContent = '🗑';
-  del.addEventListener('click', async (e) => {
+  sub.textContent = NO_FONT_TYPES.has(w.type) ? dispLabel.replace(' ・ ', '') : `${w.font} ・ ${w.size}px${dispLabel}`;
+  const spacer = document.createElement('span');
+  spacer.className = 'wc-spacer';
+  const chev = document.createElement('span');
+  chev.className = 'wc-chev';
+  chev.appendChild(svgIcon('i-chev'));
+
+  head.appendChild(glyph);
+  head.appendChild(title);
+  head.appendChild(sub);
+  head.appendChild(spacer);
+  head.appendChild(mkDelBtn(async (e) => {
     e.stopPropagation();
     expanded.delete(w.id);
     await window.api.removeWidget(w.id);
     cfg = (await window.api.getConfig()).config;
     renderWidgetList();
-  });
-  const chev = document.createElement('span');
-  chev.className = 'wc-chev';
-  chev.textContent = '▼';
-  head.appendChild(del);
+  }));
   head.appendChild(chev);
-  head.addEventListener('click', () => {
+  head.addEventListener('click', (e) => {
+    if (e.target.closest('.wc-del')) return;
     if (expanded.has(w.id)) expanded.delete(w.id); else expanded.add(w.id);
     card.classList.toggle('open');
   });
@@ -709,7 +852,6 @@ function widgetCard(w) {
   const grid = document.createElement('div');
   grid.className = 'wc-grid';
 
-  // モニタ割り当て
   if (displays.length > 1) {
     grid.appendChild(ctlRow('モニタ', mkSelect(
       displays.map(d => [String(d.index), d.label]),
@@ -717,8 +859,7 @@ function widgetCard(w) {
       v => patchWidget(w.id, { display: +v }))));
   }
 
-  // フォント (ラインには不要)
-  if (!NO_TEXT_TYPES.has(w.type)) {
+  if (!NO_FONT_TYPES.has(w.type)) {
     grid.appendChild(ctlRow('フォント', mkFontPicker(w.font, f => patchWidget(w.id, { font: f }))));
     grid.appendChild(ctlRow('太さ', mkSelect(
       [['100', '100 (極細)'], ['200', '200'], ['300', '300'], ['400', '400 (標準)'], ['500', '500'], ['600', '600'], ['700', '700 (太字)'], ['800', '800'], ['900', '900 (極太)']],
@@ -741,11 +882,21 @@ function widgetCard(w) {
     }
   }
 
-  grid.appendChild(ctlRow('色', mkColor(w.color, v => patchWidget(w.id, { color: v }, { debounce: true }))));
+  if (w.type === 'analog') {
+    const [r, val, show] = mkRange(60, 600, 2, w.size, v => {
+      show(v + 'px');
+      patchWidget(w.id, { size: v }, { debounce: true });
+    });
+    val.textContent = w.size + 'px';
+    grid.appendChild(ctlRow('直径', r, val));
+  }
 
-  if (!NO_TEXT_TYPES.has(w.type)) {
-    grid.appendChild(ctlRow('影', mkSelect(
-      [['soft', 'ソフト'], ['glow', 'ネオン発光'], ['none', 'なし']],
+  grid.appendChild(ctlRow(w.type === 'analog' ? '針の色' : '色',
+    mkColor(w.color, v => patchWidget(w.id, { color: v }, { debounce: true }))));
+
+  if (!NO_SHADOW_TYPES.has(w.type) && w.type !== 'analog') {
+    grid.appendChild(ctlRow('影', mkSeg(
+      [['soft', 'ソフト'], ['glow', 'ネオン'], ['none', 'なし']],
       w.shadow, v => patchWidget(w.id, { shadow: v }))));
   }
 
@@ -761,14 +912,15 @@ function widgetCard(w) {
   {
     const x = document.createElement('input');
     x.type = 'number'; x.min = 0; x.max = 100; x.step = 0.5; x.value = w.x;
-    x.style.width = '76px';
+    x.style.width = '72px';
     x.addEventListener('change', () => patchWidget(w.id, { x: +x.value }));
     const y = document.createElement('input');
     y.type = 'number'; y.min = 0; y.max = 100; y.step = 0.5; y.value = w.y;
-    y.style.width = '76px';
+    y.style.width = '72px';
     y.addEventListener('change', () => patchWidget(w.id, { y: +y.value }));
     const pct = document.createElement('span');
     pct.className = 'note';
+    pct.style.padding = '0';
     pct.textContent = '% (X, Y)';
     grid.appendChild(ctlRow('位置', x, y, pct));
   }
@@ -807,6 +959,8 @@ async function renderGeneral() {
   pfs.checked = cfg.settings.pauseOnFullscreen !== false;
   pfs.onchange = () => { touch(); window.api.setSettings({ pauseOnFullscreen: pfs.checked }); };
 
+  renderSchedule();
+
   const sel = $('#weather-interval');
   sel.value = String(cfg.settings.weatherIntervalMin || 30);
   sel.onchange = () => { touch(); window.api.setSettings({ weatherIntervalMin: +sel.value }); };
@@ -820,6 +974,43 @@ async function renderGeneral() {
   renderGfList();
   $('#version').textContent = 'v' + await window.api.getVersion();
 }
+
+// ---- 壁紙スケジュール ----
+function schedState() {
+  return Object.assign(
+    { enabled: false, dayStart: '07:00', nightStart: '19:00', day: null, night: null },
+    cfg.settings.schedule || {},
+  );
+}
+
+function pushSched(patch) {
+  touch();
+  const s = Object.assign(schedState(), patch);
+  cfg.settings.schedule = s;
+  window.api.setSettings({ schedule: s });
+  renderSchedule();
+}
+
+function renderSchedule() {
+  const s = schedState();
+  $('#sched-on').checked = !!s.enabled;
+  if (document.activeElement !== $('#sched-day')) $('#sched-day').value = s.dayStart;
+  if (document.activeElement !== $('#sched-night')) $('#sched-night').value = s.nightStart;
+  const paint = (el, wp) => {
+    el.style.background = wp ? wpCss(wp) : 'transparent';
+    el.title = wp
+      ? (wp.type === 'image' || wp.type === 'video' ? wp.value.split(/[\\/]/).pop() : '登録済み')
+      : '未登録 (壁紙タブで設定してから登録してください)';
+  };
+  paint($('#sched-day-prev'), s.day);
+  paint($('#sched-night-prev'), s.night);
+}
+
+$('#sched-on').addEventListener('change', (e) => pushSched({ enabled: e.target.checked }));
+$('#sched-day').addEventListener('change', (e) => pushSched({ dayStart: e.target.value || '07:00' }));
+$('#sched-night').addEventListener('change', (e) => pushSched({ nightStart: e.target.value || '19:00' }));
+$('#sched-set-day').addEventListener('click', () => pushSched({ day: clone(cfg.wallpapers.default) }));
+$('#sched-set-night').addEventListener('click', () => pushSched({ night: clone(cfg.wallpapers.default) }));
 
 function updateWeatherStatus(w) {
   const el = $('#weather-status');
@@ -836,17 +1027,17 @@ function renderGfList() {
   for (const f of (cfg.settings.googleFonts || [])) {
     const row = document.createElement('div');
     row.className = 'gf-item';
-    row.innerHTML = `<span class="gf-name" style="font-family:'${esc(f.family)}'">${esc(f.family)}</span><span class="gf-spacer"></span>`;
-    const del = document.createElement('button');
-    del.className = 'wc-del';
-    del.textContent = '🗑';
-    del.addEventListener('click', async () => {
+    const name = document.createElement('span');
+    name.className = 'gf-name';
+    name.style.fontFamily = `'${f.family}'`;
+    name.textContent = f.family;
+    row.appendChild(name);
+    row.appendChild(mkDelBtn(async () => {
       touch();
       await window.api.removeGoogleFont(f.family);
       cfg.settings.googleFonts = cfg.settings.googleFonts.filter(x => x.family !== f.family);
       renderGfList();
-    });
-    row.appendChild(del);
+    }));
     list.appendChild(row);
   }
 }
@@ -861,12 +1052,12 @@ $('#gf-add').addEventListener('click', async () => {
   const r = await window.api.addGoogleFont(name);
   $('#gf-add').disabled = false;
   if (r.ok) {
-    status.textContent = `✅ 「${r.family}」を追加しました。フォント選択で ☁ 付きで表示されます。`;
+    status.textContent = `「${r.family}」を追加しました。フォント選択で G バッジ付きで表示されます。`;
     inp.value = '';
     cfg = (await window.api.getConfig()).config;
     renderGfList();
   } else {
-    status.textContent = `❌ ${r.msg}`;
+    status.textContent = `追加できませんでした: ${r.msg}`;
   }
 });
 $('#gf-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#gf-add').click(); });
@@ -917,7 +1108,7 @@ window.api.onFontsChanged(() => injectFonts());
     lhmOnline = !!hw.lhmOnline;
   } catch (_) {}
   if (cfg.wallpapers.default.type === 'custom' && cfg.wallpapers.default.value) {
-    Object.assign(cb, JSON.parse(JSON.stringify(cfg.wallpapers.default.value)));
+    Object.assign(cb, clone(cfg.wallpapers.default.value));
   }
   renderAddRow();
   renderWallpaperTab();
@@ -927,4 +1118,11 @@ window.api.onFontsChanged(() => injectFonts());
   injectFonts();
   loadFonts();
   document.addEventListener('pointerdown', () => loadFonts(), { once: true });
+
+  // 開発用: ?tab=widgets などで初期タブを指定
+  const t = new URLSearchParams(location.search).get('tab');
+  if (t) {
+    const btn = document.querySelector(`.nav-item[data-tab="${t}"]`);
+    if (btn) btn.click();
+  }
 })();

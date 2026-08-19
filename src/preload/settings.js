@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('api', {
   updateWidget: (id, patch) => ipcRenderer.invoke('widget:update', id, patch),
 
   pickFile: () => ipcRenderer.invoke('file:pick'),
+  pickImage: () => ipcRenderer.invoke('file:pickImage'),
   pickFolderItems: () => ipcRenderer.invoke('folder:pick'),
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),
   searchCity: (q) => ipcRenderer.invoke('city:search', q),

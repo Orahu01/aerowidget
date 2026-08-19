@@ -91,25 +91,25 @@ function render(S) {
       const aBg = cov(dBg);
       if (aBg <= 0) continue;
 
-      // 対角グラデーション #6366f1 → #22d3ee
+      // チャコールの微グラデーション (#26292f → #17181c)
       const t = clamp((px + py) / (2 * S), 0, 1);
-      let r = 99 + (34 - 99) * t;
-      let g = 102 + (211 - 102) * t;
-      let b = 241 + (238 - 241) * t;
+      let r = 38 + (23 - 38) * t;
+      let g = 41 + (24 - 41) * t;
+      let b = 47 + (28 - 47) * t;
       // 左上をほんのり明るく
       const hl = clamp(1 - Math.hypot(px - S * 0.3, py - S * 0.25) / (S * 0.75), 0, 1);
-      r += 26 * hl; g += 26 * hl; b += 30 * hl;
+      r += 14 * hl; g += 14 * hl; b += 16 * hl;
 
-      // 白い時計マーク
+      // ゴールドの時計マーク (#e3a94f)
       const dRing = Math.abs(Math.hypot(px - c, py - c) - ringR) - ringW / 2;
       const dH1 = sdSegment(px, py, c, c, h1.x, h1.y) - handW / 2;
       const dH2 = sdSegment(px, py, c, c, h2.x, h2.y) - handW / 2;
       const dDot = Math.hypot(px - c, py - c) - handW * 0.9;
       const aw = Math.max(cov(dRing), cov(dH1), cov(dH2), cov(dDot));
 
-      r = r + (255 - r) * aw;
-      g = g + (255 - g) * aw;
-      b = b + (255 - b) * aw;
+      r = r + (227 - r) * aw;
+      g = g + (169 - g) * aw;
+      b = b + (79 - b) * aw;
 
       img[i] = Math.round(clamp(r, 0, 255));
       img[i + 1] = Math.round(clamp(g, 0, 255));

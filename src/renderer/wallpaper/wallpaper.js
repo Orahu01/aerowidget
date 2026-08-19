@@ -87,7 +87,7 @@ function folderDims(o) {
   const icon = o.iconSize || 34;
   const labels = o.showLabels !== false;
   const cellW = Math.max(58, icon + 30);
-  const cellH = icon + (labels ? 30 : 12);
+  const cellH = icon + (labels ? 34 : 12);
   return { cols, rows, w: 20 + cols * cellW, h: 16 + (o.title ? 28 : 0) + rows * cellH };
 }
 
@@ -132,6 +132,12 @@ function renderMedia() {
 }
 
 // ---------------------------------------------------------------- ウィジェット内容
+// 数字を 1 桁ずつ固定幅の枠に入れる。プロポーショナルフォントでも
+// 秒の更新のたびに時計全体がガタガタ動かなくなる (幅は常に一定)
+function digitFix(escaped) {
+  return escaped.replace(/\d/g, (d) => `<span class="d">${d}</span>`);
+}
+
 function clockHtml(o) {
   const d = new Date();
   let h = d.getHours();
@@ -139,7 +145,7 @@ function clockHtml(o) {
   if (o.hour12) { ampm = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; }
   let t = (o.hour12 ? String(h) : String(h).padStart(2, '0')) + ':' + String(d.getMinutes()).padStart(2, '0');
   if (o.showSeconds) t += ':' + String(d.getSeconds()).padStart(2, '0');
-  return esc(t) + (o.hour12 && o.showAmPm ? `<span class="ampm">${ampm}</span>` : '');
+  return digitFix(esc(t)) + (o.hour12 && o.showAmPm ? `<span class="ampm">${ampm}</span>` : '');
 }
 
 function dateHtml(o) {
@@ -168,9 +174,14 @@ function weatherHtml(o) {
   return html;
 }
 
+// 値を固定幅で整形する (white-space: pre 前提)。
+// 数値の桁数が変わっても行の幅が動かないので、表示がガタつかない
+const padV = (v, n) => String(v == null ? '--' : v).padStart(n, ' ');
+
 function fmtRate(x) {
-  if (x == null) return '--';
-  return x >= 1 ? x.toFixed(1) + ' MB/s' : Math.round(x * 1024) + ' KB/s';
+  if (x == null) return '   -- KB/s';
+  if (x >= 1) return (x >= 100 ? x.toFixed(0) : x.toFixed(1)).padStart(5, ' ') + ' MB/s';
+  return String(Math.round(x * 1024)).padStart(5, ' ') + ' KB/s';
 }
 
 function statsHtml(o) {
@@ -179,30 +190,33 @@ function statsHtml(o) {
   const temps = o.showTemps !== false;
   const rows = [];
   if (o.showCpu !== false && d.cpu) {
-    let s = `CPU ${d.cpu.load != null ? d.cpu.load + '%' : '--'}`;
-    if (temps && d.cpu.temp != null) s += ` ・ ${d.cpu.temp}°C`;
+    let s = `CPU ${padV(d.cpu.load, 3)}%`;
+    if (temps) s += d.cpu.temp != null ? `  ${padV(d.cpu.temp, 3)}°C` : '       ';
     rows.push(s);
   }
   if (o.showGpu !== false && d.gpu && (d.gpu.load != null || d.gpu.temp != null)) {
-    let s = `GPU ${d.gpu.load != null ? d.gpu.load + '%' : '--'}`;
-    if (temps && d.gpu.temp != null) s += ` ・ ${d.gpu.temp}°C`;
+    let s = `GPU ${padV(d.gpu.load, 3)}%`;
+    if (temps) s += d.gpu.temp != null ? `  ${padV(d.gpu.temp, 3)}°C` : '       ';
     rows.push(s);
   }
   if (o.showMem !== false && d.mem) {
-    let s = `MEM ${d.mem.load != null ? d.mem.load + '%' : '--'}`;
-    if (!o.compact && d.mem.usedGb != null && d.mem.totalGb) s += ` (${d.mem.usedGb.toFixed(1)}/${d.mem.totalGb}GB)`;
+    let s = `MEM ${padV(d.mem.load, 3)}%`;
+    if (!o.compact && d.mem.usedGb != null && d.mem.totalGb) {
+      s += `  ${padV(d.mem.usedGb.toFixed(1), 5)}/${d.mem.totalGb}GB`;
+    }
     rows.push(s);
   }
   if (o.showDrives && d.drives) {
     for (const dr of d.drives) {
-      rows.push(`SSD ${esc(dr.name)}${dr.temp != null ? ` ${dr.temp}°C` : ''}${dr.used != null ? ` ・ ${dr.used}%` : ''}`);
+      const name = String(dr.name || 'Drive').slice(0, 14).padEnd(14, ' ');
+      rows.push(`SSD ${esc(name)}${dr.temp != null ? ` ${padV(dr.temp, 3)}°C` : '      '}${dr.used != null ? ` ${padV(dr.used, 3)}%` : ''}`);
     }
   }
   if (o.showNet && d.net) {
-    rows.push(`NET ↓${fmtRate(d.net.down)} ↑${fmtRate(d.net.up)}`);
+    rows.push(`NET ↓${fmtRate(d.net.down)}  ↑${fmtRate(d.net.up)}`);
   }
   if (!rows.length) return '';
-  if (o.compact) return `<span class="row">${rows.join('　')}</span>`;
+  if (o.compact) return `<span class="row">${rows.map(r => r.replace(/ +$/, '')).join('　')}</span>`;
   return rows.map(r => `<span class="row">${r}</span>`).join('');
 }
 
@@ -223,7 +237,59 @@ function folderPhHtml(w) {
   }
   if (!(o.items || []).length) cells = `<div class="fph-cell" style="width:${icon}px;height:${icon}px"></div>`;
   return (o.title ? `<div class="fph-title">${esc(o.title)}</div>` : '')
-    + `<div class="fph-grid" style="grid-template-columns: repeat(${dims.cols}, 1fr)">${cells}</div>`;
+    + `<div class="fph-grid" style="grid-template-columns: repeat(${dims.cols}, minmax(0, 1fr))">${cells}</div>`;
+}
+
+function imageHtml(o) {
+  if (!o.path) return '<span class="img-empty">設定画面で画像を選択</span>';
+  return `<img class="img-body" src="${fileUrl(o.path)}" draggable="false">`;
+}
+
+function analogHtml(o) {
+  return `<div class="an-face${o.showTicks !== false ? ' ticks' : ''}">`
+    + '<div class="an-hand an-h"></div>'
+    + '<div class="an-hand an-m"></div>'
+    + (o.showSeconds !== false ? '<div class="an-hand an-s"></div>' : '')
+    + '<div class="an-cap"></div></div>';
+}
+
+function updateAnalog(el, o) {
+  const d = new Date();
+  const s = d.getSeconds();
+  const m = d.getMinutes() + s / 60;
+  const h = (d.getHours() % 12) + m / 60;
+  const set = (sel, deg) => {
+    const hand = el.querySelector(sel);
+    if (hand) hand.style.transform = `translateX(-50%) rotate(${deg}deg)`;
+  };
+  set('.an-h', h * 30);
+  set('.an-m', m * 6);
+  if (o.showSeconds !== false) set('.an-s', s * 6);
+}
+
+function calendarHtml(o) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+  const first = new Date(y, m, 1);
+  const daysIn = new Date(y, m + 1, 0).getDate();
+  const start = first.getDay(); // 日曜はじまり
+  let html = `<div class="cal-head">${y}年${m + 1}月</div><div class="cal-grid">`;
+  if (o.showWeekdays !== false) {
+    WEEK_JA.forEach((wd, i) => {
+      const cls = o.sundayColor !== false ? (i === 0 ? ' sun' : i === 6 ? ' sat' : '') : '';
+      html += `<span class="cal-wd${cls}">${wd}</span>`;
+    });
+  }
+  for (let i = 0; i < start; i++) html += '<span class="cal-day empty"></span>';
+  for (let d = 1; d <= daysIn; d++) {
+    const dow = (start + d - 1) % 7;
+    let cls = 'cal-day';
+    if (d === today) cls += ' today';
+    else if (o.sundayColor !== false) { if (dow === 0) cls += ' sun'; else if (dow === 6) cls += ' sat'; }
+    html += `<span class="${cls}">${d}</span>`;
+  }
+  html += '</div>';
+  return html;
 }
 
 function widgetHtml(w) {
@@ -236,6 +302,9 @@ function widgetHtml(w) {
     case 'zone': return zoneHtml(w.options || {});
     case 'line': return '<div class="rs-handle"></div>';
     case 'folder': return folderPhHtml(w);
+    case 'image': return imageHtml(w.options || {});
+    case 'analog': return analogHtml(w.options || {});
+    case 'calendar': return calendarHtml(w.options || {});
     default: return '';
   }
 }
@@ -284,6 +353,32 @@ function applyWidgetStyle(el, w) {
     el.style.background = `rgba(13, 16, 22, ${o.bgOpacity ?? 0.55})`;
     el.style.border = '1px solid rgba(255,255,255,0.12)';
     el.style.borderRadius = '14px';
+  } else if (w.type === 'image') {
+    el.style.width = (o.w || 18) + '%';
+    el.style.borderRadius = (o.radius ?? 12) + 'px';
+    el.style.overflow = 'hidden';
+    el.style.lineHeight = '0';
+    el.style.textShadow = 'none';
+    if (w.shadow === 'glow') {
+      el.style.boxShadow = `0 0 24px ${hexA(w.color, 0.55)}, 0 6px 24px rgba(0,0,0,.4)`;
+    } else if (w.shadow === 'soft') {
+      el.style.boxShadow = '0 8px 32px rgba(0,0,0,.45)';
+    }
+  } else if (w.type === 'analog') {
+    el.style.width = el.style.height = w.size + 'px';
+    el.style.setProperty('--anc', w.color);
+    el.style.setProperty('--anc-dim', hexA(w.color, 0.35));
+    const face = o.face === 'none' ? 'transparent'
+      : o.face === 'light' ? `rgba(255,255,255,${o.faceOpacity ?? 0.25})`
+        : `rgba(8,10,14,${o.faceOpacity ?? 0.25})`;
+    el.style.setProperty('--anface', face);
+  } else if (w.type === 'calendar') {
+    if (o.bg !== false) {
+      el.style.background = `rgba(8,10,14,${o.bgOpacity ?? 0.3})`;
+      el.style.borderRadius = '12px';
+      el.style.padding = '0.7em 0.9em';
+    }
+    el.style.setProperty('--cal-acc', o.accent || '#e3a94f');
   }
 }
 
@@ -319,6 +414,8 @@ function tick(kinds) {
     if (kinds && !kinds.includes(w.type)) continue;
     const rec = widgetEls.get(w.id);
     if (!rec) continue;
+    // アナログ時計は針の transform だけ更新する (レイアウト計算なし)
+    if (w.type === 'analog') { updateAnalog(rec.el, w.options || {}); continue; }
     const html = widgetHtml(w);
     if (html !== rec.lastHtml) {
       rec.lastHtml = html;
@@ -331,11 +428,13 @@ function tick(kinds) {
 function scheduleTick() {
   clearTimeout(tickTimer);
   if (paused || !config) return;
-  const needSec = myWidgets().some(w => w.type === 'clock' && w.options && w.options.showSeconds);
+  const needSec = myWidgets().some(w =>
+    (w.type === 'clock' && w.options && w.options.showSeconds) ||
+    (w.type === 'analog' && (!w.options || w.options.showSeconds !== false)));
   const now = Date.now();
   const delay = needSec ? (1000 - now % 1000) + 5 : (60000 - now % 60000) + 10;
   tickTimer = setTimeout(() => {
-    tick(['clock', 'date']);
+    tick(['clock', 'date', 'analog', 'calendar']);
     scheduleTick();
   }, delay);
 }
@@ -455,6 +554,11 @@ window.addEventListener('wheel', (e) => {
     o.thick = Math.max(1, Math.min(14, (o.thick ?? 2) + (up ? 1 : -1)));
     window.wall.editLive(w.id, { options: { thick: o.thick } });
     showBadge(`太さ ${o.thick}px`, e.clientX, e.clientY);
+  } else if (w.type === 'image') {
+    const step = e.shiftKey ? 4 : 1;
+    o.w = Math.max(3, Math.min(100, Math.round(((o.w || 18) + (up ? step : -step)) * 10) / 10));
+    window.wall.editLive(w.id, { options: { w: o.w } });
+    showBadge(`幅 ${o.w}%`, e.clientX, e.clientY);
   } else if (w.type === 'folder') {
     o.iconSize = Math.max(20, Math.min(72, (o.iconSize || 34) + (up ? 2 : -2)));
     window.wall.editLive(w.id, { options: { iconSize: o.iconSize } });

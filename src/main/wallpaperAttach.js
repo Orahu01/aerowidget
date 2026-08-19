@@ -23,6 +23,8 @@ const SetWindowLongPtrW = user32.func('__stdcall', 'SetWindowLongPtrW', 'int64',
 const SystemParametersInfoW = user32.func('__stdcall', 'SystemParametersInfoW', 'bool', ['uint32', 'uint32', 'void *', 'uint32']);
 const InvalidateRect = user32.func('__stdcall', 'InvalidateRect', 'bool', ['uint64', 'void *', 'bool']);
 const GetWindowRect = user32.func('__stdcall', 'GetWindowRect', 'bool', ['uint64', koffi.out('void *')]);
+const IsWindowVisible = user32.func('__stdcall', 'IsWindowVisible', 'bool', ['uint64']);
+const ShowWindow = user32.func('__stdcall', 'ShowWindow', 'bool', ['uint64', 'int']);
 const SetWindowRgn = user32.func('__stdcall', 'SetWindowRgn', 'int', ['uint64', 'uint64', 'bool']);
 const CreateRoundRectRgn = gdi32.func('__stdcall', 'CreateRoundRectRgn', 'uint64', ['int', 'int', 'int', 'int', 'int', 'int']);
 
@@ -155,6 +157,8 @@ function ensurePlacement(hwnd, rect) {
   const target = rect || st.rect;
   if (!target) return;
   st.rect = target;
+  // show のタイミングと SetParent が競合すると不可視のまま取り残されることがある
+  if (!IsWindowVisible(hwnd)) ShowWindow(hwnd, 8 /* SW_SHOWNA */);
   const r = screenRect(hwnd);
   if (r.l !== target.x || r.t !== target.y || r.r !== target.x + target.w || r.b !== target.y + target.h) {
     moveToPhysRect(hwnd, target);

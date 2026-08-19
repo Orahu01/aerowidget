@@ -39,6 +39,13 @@ function defaults() {
       customPresets: [],           // 保存したカスタム壁紙 [{kind,colors,angle}]
       googleFonts: [],             // [{family, cssFile}]
       lhmUrl: 'http://127.0.0.1:8085/data.json',
+      schedule: {                  // 時間帯による壁紙の自動切替
+        enabled: false,
+        dayStart: '07:00',
+        nightStart: '19:00',
+        day: null,                 // 壁紙スナップショット {type,value,dim,blur,animate}
+        night: null,
+      },
     },
   };
 }
@@ -76,6 +83,10 @@ function load() {
       byDisplay: (parsed.wallpapers || {}).byDisplay || {},
     };
     cfg.settings = Object.assign(d.settings, parsed.settings || {});
+    cfg.settings.schedule = Object.assign(
+      { enabled: false, dayStart: '07:00', nightStart: '19:00', day: null, night: null },
+      (parsed.settings || {}).schedule || {},
+    );
     if (!Array.isArray(cfg.widgets)) cfg.widgets = d.widgets;
     for (const w of cfg.widgets) {
       if (typeof w.display !== 'number') w.display = 0;
@@ -165,6 +176,21 @@ function newWidget(type) {
       return {
         ...base, x: 18, y: 78, size: 12, color: '#e8ecf4', opacity: 1, shadow: 'none',
         options: { items: [], columns: 0, iconSize: 34, showLabels: true, title: 'アプリ', bgOpacity: 0.55 },
+      };
+    case 'image':
+      return {
+        ...base, x: 22, y: 30, size: 12, shadow: 'soft',
+        options: { path: '', w: 18, radius: 12 },
+      };
+    case 'analog':
+      return {
+        ...base, x: 50, y: 40, size: 220, weight: 400, color: '#ffffff', shadow: 'soft',
+        options: { showSeconds: true, showTicks: true, face: 'dark', faceOpacity: 0.25 },
+      };
+    case 'calendar':
+      return {
+        ...base, x: 85, y: 62, size: 15, weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { accent: '#e3a94f', showWeekdays: true, sundayColor: true, bg: true, bgOpacity: 0.3 },
       };
     default:
       return base;

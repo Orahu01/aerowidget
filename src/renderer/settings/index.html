@@ -2,170 +2,244 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
   <title>WidgetWall 設定</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <!-- ================= SVG アイコン ================= -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15.5l-4.5-4.5L6 21"/></symbol>
+    <symbol id="i-widgets" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="10" cy="6" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="8" cy="18" r="2.1"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M8.5 6.5L12 3l3.5 3.5M8.5 17.5L12 21l3.5-3.5M6.5 8.5L3 12l3.5 3.5M17.5 8.5L21 12l-3.5 3.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13.5h9l1-13.5M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-analog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 12L9 9.5M12 12l1.5-4M12 3.5V5M12 19v1.5M3.5 12H5M19 12h1.5"/></symbol>
+    <symbol id="i-date" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-caldays" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7.5 14h1M11.5 14h1M15.5 14h1M7.5 17.5h1M11.5 17.5h1"/></symbol>
+    <symbol id="i-weather" viewBox="0 0 24 24"><path d="M12 2.5V4M5.3 5.3l1.1 1.1M18.7 5.3l-1.1 1.1M8.5 9.7a4 4 0 0 1 7-1.6"/><path d="M7 18.5a3.5 3.5 0 0 1 .5-7A4.8 4.8 0 0 1 17 12.6a3 3 0 0 1-.6 5.9z"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V4.5h14V7M12 4.5v15M9 19.5h6"/></symbol>
+    <symbol id="i-stats" viewBox="0 0 24 24"><path d="M2.5 12H6l3 7.5L15 4l3 8h3.5"/></symbol>
+    <symbol id="i-zone" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2" stroke-dasharray="3.2 3.2"/></symbol>
+    <symbol id="i-line" viewBox="0 0 24 24"><path d="M5 12h14"/><circle cx="4" cy="12" r="1.4"/><circle cx="20" cy="12" r="1.4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4.2l2 2.2H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><circle cx="9" cy="9" r="1.6"/><path d="M20.5 14.5L15.5 10 5.5 20"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 17v3.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.6-4.6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.9 1 6.7 2.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="i-clouddl" viewBox="0 0 24 24"><path d="M12 12.5V20M8.5 17l3.5 3.5L15.5 17"/><path d="M20 16.4A4.3 4.3 0 0 0 17.7 8.5h-1.5A6.6 6.6 0 1 0 4.5 14"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M19.2 4.8l-1.8 1.8M6.6 17.4l-1.8 1.8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.8 6.8 0 0 0 9.7 9.7z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L19.5 7"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></symbol>
+  </svg>
+
+  <!-- ================= タイトルバー ================= -->
   <header id="titlebar">
-    <div class="app-mark"></div>
-    <span class="app-name">WidgetWall</span>
-    <span class="app-sub">ウィジェット壁紙</span>
+    <span class="brand-mark"></span>
+    <span class="brand">WidgetWall</span>
     <div class="tb-spacer"></div>
-    <button class="tb-btn" id="btn-min" title="最小化">─</button>
-    <button class="tb-btn tb-close" id="btn-close" title="閉じる">✕</button>
+    <button class="tb-btn" id="btn-min" title="最小化"><svg class="ic"><use href="#i-min"/></svg></button>
+    <button class="tb-btn tb-close" id="btn-close" title="閉じる"><svg class="ic"><use href="#i-x"/></svg></button>
   </header>
 
-  <div id="layout">
-    <nav id="sidebar">
-      <button class="nav-item active" data-tab="wallpaper"><span class="nav-ico">🖼️</span>壁紙</button>
-      <button class="nav-item" data-tab="widgets"><span class="nav-ico">🧩</span>ウィジェット</button>
-      <button class="nav-item" data-tab="general"><span class="nav-ico">⚙️</span>一般</button>
+  <div id="shell">
+    <!-- ================= サイドバー ================= -->
+    <nav id="side">
+      <button class="nav-item active" data-tab="wallpaper"><svg class="ic"><use href="#i-image"/></svg>壁紙</button>
+      <button class="nav-item" data-tab="widgets"><svg class="ic"><use href="#i-widgets"/></svg>ウィジェット</button>
+      <button class="nav-item" data-tab="general"><svg class="ic"><use href="#i-settings"/></svg>一般</button>
       <div class="side-spacer"></div>
-      <button id="btn-edit-layout">🎯 レイアウトを編集</button>
-      <p class="side-note">デスクトップ上で直接<br>ドラッグして配置できます</p>
+      <button id="btn-edit-layout"><svg class="ic"><use href="#i-move"/></svg>レイアウトを編集</button>
+      <p class="side-note">デスクトップ上で直接ドラッグ<br>して配置できます</p>
     </nav>
 
+    <!-- ================= コンテンツ ================= -->
     <main id="content">
-      <!-- ================= 壁紙 ================= -->
-      <section class="tab active" id="tab-wallpaper">
-        <h2>壁紙</h2>
-        <p class="hint">プリセット / 自作グラデーション / 画像・動画 (mp4, webm) / 今の壁紙のまま (ウィジェットだけ追加) が選べます。</p>
 
-        <div id="wp-target-row" style="display:none">
-          <h3>設定するモニタ</h3>
-          <div id="wp-target-chips" class="chip-row"></div>
+      <!-- ======== 壁紙 ======== -->
+      <section class="tab active" id="tab-wallpaper">
+        <h1>壁紙</h1>
+
+        <div id="wp-target-row" class="target-row">
+          <span class="target-label">設定するモニタ</span>
+          <div id="wp-target-chips" class="chips"></div>
         </div>
 
-        <h3>プリセット</h3>
+        <h2>プリセット</h2>
         <div id="preset-grid"></div>
 
-        <h3>カスタム (好きな色で作る)</h3>
-        <div class="card" id="custom-builder">
-          <div class="ctl-row">
+        <h2>カスタム</h2>
+        <div class="group">
+          <div class="row">
             <label>タイプ</label>
-            <select id="cb-kind">
-              <option value="linear">グラデーション (直線)</option>
-              <option value="radial">グラデーション (放射)</option>
-              <option value="solid">単色</option>
-            </select>
-            <div class="ctl-right">
-              <label style="font-size:12px; color:var(--text-dim)">角度</label>
-              <input type="range" id="cb-angle" min="0" max="360" step="5" value="135" style="width:120px">
-              <span class="val" id="cb-angle-val">135°</span>
+            <div class="ctl">
+              <div class="seg" id="cb-kind-seg">
+                <button data-v="linear">グラデーション</button>
+                <button data-v="radial">放射</button>
+                <button data-v="solid">単色</button>
+              </div>
             </div>
           </div>
-          <div class="ctl-row">
-            <label>色</label>
-            <div id="cb-colors" class="color-row"></div>
-            <button class="btn mini" id="cb-add-color">＋</button>
-            <button class="btn mini" id="cb-del-color">−</button>
+          <div class="row" id="cb-angle-row">
+            <label>角度</label>
+            <input type="range" id="cb-angle" min="0" max="360" step="5">
+            <span class="val" id="cb-angle-val"></span>
           </div>
-          <div id="cb-preview"></div>
-          <div class="ctl-row" style="margin-top:10px">
-            <button class="btn primary" id="cb-apply">この壁紙にする</button>
+          <div class="row">
+            <label>色 <span class="dim-note">(最大 10 色)</span></label>
+            <div class="ctl cb-colors-wrap">
+              <div id="cb-colors"></div>
+              <button class="icon-btn" id="cb-add-color" title="色を追加"><svg class="ic"><use href="#i-plus"/></svg></button>
+              <button class="icon-btn" id="cb-del-color" title="最後の色を削除"><svg class="ic"><use href="#i-min"/></svg></button>
+            </div>
+          </div>
+          <div class="row">
+            <div id="cb-preview"></div>
+          </div>
+          <div class="row row-end">
             <button class="btn" id="cb-save">パレットに保存</button>
+            <button class="btn primary" id="cb-apply">壁紙に適用</button>
           </div>
-          <div id="cb-saved" class="saved-grid"></div>
+        </div>
+        <div id="cb-saved" class="saved-grid"></div>
+
+        <h2>画像・動画</h2>
+        <div class="group">
+          <div class="row">
+            <label>ファイル</label>
+            <span id="file-label" class="file-label">未選択</span>
+            <div class="ctl">
+              <button class="btn" id="btn-pick">選択…</button>
+            </div>
+          </div>
+          <p class="foot-note">jpg / png / gif / webp / mp4 / webm に対応。動画はループ再生されます。</p>
         </div>
 
-        <h3>画像・動画</h3>
-        <div class="card row-card">
-          <button class="btn" id="btn-pick">📁 ファイルを選択…</button>
-          <span id="file-label" class="file-label">未選択</span>
-        </div>
-
-        <h3>効果</h3>
-        <div class="card">
-          <div class="ctl-row">
+        <h2>効果</h2>
+        <div class="group">
+          <div class="row">
             <label>暗くする</label>
             <input type="range" id="wp-dim" min="0" max="70" step="1">
             <span class="val" id="wp-dim-val"></span>
           </div>
-          <div class="ctl-row">
+          <div class="row">
             <label>ぼかし</label>
             <input type="range" id="wp-blur" min="0" max="30" step="1">
             <span class="val" id="wp-blur-val"></span>
           </div>
-          <div class="ctl-row">
-            <label>ゆっくり動かす (グラデーションのみ)</label>
-            <div class="ctl-right">
+          <div class="row">
+            <label>ゆっくり動かす <span class="dim-note">(グラデーションのみ)</span></label>
+            <div class="ctl">
               <label class="switch"><input type="checkbox" id="wp-animate"><span class="knob"></span></label>
             </div>
           </div>
-          <p class="note">💡 省電力のため既定はオフ。オンにしても transform ベースの軽量アニメです。</p>
         </div>
       </section>
 
-      <!-- ================= ウィジェット ================= -->
+      <!-- ======== ウィジェット ======== -->
       <section class="tab" id="tab-widgets">
-        <h2>ウィジェット</h2>
-        <p class="hint">追加して、フォント・サイズ・色を自由にカスタマイズ。位置は「レイアウトを編集」でドラッグ配置。</p>
-
+        <h1>ウィジェット</h1>
+        <h2>追加</h2>
         <div id="add-row"></div>
+        <h2>配置済み</h2>
         <div id="widget-list"></div>
       </section>
 
-      <!-- ================= 一般 ================= -->
+      <!-- ======== 一般 ======== -->
       <section class="tab" id="tab-general">
-        <h2>一般</h2>
+        <h1>一般</h1>
 
-        <div class="card">
-          <div class="ctl-row">
+        <h2>起動と電力</h2>
+        <div class="group">
+          <div class="row">
             <label>Windows 起動時に自動で開始</label>
-            <div class="ctl-right">
+            <div class="ctl">
               <label class="switch"><input type="checkbox" id="autostart"><span class="knob"></span></label>
             </div>
           </div>
-          <p class="note" id="autostart-note"></p>
-        </div>
-
-        <div class="card">
-          <div class="ctl-row">
-            <label>フルスクリーンアプリ実行中は描画を停止 (省電力)</label>
-            <div class="ctl-right">
+          <p class="foot-note" id="autostart-note"></p>
+          <div class="row">
+            <label>フルスクリーンアプリ中は描画を停止 <span class="dim-note">(省電力)</span></label>
+            <div class="ctl">
               <label class="switch"><input type="checkbox" id="pause-fs"><span class="knob"></span></label>
             </div>
           </div>
-          <p class="note">ゲームや全画面動画の間、そのモニタの壁紙描画を自動で止めて GPU 負荷をゼロにします。</p>
         </div>
 
-        <div class="card">
-          <h4>Google Fonts</h4>
-          <div class="ctl-row">
-            <input type="text" id="gf-input" placeholder="フォント名 (例: Noto Sans JP, Orbitron, Zen Maru Gothic)" style="flex:1">
-            <button class="btn" id="gf-add">⬇ 追加</button>
+        <h2>壁紙スケジュール</h2>
+        <div class="group">
+          <div class="row">
+            <label>時間帯で壁紙を自動で切り替える</label>
+            <div class="ctl">
+              <label class="switch"><input type="checkbox" id="sched-on"><span class="knob"></span></label>
+            </div>
           </div>
-          <p class="note" id="gf-status">fonts.google.com のフォント名を入れるとダウンロードして使えるようになります。</p>
-          <div id="gf-list" class="gf-list"></div>
+          <div class="row">
+            <label><svg class="ic inline"><use href="#i-sun"/></svg> 昼の開始</label>
+            <div class="ctl">
+              <input type="time" id="sched-day">
+              <span id="sched-day-prev" class="sched-prev"></span>
+              <button class="btn" id="sched-set-day">今の壁紙を昼用に登録</button>
+            </div>
+          </div>
+          <div class="row">
+            <label><svg class="ic inline"><use href="#i-moon"/></svg> 夜の開始</label>
+            <div class="ctl">
+              <input type="time" id="sched-night">
+              <span id="sched-night-prev" class="sched-prev"></span>
+              <button class="btn" id="sched-set-night">今の壁紙を夜用に登録</button>
+            </div>
+          </div>
+          <p class="foot-note" id="sched-note">「すべて共通」の壁紙が時刻で切り替わります。先に壁紙タブで好みの壁紙にしてから登録してください。</p>
         </div>
 
-        <div class="card">
-          <div class="ctl-row">
-            <label>天気の更新間隔</label>
-            <div class="ctl-right">
+        <h2>天気</h2>
+        <div class="group">
+          <div class="row">
+            <label>更新間隔</label>
+            <div class="ctl">
               <select id="weather-interval">
                 <option value="15">15分</option>
                 <option value="30">30分</option>
                 <option value="60">60分</option>
               </select>
+              <button class="btn" id="btn-weather-refresh"><svg class="ic"><use href="#i-refresh"/></svg>今すぐ更新</button>
             </div>
           </div>
-          <div class="ctl-row">
-            <label>天気を今すぐ更新</label>
-            <div class="ctl-right"><button class="btn" id="btn-weather-refresh">🔄 更新</button></div>
-          </div>
-          <p class="note" id="weather-status"></p>
+          <p class="foot-note" id="weather-status"></p>
         </div>
 
-        <div class="card">
-          <div class="ctl-row">
-            <label>アプリを完全終了 (壁紙も消えます)</label>
-            <div class="ctl-right"><button class="btn danger" id="btn-quit">終了</button></div>
+        <h2>Google Fonts</h2>
+        <div class="group">
+          <div class="row">
+            <label>フォントを追加</label>
+            <div class="ctl gf-ctl">
+              <input type="text" id="gf-input" placeholder="例: Noto Sans JP, Zen Maru Gothic">
+              <button class="btn" id="gf-add"><svg class="ic"><use href="#i-clouddl"/></svg>追加</button>
+            </div>
           </div>
+          <p class="foot-note" id="gf-status">fonts.google.com のフォント名を入力すると、ダウンロードしてすべてのウィジェットで使えるようになります。</p>
+          <div id="gf-list"></div>
         </div>
 
-        <p class="about">WidgetWall <span id="version"></span> — 閉じるボタンではトレイに常駐し、壁紙は表示されたままです。</p>
+        <h2>アプリ</h2>
+        <div class="group">
+          <div class="row">
+            <label>バージョン</label>
+            <span class="dim" id="version"></span>
+            <div class="ctl">
+              <button class="btn danger" id="btn-quit"><svg class="ic"><use href="#i-power"/></svg>完全終了</button>
+            </div>
+          </div>
+          <p class="foot-note">ウィンドウを閉じてもトレイに常駐し、壁紙は表示され続けます。</p>
+        </div>
       </section>
     </main>
   </div>

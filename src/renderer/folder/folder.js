@@ -28,7 +28,8 @@ async function render() {
   titleEl.textContent = o.title || '';
   titleEl.style.fontSize = Math.max(10, widget.size || 12) + 'px';
 
-  grid.style.gridTemplateColumns = `repeat(${cols(o)}, 1fr)`;
+  // minmax(0, 1fr): 長いラベルがトラックを押し広げてカードからはみ出すのを防ぐ
+  grid.style.gridTemplateColumns = `repeat(${cols(o)}, minmax(0, 1fr))`;
   grid.innerHTML = '';
 
   const items = o.items || [];
@@ -47,7 +48,7 @@ async function render() {
     if (o.showLabels !== false) {
       const name = document.createElement('span');
       name.className = 'name';
-      name.textContent = it.name || '';
+      name.textContent = it.name || String(it.path || '').split(/[\\/]/).pop().replace(/\.(lnk|exe|url|bat)$/i, '');
       btn.appendChild(name);
     }
     btn.addEventListener('click', () => window.fw.launch(it.path));
