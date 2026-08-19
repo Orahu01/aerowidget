@@ -17,6 +17,13 @@ const resetBtn = document.getElementById('btn-reset');
 const countEl = document.getElementById('count');
 
 const o = () => (widget && widget.options) || {};
+function en() {
+  const l = (widget && widget._lang) || 'auto';
+  if (l === 'en') return true;
+  if (l === 'ja') return false;
+  return !(osLocale || 'ja').toLowerCase().startsWith('ja');
+}
+let osLocale = 'ja';
 const phaseSec = () => (phase === 'work' ? (o().workMin || 25) : (o().breakMin || 5)) * 60;
 
 function fmt(s) {
@@ -24,16 +31,17 @@ function fmt(s) {
 }
 
 function render() {
-  phaseEl.textContent = phase === 'work' ? '作業' : '休憩';
+  phaseEl.textContent = phase === 'work' ? (en() ? 'FOCUS' : '作業') : (en() ? 'BREAK' : '休憩');
   phaseEl.classList.toggle('break', phase === 'break');
   card.classList.toggle('break', phase === 'break');
   timeEl.textContent = fmt(remaining);
   const total = phaseSec();
   fillEl.style.transform = `scaleX(${total ? (1 - remaining / total) : 0})`;
-  toggleBtn.textContent = running ? '一時停止' : '開始';
+  toggleBtn.textContent = running ? (en() ? 'Pause' : '一時停止') : (en() ? 'Start' : '開始');
   toggleBtn.classList.toggle('running', running);
+  resetBtn.textContent = en() ? 'Reset' : 'リセット';
   const done = o().doneCount || 0;
-  countEl.textContent = done > 0 ? `今日 ${done} セット完了` : '';
+  countEl.textContent = done > 0 ? (en() ? `${done} sets done` : `今日 ${done} セット完了`) : '';
 }
 
 function applyStyle() {
@@ -51,7 +59,7 @@ function applyStyle() {
 function notifyPhase(next) {
   try {
     new Notification('WidgetWall', {
-      body: next === 'break' ? '作業おつかれさま。休憩しましょう ☕' : '休憩おわり。作業に戻りましょう',
+      body: next === 'break' ? (en() ? 'Nice work. Time for a break ☕' : '作業おつかれさま。休憩しましょう ☕') : (en() ? 'Break is over. Back to work' : '休憩おわり。作業に戻りましょう'),
       silent: false,
     });
   } catch (_) {}
@@ -95,15 +103,18 @@ async function injectFonts() {
   } catch (_) {}
 }
 
+window.fw.onPomoToggle(() => setRunning(!running));
 window.fw.onWidget((w) => { widget = w; applyStyle(); });
 window.fw.onConfig((env) => {
+  if (env.osLocale) osLocale = env.osLocale;
   const w = (env.config.widgets || []).find(x => x.id === window.fw.id);
-  if (w) { widget = w; applyStyle(); }
+  if (w) { widget = w; widget._lang = (env.config.settings || {}).language || 'auto'; applyStyle(); render(); }
 });
 window.fw.onFontsChanged(() => injectFonts());
 
 (async () => {
   const st = await window.fw.getState();
+  if (st.osLocale) osLocale = st.osLocale;
   widget = st.widget;
   document.getElementById('gfonts').textContent = st.fontsCss || '';
   phase = 'work';

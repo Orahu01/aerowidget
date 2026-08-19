@@ -15,8 +15,18 @@
     <div class="guide guide-v" id="guide-v"></div>
     <div class="guide guide-h" id="guide-h"></div>
     <div id="edit-bar">
-      <span class="edit-hint">ドラッグで移動 ・ ホイールでサイズ ・ 枠の右下でリサイズ ・ <b>Esc</b> でも保存</span>
-      <button id="edit-icons" class="edit-sub" title="デスクトップアイコンの表示を切り替え">アイコンを隠す</button>
+      <span class="edit-hint">ドラッグで移動 ・ ホイールでサイズ ・ <b>Ctrl+クリック</b>で複数選択 ・ <b>Ctrl+Z</b>取り消し ・ <b>Ctrl+D</b>複製 ・ 右クリックでロック</span>
+      <div id="align-tools" style="display:none">
+        <button data-al="left" title="左揃え">⇤</button>
+        <button data-al="center" title="左右中央揃え">⇹</button>
+        <button data-al="right" title="右揃え">⇥</button>
+        <button data-al="top" title="上揃え">⤒</button>
+        <button data-al="middle" title="上下中央揃え">⇳</button>
+        <button data-al="bottom" title="下揃え">⤓</button>
+        <button data-al="dist-h" title="横に等間隔">⇶</button>
+        <button data-al="dist-v" title="縦に等間隔">⇊</button>
+      </div>
+      <button id="edit-icons" class="edit-sub" title="配置作業中だけアイコンの表示を切り替えます (通常時の表示は 設定 → 一般)">アイコンを隠す</button>
       <button id="edit-done">保存して完了</button>
     </div>
     <div id="size-badge"></div>

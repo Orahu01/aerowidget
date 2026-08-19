@@ -39,6 +39,17 @@ function defaults() {
       customPresets: [],           // 保存したカスタム壁紙 [{kind,colors,angle}]
       googleFonts: [],             // [{family, cssFile}]
       lhmUrl: 'http://127.0.0.1:8085/data.json',
+      showDesktopIcons: true,      // 通常時にデスクトップアイコンを表示するか
+      language: 'auto',            // 'auto' | 'ja' | 'en'
+      onboarded: false,            // 初回ウィザードを完了したか
+      artAccent: false,            // 再生中の曲の色をアクセントに反映
+      hotkeys: {
+        enabled: false,
+        toggleWidgets: 'Ctrl+Alt+W',
+        toggleIcons: 'Ctrl+Alt+D',
+        nextLayout: 'Ctrl+Alt+L',
+        pomoToggle: 'Ctrl+Alt+P',
+      },
       schedule: {                  // 時間帯・曜日による壁紙の自動切替
         enabled: false,
         mode: 'daynight',          // 'daynight' | 'weekly'
@@ -91,6 +102,10 @@ function load() {
       (parsed.settings || {}).schedule || {},
     );
     if (!Array.isArray(cfg.settings.layouts)) cfg.settings.layouts = [];
+    cfg.settings.hotkeys = Object.assign(
+      { enabled: false, toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
+      (parsed.settings || {}).hotkeys || {},
+    );
     if (!Array.isArray(cfg.widgets)) cfg.widgets = d.widgets;
     for (const w of cfg.widgets) {
       if (typeof w.display !== 'number') w.display = 0;
@@ -251,6 +266,46 @@ function newWidget(type) {
       return {
         ...base, x: 50, y: 14, size: 14, color: '#e6e7ea', shadow: 'none',
         options: { workMin: 25, breakMin: 5, w: 210, h: 150, bgOpacity: 0.6 },
+      };
+    case 'ics':
+      return {
+        ...base, x: 84, y: 40, size: 17, weight: 400, letterSpacing: 0, shadow: 'soft',
+        options: { url: '', count: 5, daysAhead: 7, showTime: true },
+      };
+    case 'forecast':
+      return {
+        ...base, x: 86, y: 28, size: 17, weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { city: '東京', lat: 35.6895, lon: 139.6917, mode: 'weekly', count: 5, showIcons: true },
+      };
+    case 'worldclock':
+      return {
+        ...base, x: 14, y: 30, size: 20, weight: 300, letterSpacing: 2, shadow: 'soft',
+        options: { zones: '東京=Asia/Tokyo\nニューヨーク=America/New_York\nロンドン=Europe/London', showDate: false, hour12: false },
+      };
+    case 'todo':
+      return {
+        ...base, x: 82, y: 60, size: 14, color: '#e6e7ea', shadow: 'none',
+        options: { title: 'ToDo', items: [], w: 250, h: 220, bgOpacity: 0.6 },
+      };
+    case 'battery':
+      return {
+        ...base, x: 92, y: 95, size: 18, weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { showBar: true, warnAt: 20 },
+      };
+    case 'disk':
+      return {
+        ...base, x: 12, y: 70, size: 16, font: 'Consolas', weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { drives: '', showBar: true },
+      };
+    case 'netinfo':
+      return {
+        ...base, x: 12, y: 55, size: 16, font: 'Consolas', weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { showIp: true, showSsid: true, showPing: true, showGraph: false },
+      };
+    case 'visualizer':
+      return {
+        ...base, x: 50, y: 92, size: 14, opacity: 0.85, shadow: 'none',
+        options: { bars: 48, wPct: 40, hPx: 90, mirror: true },
       };
     default:
       return base;

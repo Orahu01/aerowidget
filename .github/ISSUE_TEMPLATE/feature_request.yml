@@ -1,0 +1,23 @@
+name: 機能要望 / Feature request
+description: こんな機能・ウィジェットが欲しい / Suggest an idea
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: どんな機能が欲しいですか？ / What would you like?
+      placeholder: 例) ○○を表示するウィジェットが欲しい
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: それがあると何が嬉しいですか？ / Why is it useful?
+    validations:
+      required: false
+  - type: textarea
+    id: ref
+    attributes:
+      label: 参考 (似た機能のあるアプリ・画像など) / References
+    validations:
+      required: false

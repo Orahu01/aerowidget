@@ -25,7 +25,15 @@ const TYPES = {
   rss: { icon: 'i-rss', label: 'ニュース (RSS)' },
   ticker: { icon: 'i-trend', label: '株価・為替' },
   note: { icon: 'i-note', label: 'メモ (書き込める付箋)' },
+  todo: { icon: 'i-todo', label: 'ToDo リスト' },
   pomo: { icon: 'i-timer', label: 'ポモドーロタイマー' },
+  forecast: { icon: 'i-weather', label: '天気予報 (時間別・週間)' },
+  ics: { icon: 'i-calcheck', label: '予定表 (カレンダー購読)' },
+  worldclock: { icon: 'i-globe', label: '世界時計' },
+  battery: { icon: 'i-battery', label: 'バッテリー' },
+  disk: { icon: 'i-hdd', label: 'ディスク空き容量' },
+  netinfo: { icon: 'i-wifi', label: 'ネットワーク情報' },
+  visualizer: { icon: 'i-wave', label: 'ビジュアライザー' },
   zone: { icon: 'i-zone', label: 'ゾーン (色分け枠)' },
   line: { icon: 'i-line', label: 'ライン (線)' },
   folder: { icon: 'i-folder', label: 'フォルダ (アプリまとめ)' },
@@ -40,6 +48,105 @@ const FALLBACK_FONTS = [
 ];
 
 const MAX_CUSTOM_COLORS = 10;
+
+// ---------------------------------------------------------------- i18n
+// 日本語を正とし、英語は日→英辞書で差し替える。
+const JA_EN = {
+  'テーマ': 'Themes', '壁紙': 'Wallpaper', 'ウィジェット': 'Widgets', '一般': 'General',
+  'レイアウトを編集': 'Edit layout',
+  'プリセット': 'Presets', 'カスタム': 'Custom', '画像・動画': 'Image / Video', '効果': 'Effects',
+  'タイプ': 'Type', 'グラデーション': 'Gradient', '放射': 'Radial', '単色': 'Solid',
+  '角度': 'Angle', '色 (最大 10 色)': 'Colors (max 10)', 'パレットに保存': 'Save to palette', '壁紙に適用': 'Apply',
+  'ファイル': 'File', '未選択': 'Not set', '未設定': 'Not set', '選択…': 'Choose…',
+  'スライドショー': 'Slideshow', 'シャッフル': 'Shuffle', 'フォルダから…': 'From folder…', '画像を複数選択…': 'Pick images…',
+  '暗くする': 'Darken', '明るくする': 'Brighten', 'ぼかし': 'Blur',
+  'ゆっくり動かす': 'Slow motion', 'マウスに合わせて視差': 'Mouse parallax',
+  '追加': 'Add', '配置済み': 'Placed widgets',
+  'モニタ': 'Monitor', 'フォント': 'Font', '太さ': 'Weight', 'サイズ': 'Size', '字間': 'Spacing',
+  '色': 'Color', '影': 'Shadow', '不透明度': 'Opacity', '位置': 'Position', '位置をロック': 'Lock position',
+  'ソフト': 'Soft', 'ネオン': 'Neon', 'なし': 'None',
+  '直径': 'Diameter', '針の色': 'Hands color',
+  '秒を表示': 'Show seconds', '12時間表示': '12-hour', 'AM / PM を表示': 'Show AM/PM',
+  '表示形式': 'Format', '検索': 'Search',
+  'アイコン': 'Icon', '都市名': 'City name', '天気の説明': 'Description', '最高 / 最低気温': 'High / Low',
+  '秒針': 'Second hand', '目盛り': 'Ticks', '文字盤': 'Face', 'ダーク': 'Dark', 'ライト': 'Light', '文字盤の濃さ': 'Face opacity',
+  '曜日の行': 'Weekday row', '日曜・土曜に色': 'Color Sun/Sat', '背景パネル': 'Background panel', '今日の色': 'Today color', '背景の濃さ': 'Background opacity',
+  'タイトル': 'Title', '日付': 'Date', '過ぎたら経過日数を表示': 'Show days passed',
+  'フィード URL': 'Feed URL', '表示件数': 'Items', '見出しの切替': 'Rotation',
+  '銘柄 (カンマ区切り)': 'Symbols (comma separated)', '前日比を表示': 'Show daily change',
+  'アルバムアート': 'Album art', 'アーティスト名': 'Artist', '再生ボタン': 'Playback buttons', '停止中は隠す': 'Hide when stopped',
+  '幅': 'Width', '高さ': 'Height', '幅 (画面比)': 'Width (% of screen)', '角丸': 'Corner radius',
+  'データソース': 'Data source', '温度を表示': 'Show temps', '1行にまとめる': 'Compact', 'グラフを表示': 'Show graph',
+  '温度アラート': 'Temp alert', 'メモリ': 'Memory', 'ストレージ (SSD)': 'Storage (SSD)', 'ネットワーク': 'Network',
+  '出力デバイスの切替を表示': 'Show output device switcher',
+  '表示': 'View', '週間': 'Weekly', '時間別': 'Hourly', '件数': 'Count', '天気アイコン': 'Weather icons',
+  'カレンダー URL': 'Calendar URL', '表示する予定数': 'Events to show', '先の期間': 'Look ahead',
+  '今日のみ': 'Today only', '3日先まで': 'Next 3 days', '1週間先まで': 'Next 7 days', '2週間先まで': 'Next 14 days', '時刻を表示': 'Show time',
+  '日付も表示': 'Show date', '残量バーを表示': 'Show level bar', '残量アラート': 'Low battery alert',
+  '対象ドライブ': 'Drives', '使用量バーを表示': 'Show usage bar',
+  'ローカル IP': 'Local IP', 'Wi-Fi 名 (SSID)': 'Wi-Fi (SSID)', '遅延 (PING)': 'Latency (PING)', '遅延グラフ': 'Latency graph',
+  'バーの本数': 'Bars', '中央から上下対称': 'Mirror from center',
+  'ラベル': 'Label', 'ラベル位置': 'Label position', '枠線': 'Border', '塗りつぶし': 'Fill',
+  '左上': 'Top left', '中央上': 'Top center', '右上': 'Top right', '左下': 'Bottom left', '枠の外 (上)': 'Outside (top)',
+  '向き': 'Orientation', '横': 'Horizontal', '縦': 'Vertical', '長さ': 'Length', 'スタイル': 'Style',
+  '実線': 'Solid', '破線': 'Dashed', '点線': 'Dotted',
+  'アイテム': 'Items', '列数': 'Columns', '自動': 'Auto', 'アイコンサイズ': 'Icon size', '名前を表示': 'Show labels',
+  '時計 (デジタル)': 'Clock (digital)', '時計 (アナログ)': 'Clock (analog)', 'カレンダー': 'Calendar', '天気': 'Weather',
+  'テキスト': 'Text', '画像': 'Image', 'ハードウェアモニタ': 'Hardware monitor', '再生中の曲': 'Now playing',
+  '音量・出力切替': 'Volume & output', 'カウントダウン': 'Countdown', 'ニュース (RSS)': 'News (RSS)', '株価・為替': 'Stocks & FX',
+  'メモ (書き込める付箋)': 'Sticky note', 'ToDo リスト': 'To-do list', 'ポモドーロタイマー': 'Pomodoro timer',
+  '天気予報 (時間別・週間)': 'Forecast (hourly / weekly)', '予定表 (カレンダー購読)': 'Agenda (ICS)', '世界時計': 'World clock',
+  'バッテリー': 'Battery', 'ディスク空き容量': 'Disk space', 'ネットワーク情報': 'Network info', 'ビジュアライザー': 'Visualizer',
+  'ゾーン (色分け枠)': 'Zone (colored frame)', 'ライン (線)': 'Line', 'フォルダ (アプリまとめ)': 'Folder (app launcher)',
+  'デスクトップ': 'Desktop', 'デスクトップアイコンを表示': 'Show desktop icons', '言語 / Language': 'Language',
+  '自動 (OS に合わせる)': 'Auto (match OS)',
+  'ホットキー': 'Hotkeys', 'グローバルホットキーを有効にする': 'Enable global hotkeys',
+  'ウィジェットの表示切替': 'Toggle widgets', 'アイコンの表示切替': 'Toggle desktop icons',
+  'レイアウト切替 (次へ)': 'Next layout', 'ポモドーロ開始 / 停止': 'Start / stop pomodoro',
+  '起動と電力': 'Startup & power', 'Windows 起動時に自動で開始': 'Start with Windows',
+  '壁紙スケジュール': 'Wallpaper schedule', '壁紙を自動で切り替える': 'Auto-switch wallpaper',
+  '昼 / 夜': 'Day / Night', '曜日ごと': 'By weekday', '昼の開始': 'Day starts', '夜の開始': 'Night starts',
+  '今の壁紙を昼用に登録': 'Save current as day', '今の壁紙を夜用に登録': 'Save current as night',
+  '曜日ごとの壁紙': 'Weekday wallpapers', '今の壁紙を登録': 'Save current', 'クリア': 'Clear',
+  'レイアウトプリセット': 'Layout presets', '現在の構成を保存': 'Save current setup', '保存': 'Save',
+  '適用': 'Apply', '上書き': 'Overwrite',
+  '更新間隔': 'Update interval', '今すぐ更新': 'Update now',
+  'フォントを追加': 'Add font',
+  'バックアップ': 'Backup', '設定のエクスポート / インポート': 'Export / import settings',
+  'エクスポート': 'Export', 'インポート': 'Import',
+  'アップデートとメンテナンス': 'Updates & maintenance', 'アップデート': 'Updates', '確認': 'Check',
+  '再起動して更新': 'Restart & update', '表示がおかしいとき': 'Display problems', '壁紙を再適用 (修復)': 'Re-apply wallpaper (repair)',
+  'アプリ': 'App', 'バージョン': 'Version', '完全終了': 'Quit', 'アンインストール': 'Uninstall', 'アンインストール…': 'Uninstall…',
+  '1分': '1 min', '5分': '5 min', '10分': '10 min', '15分': '15 min', '30分': '30 min', '60分': '60 min',
+  '3件': '3', '5件': '5', '8件': '8', '12件': '12', '1件': '1', '2件': '2',
+  'なし (リスト表示)': 'Off (list)', '10秒ごとに1件': 'Every 10s', '30秒ごとに1件': 'Every 30s', '60秒ごとに1件': 'Every 60s',
+  '自動 (LHM があれば使う)': 'Auto (use LHM if running)', '内蔵 (CPU/MEM のみ)': 'Built-in (CPU/MEM only)',
+  'ようこそ WidgetWall へ': 'Welcome to WidgetWall',
+  'まずは好みのテーマをひとつ選んでください。あとから何でも変えられます。': 'Pick a theme to start with. You can change everything later.',
+  '自分でゼロから作る': 'Start from scratch',
+  'ミニマル': 'Minimal', 'サイバー': 'Cyber', '和': 'Zen', '情報ダッシュボード': 'Dashboard', 'フォーカス': 'Focus', 'ミュージック': 'Music',
+};
+
+let osLocale = 'ja';
+
+function uiLang() {
+  const l = (cfg && cfg.settings && cfg.settings.language) || 'auto';
+  if (l !== 'auto') return l;
+  return (osLocale || 'ja').toLowerCase().startsWith('ja') ? 'ja' : 'en';
+}
+
+function T(s) {
+  if (uiLang() !== 'en') return s;
+  return JA_EN[s] || s;
+}
+
+// data-i18n の付いた静的 HTML を言語に合わせて差し替える
+function applyI18n() {
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    if (el.dataset.i18nJa == null) el.dataset.i18nJa = el.textContent;
+    el.textContent = uiLang() === 'en' ? (JA_EN[el.dataset.i18nJa] || el.dataset.i18nJa) : el.dataset.i18nJa;
+  }
+}
 
 let cfg = null;
 let sysWall = '';
@@ -109,10 +216,126 @@ function wpCss(wp) {
   return 'linear-gradient(155deg, #202329, #16181c)';
 }
 
+// ---------------------------------------------------------------- ミニプレビュー
+// 壁紙 + ウィジェット構成の簡易描画。テーマカードと壁紙タブのライブプレビューで共用。
+function fmtNow(o = {}) {
+  const d = new Date();
+  let h = d.getHours();
+  if (o.hour12) h = h % 12 || 12;
+  const t = String(h).padStart(o.hour12 ? 1 : 2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  return o.showSeconds ? t + ':' + String(d.getSeconds()).padStart(2, '0') : t;
+}
+
+function pvText(w) {
+  const o = w.options || {};
+  const d = new Date();
+  switch (w.type) {
+    case 'clock': return fmtNow(o);
+    case 'date': return `${d.getMonth() + 1}月${d.getDate()}日`;
+    case 'weather': return '☀ 24°';
+    case 'forecast': return o.mode === 'hourly' ? '15時 ☀ 24°' : '水 ☀ 28/21\n木 ☂ 24/20';
+    case 'text': return (o.text || 'テキスト').split('\n')[0].slice(0, 14);
+    case 'stats': return 'CPU 12%  48°C\nMEM 41%';
+    case 'ticker': return 'AAPL  230 ▲1.2%';
+    case 'rss': return '・ニュースの見出し';
+    case 'countdown': return 'あと 42 日';
+    case 'worldclock': return 'NYC  09:41';
+    case 'battery': return '🔋 84%';
+    case 'disk': return 'C: ▮▮▮▯ 213GB';
+    case 'netinfo': return 'PING 12ms';
+    case 'ics': return '10:00 ミーティング';
+    default: return '';
+  }
+}
+
+function renderMiniPreview(el, wallpapers, widgets, displayIndex = 0) {
+  el.classList.add('mini-preview');
+  const wp = (wallpapers.byDisplay || {})[String(displayIndex)] || wallpapers.default;
+  el.style.background = wpCss(wp);
+  el.innerHTML = '';
+  const W = el.clientWidth || 320;
+  const scale = W / 2560; // 16:9 モニタ換算の簡易スケール
+  for (const w of (widgets || [])) {
+    if ((w.display || 0) !== displayIndex) continue;
+    const o = w.options || {};
+    const d = document.createElement('div');
+    d.className = 'pv-w';
+    d.style.left = w.x + '%';
+    d.style.top = w.y + '%';
+    if (['note', 'pomo', 'volume', 'nowplaying', 'todo', 'folder'].includes(w.type)) {
+      d.classList.add('pv-card');
+      const cw = (o.w || 240) * scale;
+      const chh = (o.h || 170) * scale;
+      d.style.width = Math.max(14, cw) + 'px';
+      d.style.height = Math.max(9, chh) + 'px';
+      d.style.borderRadius = Math.max(2, 14 * scale * 2) + 'px';
+      d.style.fontSize = Math.max(4, 30 * scale) + 'px';
+      d.textContent = { note: 'メモ', pomo: '25:00', volume: '♪—', nowplaying: '♪', todo: '✓', folder: '▦' }[w.type] || '';
+    } else if (w.type === 'analog') {
+      d.classList.add('pv-ring');
+      const s = (w.size || 200) * scale;
+      d.style.width = s + 'px';
+      d.style.height = s + 'px';
+      d.style.borderColor = hexA7(w.color, 0.8);
+    } else if (w.type === 'calendar') {
+      d.style.fontSize = Math.max(3.5, (w.size || 15) * scale * 1.6) + 'px';
+      d.style.color = w.color || '#fff';
+      d.textContent = `8月\n日 月 火 水\n 1  2  3  4`;
+    } else if (w.type === 'zone') {
+      d.style.width = (o.w || 20) + '%';
+      d.style.height = (o.h || 25) + '%';
+      d.style.border = `1px dashed ${hexA7(o.borderColor || '#7db4ff', 0.7)}`;
+      d.style.borderRadius = '4px';
+    } else if (w.type === 'line') {
+      if (o.orient === 'v') {
+        d.style.height = (o.len || 25) + '%';
+        d.style.borderLeft = `1px solid ${hexA7(w.color, 0.7)}`;
+      } else {
+        d.style.width = (o.len || 25) + '%';
+        d.style.borderTop = `1px solid ${hexA7(w.color, 0.7)}`;
+      }
+    } else if (w.type === 'visualizer') {
+      d.style.width = (o.wPct || 40) + '%';
+      d.style.height = Math.max(5, (o.hPx || 90) * scale) + 'px';
+      d.style.background = `repeating-linear-gradient(90deg, ${hexA7(w.color, 0.75)} 0 2px, transparent 2px 5px)`;
+    } else if (w.type === 'image') {
+      d.classList.add('pv-card');
+      d.style.width = (o.w || 18) + '%';
+      d.style.aspectRatio = '4 / 3';
+      d.textContent = '🖼';
+      d.style.fontSize = Math.max(5, 60 * scale) + 'px';
+    } else {
+      d.textContent = pvText(w);
+      d.style.color = w.color || '#fff';
+      d.style.fontWeight = w.weight || 400;
+      d.style.fontSize = Math.max(3.5, (w.size || 24) * scale) + 'px';
+      d.style.fontFamily = `"${w.font}", "Segoe UI", sans-serif`;
+      d.style.letterSpacing = (w.letterSpacing || 0) * scale + 'px';
+      if (w.shadow === 'glow') d.style.textShadow = `0 0 ${8 * scale * 10}px ${hexA7(w.color, 0.8)}`;
+      if (w.opacity != null) d.style.opacity = w.opacity;
+    }
+    el.appendChild(d);
+  }
+}
+
+function hexA7(hex, a) {
+  const m = /^#?([0-9a-f]{6})/i.exec(hex || '#ffffff');
+  const n = parseInt(m ? m[1] : 'ffffff', 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+function renderLivePreview() {
+  const el = $('#live-preview');
+  if (!el || !cfg) return;
+  renderMiniPreview(el, cfg.wallpapers, cfg.widgets, wpTarget == null ? 0 : wpTarget);
+}
+
 // ---------------------------------------------------------------- タブ / タイトルバー
 $$('.nav-item').forEach(btn => btn.addEventListener('click', () => {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b === btn));
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + btn.dataset.tab));
+  if (btn.dataset.tab === 'themes') renderThemes();
+  if (btn.dataset.tab === 'wallpaper') renderLivePreview();
 }));
 
 $('#btn-min').addEventListener('click', () => window.api.minimize());
@@ -208,6 +431,17 @@ function renderPresets() {
   np.title = 'Spotify やブラウザで再生中の曲のジャケットを、ぼかして壁紙にします';
   grid.appendChild(np);
 
+  // オンライン壁紙 (キー不要のソースのみ)
+  const bing = presetCard(svgIcon('i-globe'), wp.type === 'online' && (wp.value || {}).source !== 'picsum', 'Bing 今日の画像',
+    () => setWp({ type: 'online', value: { source: 'bing', refreshHours: 24 } }));
+  bing.title = 'Bing の「今日の画像」を毎日自動で取得します';
+  grid.appendChild(bing);
+
+  const pic = presetCard(svgIcon('i-spark'), wp.type === 'online' && (wp.value || {}).source === 'picsum', 'ランダム写真',
+    () => setWp({ type: 'online', value: { source: 'picsum', refreshHours: 24 } }));
+  pic.title = 'Lorem Picsum からランダムな写真を取得します (24時間ごとに更新)';
+  grid.appendChild(pic);
+
   for (const [key, p] of Object.entries(PRESETS)) {
     grid.appendChild(presetCard(p.css, wp.type === 'preset' && wp.value === key, p.label,
       () => setWp({ type: 'preset', value: key })));
@@ -298,6 +532,7 @@ $('#cb-save').addEventListener('click', () => {
 function renderWallpaperTab() {
   renderTargetChips();
   renderPresets();
+  renderLivePreview();
   const wp = curWp();
   const label = $('#file-label');
   if (wp.type === 'image' || wp.type === 'video') {
@@ -306,9 +541,12 @@ function renderWallpaperTab() {
     label.textContent = '未選択';
   }
   const ssLabel = $('#slideshow-label');
-  if (wp.type === 'slideshow' && wp.value && wp.value.files) {
-    ssLabel.textContent = `${wp.value.files.length} 枚を再生中`;
+  if (wp.type === 'slideshow' && wp.value) {
+    ssLabel.textContent = wp.value.dir
+      ? `フォルダ: ${String(wp.value.dir).split(/[\\/]/).pop()}`
+      : `${(wp.value.files || []).length} 枚を再生中`;
     $('#slideshow-interval').value = String(wp.value.intervalMin || 5);
+    $('#slideshow-shuffle').checked = !!wp.value.shuffle;
   } else {
     ssLabel.textContent = '未設定';
   }
@@ -319,6 +557,7 @@ function renderWallpaperTab() {
   $('#wp-bright-val').textContent = '+' + (wp.bright || 0) + '%';
   $('#wp-blur-val').textContent = wp.blur + 'px';
   $('#wp-animate').checked = !!wp.animate;
+  $('#wp-parallax').checked = !!wp.parallax;
 }
 
 $('#btn-pick').addEventListener('click', async () => {
@@ -330,7 +569,19 @@ $('#btn-pick').addEventListener('click', async () => {
 $('#btn-pick-slideshow').addEventListener('click', async () => {
   const files = await window.api.pickImages();
   if (!files || !files.length) return;
-  setWp({ type: 'slideshow', value: { files, intervalMin: +$('#slideshow-interval').value || 5, fade: true } });
+  setWp({
+    type: 'slideshow',
+    value: { files, intervalMin: +$('#slideshow-interval').value || 5, fade: true, shuffle: $('#slideshow-shuffle').checked },
+  });
+});
+
+$('#btn-pick-slideshow-dir').addEventListener('click', async () => {
+  const dir = await window.api.pickDir();
+  if (!dir) return;
+  setWp({
+    type: 'slideshow',
+    value: { dir, intervalMin: +$('#slideshow-interval').value || 5, fade: true, shuffle: $('#slideshow-shuffle').checked },
+  });
 });
 
 $('#slideshow-interval').addEventListener('change', (e) => {
@@ -339,6 +590,15 @@ $('#slideshow-interval').addEventListener('change', (e) => {
     setWp({ value: { ...wp.value, intervalMin: +e.target.value || 5 } });
   }
 });
+
+$('#slideshow-shuffle').addEventListener('change', (e) => {
+  const wp = curWp();
+  if (wp.type === 'slideshow' && wp.value) {
+    setWp({ value: { ...wp.value, shuffle: e.target.checked } });
+  }
+});
+
+$('#wp-parallax').addEventListener('change', (e) => setWp({ parallax: e.target.checked }));
 
 for (const [id, prop, unit] of [['wp-dim', 'dim', '%'], ['wp-bright', 'bright', '%'], ['wp-blur', 'blur', 'px']]) {
   $('#' + id).addEventListener('input', (e) => {
@@ -441,7 +701,7 @@ function ctlRow(labelText, ...els) {
   const row = document.createElement('div');
   row.className = 'row';
   const lab = document.createElement('label');
-  lab.textContent = labelText;
+  lab.textContent = T(labelText);
   row.appendChild(lab);
   for (const el of els) row.appendChild(el);
   return row;
@@ -462,7 +722,7 @@ function mkSelect(optionPairs, value, onChange) {
   const s = document.createElement('select');
   for (const [v, label] of optionPairs) {
     const o = document.createElement('option');
-    o.value = v; o.textContent = label;
+    o.value = v; o.textContent = T(label);
     s.appendChild(o);
   }
   s.value = String(value);
@@ -475,7 +735,7 @@ function mkSeg(optionPairs, value, onChange) {
   seg.className = 'seg';
   for (const [v, label] of optionPairs) {
     const b = document.createElement('button');
-    b.textContent = label;
+    b.textContent = T(label);
     b.classList.toggle('on', String(v) === String(value));
     b.addEventListener('click', () => {
       [...seg.children].forEach(x => x.classList.toggle('on', x === b));
@@ -492,7 +752,7 @@ function mkCheck(labelText, checked, onChange) {
   c.type = 'checkbox'; c.checked = !!checked;
   c.addEventListener('change', () => onChange(c.checked));
   lab.appendChild(c);
-  lab.appendChild(document.createTextNode(' ' + labelText));
+  lab.appendChild(document.createTextNode(' ' + T(labelText)));
   return lab;
 }
 
@@ -526,7 +786,7 @@ function mkDelBtn(onClick, title = '削除') {
 function noteEl(text) {
   const p = document.createElement('p');
   p.className = 'note';
-  p.textContent = text;
+  p.textContent = T(text);
   return p;
 }
 
@@ -538,7 +798,7 @@ function renderAddRow() {
     const b = document.createElement('button');
     b.className = 'add-btn';
     b.appendChild(svgIcon(meta.icon));
-    b.appendChild(document.createTextNode(meta.label));
+    b.appendChild(document.createTextNode(T(meta.label)));
     b.addEventListener('click', async () => {
       const created = await window.api.addWidget(type);
       if (created) expanded.add(created.id);
@@ -854,7 +1114,139 @@ function typeOptionsUI(w) {
       val.textContent = Math.round((o.bgOpacity ?? 0.6) * 100) + '%';
       wrap.appendChild(ctlRow('背景の濃さ', r, val));
     }
-    wrap.appendChild(noteEl('デスクトップ上でクリックして開始・一時停止。作業セット完了時に通知が届きます。'));
+    wrap.appendChild(noteEl('デスクトップ上でクリックして開始・一時停止。作業セット完了時に通知が届きます。ホットキー (設定 → 一般) でも開始 / 停止できます。'));
+
+  } else if (w.type === 'forecast') {
+    const cur = noteEl(`現在の都市: ${o.city || '未設定'}`);
+    wrap.appendChild(cur);
+    const searchRow = document.createElement('div');
+    searchRow.className = 'row';
+    const inp = mkText('', '都市名で検索 (例: 東京, Osaka)', () => {});
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.appendChild(svgIcon('i-search'));
+    btn.appendChild(document.createTextNode('検索'));
+    const results = document.createElement('div');
+    results.className = 'city-results full';
+    const doSearch = async () => {
+      btn.disabled = true;
+      const list = await window.api.searchCity(inp.value);
+      btn.disabled = false;
+      results.innerHTML = list.length ? '' : '<p class="note">見つかりませんでした</p>';
+      for (const c of list) {
+        const item = document.createElement('button');
+        item.className = 'city-item';
+        item.innerHTML = `${esc(c.name)}<span class="adm">${esc(c.admin)}</span>`;
+        item.addEventListener('click', () => {
+          patchWidget(w.id, { options: { city: c.name, lat: c.lat, lon: c.lon } });
+          cur.textContent = `現在の都市: ${c.name}`;
+          results.innerHTML = '';
+          window.api.refreshWeather();
+        });
+        results.appendChild(item);
+      }
+    };
+    btn.addEventListener('click', doSearch);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+    searchRow.appendChild(inp);
+    searchRow.appendChild(btn);
+    wrap.appendChild(searchRow);
+    wrap.appendChild(results);
+    wrap.appendChild(ctlRow('表示', mkSeg([['weekly', '週間'], ['hourly', '時間別']], o.mode || 'weekly', v => patchWidget(w.id, { options: { mode: v } }))));
+    wrap.appendChild(ctlRow('件数', mkSelect([['3', '3'], ['4', '4'], ['5', '5'], ['6', '6'], ['7', '7']], String(o.count || 5), v => patchWidget(w.id, { options: { count: +v } }))));
+    const fRow = document.createElement('div');
+    fRow.className = 'chk-row';
+    fRow.appendChild(mkCheck('天気アイコン', o.showIcons !== false, v => patchWidget(w.id, { options: { showIcons: v } })));
+    wrap.appendChild(fRow);
+
+  } else if (w.type === 'ics') {
+    wrap.appendChild(ctlRow('カレンダー URL', mkText(o.url, 'https://calendar.google.com/…/basic.ics', v => patchWidget(w.id, { options: { url: v.trim() } }))));
+    wrap.appendChild(ctlRow('表示する予定数', mkSelect([['3', '3件'], ['5', '5件'], ['8', '8件'], ['12', '12件']], String(o.count || 5), v => patchWidget(w.id, { options: { count: +v } }))));
+    wrap.appendChild(ctlRow('先の期間', mkSelect([['1', '今日のみ'], ['3', '3日先まで'], ['7', '1週間先まで'], ['14', '2週間先まで']], String(o.daysAhead || 7), v => patchWidget(w.id, { options: { daysAhead: +v } }))));
+    const iRow = document.createElement('div');
+    iRow.className = 'chk-row';
+    iRow.appendChild(mkCheck('時刻を表示', o.showTime !== false, v => patchWidget(w.id, { options: { showTime: v } })));
+    wrap.appendChild(iRow);
+    wrap.appendChild(noteEl('Google カレンダー: 設定 → 対象のカレンダー → 「iCal 形式の非公開 URL」をコピーして貼り付けてください。OAuth 連携は不要です。30分ごとに更新。繰り返し予定は基本的なもの (毎日・毎週・毎月) に対応しています。'));
+
+  } else if (w.type === 'worldclock') {
+    const ta = document.createElement('textarea');
+    ta.value = o.zones || '';
+    ta.placeholder = '表示名=タイムゾーン (1行に1つ)\n例: ニューヨーク=America/New_York';
+    ta.addEventListener('change', () => patchWidget(w.id, { options: { zones: ta.value } }));
+    wrap.appendChild(ta);
+    const wRow = document.createElement('div');
+    wRow.className = 'chk-row';
+    wRow.appendChild(mkCheck('日付も表示', !!o.showDate, v => patchWidget(w.id, { options: { showDate: v } })));
+    wRow.appendChild(mkCheck('12時間表示', !!o.hour12, v => patchWidget(w.id, { options: { hour12: v } })));
+    wrap.appendChild(wRow);
+    wrap.appendChild(noteEl('タイムゾーン名の例: Asia/Tokyo ・ America/New_York ・ America/Los_Angeles ・ Europe/London ・ Europe/Paris ・ Australia/Sydney'));
+
+  } else if (w.type === 'todo') {
+    wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: ToDo / 買い物リスト', v => patchWidget(w.id, { options: { title: v } }))));
+    for (const [key, label, min, max, def] of [['w', '幅', 170, 600, 250], ['h', '高さ', 120, 600, 220]]) {
+      const [r, val, show] = mkRange(min, max, 10, o[key] ?? def, v => { show(v + 'px'); patchWidget(w.id, { options: { [key]: v } }, { debounce: true }); });
+      val.textContent = (o[key] ?? def) + 'px';
+      wrap.appendChild(ctlRow(label, r, val));
+    }
+    {
+      const [r, val, show] = mkRange(0, 100, 5, Math.round((o.bgOpacity ?? 0.6) * 100), v => { show(v + '%'); patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true }); });
+      val.textContent = Math.round((o.bgOpacity ?? 0.6) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+    wrap.appendChild(noteEl('デスクトップ上で直接タスクを追加・チェックできます。完了したタスクは自動で下に移動します。'));
+
+  } else if (w.type === 'battery') {
+    const bRow = document.createElement('div');
+    bRow.className = 'chk-row';
+    bRow.appendChild(mkCheck('残量バーを表示', o.showBar !== false, v => patchWidget(w.id, { options: { showBar: v } })));
+    wrap.appendChild(bRow);
+    {
+      const warn = document.createElement('input');
+      warn.type = 'number'; warn.min = 5; warn.max = 60; warn.value = o.warnAt ?? 20;
+      warn.style.width = '72px';
+      warn.addEventListener('change', () => patchWidget(w.id, { options: { warnAt: +warn.value || 20 } }));
+      const unit = document.createElement('span');
+      unit.className = 'note'; unit.style.padding = '0';
+      unit.textContent = '% 以下で赤く表示';
+      wrap.appendChild(ctlRow('残量アラート', warn, unit));
+    }
+    wrap.appendChild(noteEl('ノート PC 向けです。バッテリーのないデスクトップ PC では「バッテリー情報なし」と表示されます。'));
+
+  } else if (w.type === 'disk') {
+    wrap.appendChild(ctlRow('対象ドライブ', mkText(o.drives, '空欄で全ドライブ / 例: C,D', v => patchWidget(w.id, { options: { drives: v } }))));
+    const dRow = document.createElement('div');
+    dRow.className = 'chk-row';
+    dRow.appendChild(mkCheck('使用量バーを表示', o.showBar !== false, v => patchWidget(w.id, { options: { showBar: v } })));
+    wrap.appendChild(dRow);
+    wrap.appendChild(noteEl('5分ごとに更新。使用率 90% 以上のドライブは赤いバーになります。'));
+
+  } else if (w.type === 'netinfo') {
+    const nRow = document.createElement('div');
+    nRow.className = 'chk-row';
+    nRow.appendChild(mkCheck('ローカル IP', o.showIp !== false, v => patchWidget(w.id, { options: { showIp: v } })));
+    nRow.appendChild(mkCheck('Wi-Fi 名 (SSID)', o.showSsid !== false, v => patchWidget(w.id, { options: { showSsid: v } })));
+    nRow.appendChild(mkCheck('遅延 (PING)', o.showPing !== false, v => patchWidget(w.id, { options: { showPing: v } })));
+    nRow.appendChild(mkCheck('遅延グラフ', !!o.showGraph, v => patchWidget(w.id, { options: { showGraph: v } })));
+    wrap.appendChild(nRow);
+    wrap.appendChild(noteEl('遅延は 1.1.1.1 への接続時間を 30 秒ごとに計測します。有線接続では SSID は表示されません。'));
+
+  } else if (w.type === 'visualizer') {
+    {
+      const [r, val, show] = mkRange(12, 96, 4, o.bars ?? 48, v => { show(v); patchWidget(w.id, { options: { bars: v } }, { debounce: true }); });
+      val.textContent = o.bars ?? 48;
+      wrap.appendChild(ctlRow('バーの本数', r, val));
+    }
+    for (const [key, label, min, max, def, unit] of [['wPct', '幅 (画面比)', 10, 100, 40, '%'], ['hPx', '高さ', 30, 300, 90, 'px']]) {
+      const [r, val, show] = mkRange(min, max, 2, o[key] ?? def, v => { show(v + unit); patchWidget(w.id, { options: { [key]: v } }, { debounce: true }); });
+      val.textContent = (o[key] ?? def) + unit;
+      wrap.appendChild(ctlRow(label, r, val));
+    }
+    const vRow = document.createElement('div');
+    vRow.className = 'chk-row';
+    vRow.appendChild(mkCheck('中央から上下対称', o.mirror !== false, v => patchWidget(w.id, { options: { mirror: v } })));
+    wrap.appendChild(vRow);
+    wrap.appendChild(noteEl('再生中のシステム音声に反応するスペクトラムです。音楽の再生中だけ描画し、停止中は完全に止まります。初回はキャプチャ開始まで数秒かかることがあります。'));
 
   } else if (w.type === 'zone') {
     {
@@ -985,7 +1377,7 @@ function widgetCard(w) {
   glyph.appendChild(svgIcon(meta.icon));
   const title = document.createElement('span');
   title.className = 'wc-title';
-  title.textContent = meta.label;
+  title.textContent = T(meta.label);
   const sub = document.createElement('span');
   sub.className = 'wc-sub';
   const dispLabel = displays.length > 1 ? ` ・ モニタ${(w.display || 0) + 1}` : '';
@@ -1093,6 +1485,25 @@ function widgetCard(w) {
     grid.appendChild(ctlRow('位置', x, y, pct));
   }
 
+  {
+    const lockRow = ctlRow('位置をロック');
+    const ctl = document.createElement('div');
+    ctl.className = 'ctl';
+    const sw = document.createElement('label');
+    sw.className = 'switch';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = !!w.locked;
+    chk.addEventListener('change', () => patchWidget(w.id, { locked: chk.checked }));
+    const knob = document.createElement('span');
+    knob.className = 'knob';
+    sw.appendChild(chk);
+    sw.appendChild(knob);
+    ctl.appendChild(sw);
+    lockRow.appendChild(ctl);
+    grid.appendChild(lockRow);
+  }
+
   grid.appendChild(typeOptionsUI(w));
   body.appendChild(grid);
   card.appendChild(body);
@@ -1107,6 +1518,63 @@ function renderWidgetList() {
     return;
   }
   for (const w of cfg.widgets) list.appendChild(widgetCard(w));
+}
+
+// ---------------------------------------------------------------- テーマ / ウィザード
+let themesCache = [];
+
+function themeCard(theme, onApplied) {
+  const card = document.createElement('div');
+  card.className = 'theme-card';
+  const pv = document.createElement('div');
+  card.appendChild(pv);
+  const meta = document.createElement('div');
+  meta.className = 'theme-meta';
+  const name = document.createElement('div');
+  name.className = 'theme-name';
+  name.textContent = uiLang() === 'en' ? (theme.nameEn || theme.name) : theme.name;
+  const desc = document.createElement('div');
+  desc.className = 'theme-desc';
+  desc.textContent = uiLang() === 'en' ? (theme.descEn || theme.desc) : theme.desc;
+  meta.appendChild(name);
+  meta.appendChild(desc);
+  card.appendChild(meta);
+  card.addEventListener('click', async () => {
+    touch();
+    await window.api.applyTheme(theme.id);
+    cfg = (await window.api.getConfig()).config;
+    renderWallpaperTab();
+    renderWidgetList();
+    renderLayouts();
+    if (onApplied) onApplied();
+  });
+  // DOM に載ってから描く (clientWidth が必要)
+  requestAnimationFrame(() => renderMiniPreview(pv, theme.wallpapers, theme.widgets, 0));
+  return card;
+}
+
+async function renderThemes() {
+  if (!themesCache.length) themesCache = await window.api.listThemes();
+  const grid = $('#theme-grid');
+  grid.innerHTML = '';
+  for (const t of themesCache) grid.appendChild(themeCard(t));
+}
+
+async function maybeShowWizard() {
+  if (cfg.settings.onboarded) return;
+  if (!themesCache.length) themesCache = await window.api.listThemes();
+  const wiz = $('#wizard');
+  const grid = $('#wizard-themes');
+  grid.innerHTML = '';
+  const close = () => {
+    wiz.style.display = 'none';
+    touch();
+    cfg.settings.onboarded = true;
+    window.api.setSettings({ onboarded: true });
+  };
+  for (const t of themesCache) grid.appendChild(themeCard(t, close));
+  $('#wizard-skip').onclick = close;
+  wiz.style.display = 'grid';
 }
 
 // ---------------------------------------------------------------- 一般タブ
@@ -1127,6 +1595,36 @@ async function renderGeneral() {
   pfs.checked = cfg.settings.pauseOnFullscreen !== false;
   pfs.onchange = () => { touch(); window.api.setSettings({ pauseOnFullscreen: pfs.checked }); };
 
+  // デスクトップ
+  const si = $('#show-icons');
+  si.checked = cfg.settings.showDesktopIcons !== false;
+  si.onchange = () => { touch(); window.api.setSettings({ showDesktopIcons: si.checked }); };
+
+  const lang = $('#lang-sel');
+  lang.value = cfg.settings.language || 'auto';
+  lang.onchange = () => {
+    touch();
+    cfg.settings.language = lang.value;
+    window.api.setSettings({ language: lang.value });
+    // 動的に組み立てた UI も含めて全体を作り直す
+    applyI18n();
+    renderAddRow();
+    renderWallpaperTab();
+    renderWidgetList();
+    renderGeneral();
+    renderThemes();
+  };
+
+  // ホットキー
+  const hk = cfg.settings.hotkeys || {};
+  $('#hk-on').checked = !!hk.enabled;
+  $('#hk-on').onchange = (e) => pushHotkeys({ enabled: e.target.checked });
+  for (const name of ['toggleWidgets', 'toggleIcons', 'nextLayout', 'pomoToggle']) {
+    const inp = $('#hk-' + name);
+    if (document.activeElement !== inp) inp.value = hk[name] || '';
+    inp.onchange = () => pushHotkeys({ [name]: inp.value.trim() });
+  }
+
   renderSchedule();
   renderLayouts();
   updateStatusText(await window.api.getUpdateStatus());
@@ -1143,6 +1641,17 @@ async function renderGeneral() {
   updateWeatherStatus(await window.api.getWeather());
   renderGfList();
   $('#version').textContent = 'v' + await window.api.getVersion();
+}
+
+function pushHotkeys(patch) {
+  touch();
+  const hk = Object.assign(
+    { enabled: false, toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
+    cfg.settings.hotkeys || {},
+    patch,
+  );
+  cfg.settings.hotkeys = hk;
+  window.api.setSettings({ hotkeys: hk });
 }
 
 // ---- 壁紙スケジュール ----
@@ -1398,6 +1907,7 @@ async function loadFonts() {
 window.api.onConfig((env) => {
   cfg = env.config;
   sysWall = env.systemWallpaper || '';
+  if (env.osLocale) osLocale = env.osLocale;
   renderWallpaperTab();
   renderGeneral();
   if (Date.now() > suppressUntil) renderWidgetList();
@@ -1411,6 +1921,7 @@ window.api.onFontsChanged(() => injectFonts());
   const env = await window.api.getConfig();
   cfg = env.config;
   sysWall = env.systemWallpaper || '';
+  if (env.osLocale) osLocale = env.osLocale;
   displays = await window.api.listDisplays();
   try {
     const hw = await window.api.getHw();
@@ -1419,6 +1930,7 @@ window.api.onFontsChanged(() => injectFonts());
   if (cfg.wallpapers.default.type === 'custom' && cfg.wallpapers.default.value) {
     Object.assign(cb, clone(cfg.wallpapers.default.value));
   }
+  applyI18n();
   renderAddRow();
   renderWallpaperTab();
   renderCustomBuilder();
@@ -1434,4 +1946,6 @@ window.api.onFontsChanged(() => injectFonts());
     const btn = document.querySelector(`.nav-item[data-tab="${t}"]`);
     if (btn) btn.click();
   }
+
+  maybeShowWizard();
 })();

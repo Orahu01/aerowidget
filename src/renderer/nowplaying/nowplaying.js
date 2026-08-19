@@ -10,6 +10,13 @@ const titleEl = document.getElementById('title');
 const artistEl = document.getElementById('artist');
 
 function o() { return (widget && widget.options) || {}; }
+function en() {
+  const l = (widget && widget._lang) || 'auto';
+  if (l === 'en') return true;
+  if (l === 'ja') return false;
+  return !(osLocale || 'ja').toLowerCase().startsWith('ja');
+}
+let osLocale = 'ja';
 
 function applyStyle() {
   if (!widget) return;
@@ -27,7 +34,7 @@ function render() {
   document.body.classList.toggle('playing', !!(m && m.playing));
   document.body.classList.toggle('paused', has && !m.playing);
 
-  titleEl.textContent = has ? m.title : '再生中のメディアなし';
+  titleEl.textContent = has ? m.title : (en() ? 'Nothing playing' : '再生中のメディアなし');
   artistEl.textContent = (has && o().showArtist !== false) ? (m.artist || '') : '';
   if (has && m.art) {
     if (art.src !== m.art) art.src = m.art;
@@ -48,14 +55,16 @@ async function injectFonts() {
 
 window.fw.onWidget((w) => { widget = w; applyStyle(); render(); });
 window.fw.onConfig((env) => {
+  if (env.osLocale) osLocale = env.osLocale;
   const w = (env.config.widgets || []).find(x => x.id === window.fw.id);
-  if (w) { widget = w; applyStyle(); render(); }
+  if (w) { widget = w; widget._lang = (env.config.settings || {}).language || 'auto'; applyStyle(); render(); }
 });
 window.fw.onFontsChanged(() => injectFonts());
 window.fw.onMedia((d) => { m = d; render(); });
 
 (async () => {
   const st = await window.fw.getState();
+  if (st.osLocale) osLocale = st.osLocale;
   widget = st.widget;
   m = st.media || null;
   document.getElementById('gfonts').textContent = st.fontsCss || '';

@@ -25,6 +25,7 @@ const InvalidateRect = user32.func('__stdcall', 'InvalidateRect', 'bool', ['uint
 const GetWindowRect = user32.func('__stdcall', 'GetWindowRect', 'bool', ['uint64', koffi.out('void *')]);
 const IsWindowVisible = user32.func('__stdcall', 'IsWindowVisible', 'bool', ['uint64']);
 const ShowWindow = user32.func('__stdcall', 'ShowWindow', 'bool', ['uint64', 'int']);
+const GetCursorPos = user32.func('__stdcall', 'GetCursorPos', 'bool', [koffi.out('void *')]);
 const SetWindowRgn = user32.func('__stdcall', 'SetWindowRgn', 'int', ['uint64', 'uint64', 'bool']);
 const CreateRoundRectRgn = gdi32.func('__stdcall', 'CreateRoundRectRgn', 'uint64', ['int', 'int', 'int', 'int', 'int', 'int']);
 
@@ -279,6 +280,13 @@ function refreshDesktop() {
   } catch (_) { /* best-effort */ }
 }
 
+// 現在のカーソル位置 (物理ピクセル)
+function cursorPos() {
+  const b = Buffer.alloc(8);
+  GetCursorPos(b);
+  return { x: b.readInt32LE(0), y: b.readInt32LE(4) };
+}
+
 // 現在の物理スクリーン矩形
 function getRect(hwnd) {
   const r = screenRect(hwnd);
@@ -289,5 +297,5 @@ module.exports = {
   findTarget, attachAt, placeOnDesktopLayer, lowerToDesktopLayer, detach, ensurePlacement, getRect,
   isAttached, isParentAlive, isWindowAlive,
   setRoundRegion, getSystemWallpaperPath, refreshDesktop,
-  setDesktopIconsVisible, areDesktopIconsVisible,
+  setDesktopIconsVisible, areDesktopIconsVisible, cursorPos,
 };

@@ -180,6 +180,93 @@ body.paused #media .preset-bg.anim { animation-play-state: paused; }
 }
 .np-meta .sub { text-align: left; }
 
+/* ホットキーで全ウィジェットを隠す */
+body.whidden #widgets { display: none; }
+
+/* 天気予報 */
+.widget.forecast .row { display: block; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.fc-row { display: flex; gap: 1.1em; }
+.fc-col { display: flex; flex-direction: column; align-items: center; gap: 0.15em; }
+.fc-h { font-size: 0.62em; opacity: 0.75; }
+.fc-t { font-size: 0.85em; }
+
+/* 世界時計 / ディスク / ネットワーク / 予定表 */
+.widget.worldclock .row,
+.widget.disk .row,
+.widget.netinfo .row,
+.widget.ics .row { display: block; line-height: 1.65; font-variant-numeric: tabular-nums; }
+
+.ics-day { font-size: 0.68em; letter-spacing: 0.14em; opacity: 0.6; margin-top: 0.35em; }
+.ics-time { opacity: 0.7; font-size: 0.85em; }
+
+/* バッテリー */
+.bat-bar {
+  width: 7em;
+  height: 0.42em;
+  border-radius: 0.21em;
+  background: rgba(255, 255, 255, 0.18);
+  margin-top: 0.35em;
+  overflow: hidden;
+}
+.bat-fill { height: 100%; background: #7ed7a0; border-radius: inherit; }
+.bat-fill.warn { background: #ff6b72; }
+
+/* ディスクバー */
+.disk-bar {
+  display: inline-block;
+  vertical-align: -0.08em;
+  width: 6em;
+  height: 0.4em;
+  border-radius: 0.2em;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  margin: 0 0.4em;
+}
+.disk-fill { display: block; height: 100%; background: #e3a94f; }
+.disk-fill.warn { background: #ff6b72; }
+
+/* ビジュアライザー */
+.widget.visualizer { white-space: normal; }
+.vis-canvas { width: 100%; height: 100%; display: block; }
+
+/* 選択・ロック (編集モード) */
+body.edit .widget.selected {
+  outline: 2px solid #e3a94f;
+  outline-offset: 10px;
+}
+body.edit .widget.locked {
+  outline-style: dotted;
+  outline-color: rgba(255, 255, 255, 0.45);
+  cursor: not-allowed;
+}
+body.edit .widget.locked::after {
+  content: '🔒';
+  position: absolute;
+  top: -22px;
+  right: -22px;
+  font-size: 13px;
+}
+
+/* 整列ツール */
+#align-tools {
+  display: flex;
+  gap: 3px;
+  padding: 0 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+}
+#align-tools button {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e7ea;
+  font-size: 15px;
+  cursor: pointer;
+}
+#align-tools button:hover { background: rgba(255, 255, 255, 0.14); color: #e3a94f; }
+
 /* メモ / タイマーのプレースホルダ (編集モードのみ表示) */
 .widget.interph { white-space: normal; }
 body:not(.edit) .widget.interph { display: none; }

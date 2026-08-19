@@ -8,8 +8,17 @@ const card = document.getElementById('card');
 const titleEl = document.getElementById('title');
 const textEl = document.getElementById('text');
 
+function en() {
+  const l = (widget && widget._lang) || 'auto';
+  if (l === 'en') return true;
+  if (l === 'ja') return false;
+  return !(osLocale || 'ja').toLowerCase().startsWith('ja');
+}
+let osLocale = 'ja';
+
 function applyStyle() {
   if (!widget) return;
+  textEl.placeholder = en() ? 'Write a note…' : 'ここにメモを書けます…';
   const o = widget.options || {};
   card.style.background = `rgba(13, 16, 22, ${o.bgOpacity ?? 0.6})`;
   card.style.color = widget.color || '#e6e7ea';
@@ -39,13 +48,15 @@ async function injectFonts() {
 
 window.fw.onWidget((w) => { widget = w; applyStyle(); });
 window.fw.onConfig((env) => {
+  if (env.osLocale) osLocale = env.osLocale;
   const w = (env.config.widgets || []).find(x => x.id === window.fw.id);
-  if (w) { widget = w; applyStyle(); }
+  if (w) { widget = w; widget._lang = (env.config.settings || {}).language || 'auto'; applyStyle(); }
 });
 window.fw.onFontsChanged(() => injectFonts());
 
 (async () => {
   const st = await window.fw.getState();
+  if (st.osLocale) osLocale = st.osLocale;
   widget = st.widget;
   document.getElementById('gfonts').textContent = st.fontsCss || '';
   applyStyle();

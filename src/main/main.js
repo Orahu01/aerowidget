@@ -1,7 +1,7 @@
 // WidgetWall — メインプロセス (v2: マルチモニタ / フォルダウィジェット / 省電力)
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, powerMonitor, nativeImage, session, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, powerMonitor, nativeImage, session, shell, desktopCapturer } = require('electron');
 const path = require('path');
 const config = require('./config');
 const attach = require('./wallpaperAttach');
@@ -16,6 +16,11 @@ const media = require('./media');
 const feeds = require('./feeds');
 const updater = require('./updater');
 const audio = require('./audio');
+const hotkeys = require('./hotkeys');
+const sysinfo = require('./sysinfo');
+const ics = require('./ics');
+const onlinewall = require('./onlinewall');
+const { THEMES } = require('./themes');
 
 // 壁紙ウィンドウはアイコンの背面 = 常に「隠れている」扱いになるため、
 // Chromium の被覆検知・スロットリングを止めないと描画が停止する
@@ -50,7 +55,8 @@ const pendingLayout = new Map();       // 編集モード中のレイアウト�
 const iconCache = new Map();           // path -> dataURL
 
 // デスクトップ上でクリックできる「小窓型」ウィジェット
-const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying']);
+const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying', 'todo']);
+let widgetsHidden = false;             // ホットキーによる全ウィジェット非表示
 const placedKey = new Map();           // widgetId -> 配置キー (無関係な設定変更で再配置しない)
 const placeGen = new Map();            // widgetId -> 世代 (収束ループの多重実行防止)
 
@@ -76,7 +82,12 @@ function broadcast(channel, payload) {
 }
 
 function configEnvelope() {
-  return { config: config.get(), systemWallpaper: attach.getSystemWallpaperPath() };
+  return {
+    config: config.get(),
+    systemWallpaper: attach.getSystemWallpaperPath(),
+    onlineWallpaper: onlinewall.getCurrent(),
+    osLocale: app.getLocale() || 'ja',
+  };
 }
 
 function weatherWidget() {
@@ -106,6 +117,7 @@ function interDims(w) {
     return { w: Math.max(180, o.w || 260), h: Math.max(70, o.h || (o.showDevices !== false ? 120 : 78)) };
   }
   if (w.type === 'nowplaying') return { w: Math.max(200, o.w || 320), h: Math.max(70, o.h || 96) };
+  if (w.type === 'todo') return { w: Math.max(170, o.w || 250), h: Math.max(120, o.h || 220) };
   return folderDims(o);
 }
 
@@ -210,7 +222,7 @@ function rebuildWallWindows() {
 }
 
 // ---------------------------------------------------------------- 対話ウィジェットウィンドウ (フォルダ / メモ / タイマー)
-const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying' };
+const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying', todo: 'todo' };
 
 function createFolderWindow(widget) {
   const dims = interDims(widget);
@@ -424,6 +436,7 @@ function exitEditMode() {
         for (const k of ['x', 'y', 'size']) {
           if (typeof p[k] === 'number') w[k] = round2(p[k]);
         }
+        if (typeof p.locked === 'boolean') w.locked = p.locked;
         if (p.options) Object.assign(w.options, p.options);
       }
     });
@@ -444,6 +457,8 @@ function exitEditMode() {
       placeFolder(w.id);
     }
   }
+  // 編集中の一時的なアイコン切替を、通常時の設定値へ戻す
+  attach.setDesktopIconsVisible(config.get().settings.showDesktopIcons !== false);
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.restore();
 }
 
@@ -468,6 +483,11 @@ function openSettings() {
       nodeIntegration: false,
     },
   });
+  if (process.env.WW_DEBUG) {
+    settingsWin.webContents.on('console-message', (e, level, message, line, sourceId) => {
+      console.log(`[settings:${level}] ${message} (${sourceId}:${line})`);
+    });
+  }
   settingsWin.loadFile(RENDERER(path.join('settings', 'index.html')),
     process.env.WW_TEST_TAB ? { query: { tab: process.env.WW_TEST_TAB } } : undefined);
   settingsWin.once('ready-to-show', () => {
@@ -506,22 +526,30 @@ function createTray() {
   tray.setToolTip('WidgetWall');
   const rebuild = () => {
     const auto = getAutostart();
+    const lang = config.get().settings.language || 'auto';
+    const en = lang === 'en' || (lang === 'auto' && !(app.getLocale() || 'ja').startsWith('ja'));
+    const t = (ja, enS) => (en ? enS : ja);
     const layouts = (config.get().settings.layouts || []);
     const layoutItems = layouts.length
       ? layouts.map((l, i) => ({ label: l.name || `レイアウト ${i + 1}`, click: () => applyLayout(i) }))
-      : [{ label: '(設定画面から保存できます)', enabled: false }];
+      : [{ label: t('(設定画面から保存できます)', '(save from settings)'), enabled: false }];
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '設定を開く', click: () => openSettings() },
-      { label: 'レイアウトを編集', click: () => enterEditMode() },
-      { label: 'レイアウトプリセット', submenu: layoutItems },
-      { label: '天気を更新', click: () => { const w = weatherWidget(); if (w) weather.refresh(w.options); } },
+      { label: t('設定を開く', 'Open settings'), click: () => openSettings() },
+      { label: t('レイアウトを編集', 'Edit layout'), click: () => enterEditMode() },
+      { label: t('レイアウトプリセット', 'Layout presets'), submenu: layoutItems },
+      { label: t('天気を更新', 'Refresh weather'), click: () => { const w = weatherWidget(); if (w) weather.refresh(w.options); } },
       { type: 'separator' },
       {
-        label: '自動起動', type: 'checkbox', checked: auto.enabled, enabled: auto.supported,
+        label: t('デスクトップアイコンを表示', 'Show desktop icons'), type: 'checkbox',
+        checked: config.get().settings.showDesktopIcons !== false,
+        click: (item) => config.update(c => { c.settings.showDesktopIcons = item.checked; }),
+      },
+      {
+        label: t('自動起動', 'Start with Windows'), type: 'checkbox', checked: auto.enabled, enabled: auto.supported,
         click: (item) => setAutostart(item.checked),
       },
       { type: 'separator' },
-      { label: '終了', click: () => quitApp() },
+      { label: t('終了', 'Quit'), click: () => quitApp() },
     ]));
   };
   rebuild();
@@ -555,12 +583,14 @@ function setAutostart(enabled) {
 function syncServices() {
   const c = config.get();
 
-  // 天気
-  const w = weatherWidget();
-  const key = w ? JSON.stringify([w.options.lat, w.options.lon, c.settings.weatherIntervalMin]) : '';
+  // 天気 (現在の天気ウィジェット + 予報ウィジェットの全地点)
+  const weatherSubs = () => config.get().widgets
+    .filter(x => x.type === 'weather' || x.type === 'forecast')
+    .map(x => x.options || {});
+  const key = JSON.stringify([weatherSubs().map(o => [o.lat, o.lon]), c.settings.weatherIntervalMin]);
   if (key !== lastWeatherKey) {
     lastWeatherKey = key;
-    if (w) weather.schedule(() => weatherWidget(), c.settings.weatherIntervalMin);
+    if (weatherSubs().length) weather.schedule(weatherSubs, c.settings.weatherIntervalMin);
     else weather.stopSchedule();
   }
 
@@ -602,6 +632,36 @@ function syncServices() {
   if (c.widgets.some(x => x.type === 'volume') && !process.env.WW_NO_AUDIO) audio.start();
   else audio.stop();
 
+  // ディスク / ネットワーク情報
+  sysinfo.sync(
+    c.widgets.some(x => x.type === 'disk'),
+    c.widgets.some(x => x.type === 'netinfo'),
+  );
+
+  // ICS 予定表
+  ics.sync(c.widgets.filter(x => x.type === 'ics').map(x => ({
+    url: (x.options || {}).url,
+    daysAhead: (x.options || {}).daysAhead || 7,
+  })));
+
+  // オンライン壁紙 (使用中のソースを探す)
+  const onlineWp = wallpapersAll.find(w => w && w.type === 'online');
+  onlinewall.sync(
+    onlineWp ? ((onlineWp.value && onlineWp.value.source) || 'bing') : null,
+    onlineWp ? (onlineWp.value && onlineWp.value.refreshHours) || 24 : 24,
+  );
+
+  // グローバルホットキー
+  hotkeys.sync(c.settings.hotkeys);
+
+  // 視差効果 (オプトイン時のみ 15Hz でカーソルを配信。heartbeat 集約の例外)
+  syncParallax(wallpapersAll.some(w => w && w.parallax));
+
+  // 通常時のアイコン表示設定を反映 (編集中は編集モード側が制御する)
+  if (!editMode) {
+    attach.setDesktopIconsVisible(c.settings.showDesktopIcons !== false);
+  }
+
   // RSS / 株価フィード (該当ウィジェットの分だけ購読)
   feeds.sync(
     c.widgets.filter(x => x.type === 'rss').map(x => (x.options || {}).url),
@@ -611,6 +671,33 @@ function syncServices() {
 
 let lastScheduleKey = '';
 let lastScheduleMode = null;
+
+// ---------------------------------------------------------------- 視差効果
+let parallaxTimer = null;
+let lastCursor = { x: -9999, y: -9999 };
+
+function syncParallax(enabled) {
+  if (enabled && !parallaxTimer) {
+    parallaxTimer = setInterval(() => {
+      if (editMode || widgetsHidden) return;
+      const p = attach.cursorPos();
+      if (Math.abs(p.x - lastCursor.x) + Math.abs(p.y - lastCursor.y) < 4) return;
+      lastCursor = p;
+      for (const [idx, win] of wallWins) {
+        const pair = displayPairs.find(x => x.index === idx);
+        if (!pair || win.isDestroyed()) continue;
+        const n = pair.native;
+        win.webContents.send('cursor', {
+          x: Math.max(-1, Math.min(1, ((p.x - n.x) / n.w) * 2 - 1)),
+          y: Math.max(-1, Math.min(1, ((p.y - n.y) / n.h) * 2 - 1)),
+        });
+      }
+    }, 66);
+  } else if (!enabled && parallaxTimer) {
+    clearInterval(parallaxTimer);
+    parallaxTimer = null;
+  }
+}
 
 function applySchedule() {
   const s = config.get().settings.schedule;
@@ -651,16 +738,48 @@ function mergedHw() {
   return { ok: false };
 }
 
-// ---------------------------------------------------------------- レイアウトプリセット / 修復
+// ---------------------------------------------------------------- レイアウト / テーマ / 修復
 function applyLayout(i) {
   const c = config.get();
   const l = (c.settings.layouts || [])[i];
   if (!l) return;
+  lastLayoutIdx = i;
   placedKey.clear();
   config.update(cfg => {
     cfg.wallpapers = JSON.parse(JSON.stringify(l.wallpapers));
     cfg.widgets = JSON.parse(JSON.stringify(l.widgets));
   });
+}
+
+let lastLayoutIdx = -1;
+function cycleLayout() {
+  const layouts = config.get().settings.layouts || [];
+  if (!layouts.length) return;
+  applyLayout((lastLayoutIdx + 1) % layouts.length);
+}
+
+const AUTO_BACKUP_NAME = '適用前の構成 (自動)';
+
+function applyTheme(id) {
+  const theme = THEMES.find(t => t.id === id);
+  if (!theme) return false;
+  placedKey.clear();
+  config.update(cfg => {
+    // 既存の構成を自動バックアップとしてレイアウトに残す (1 枠だけ)
+    if ((cfg.widgets || []).length) {
+      cfg.settings.layouts = [
+        ...(cfg.settings.layouts || []).filter(l => l.name !== AUTO_BACKUP_NAME),
+        {
+          name: AUTO_BACKUP_NAME,
+          wallpapers: JSON.parse(JSON.stringify(cfg.wallpapers)),
+          widgets: JSON.parse(JSON.stringify(cfg.widgets)),
+        },
+      ].slice(-12);
+    }
+    cfg.wallpapers = JSON.parse(JSON.stringify(theme.wallpapers));
+    cfg.widgets = JSON.parse(JSON.stringify(theme.widgets));
+  });
+  return true;
 }
 
 // 壊れたときの立て直し: 全ウィンドウを作り直してアタッチし直す
@@ -690,6 +809,7 @@ function quitApp() {
   try {
     // アイコンを隠したまま終了すると復帰手段がなくなるので必ず戻す
     attach.setDesktopIconsVisible(true);
+    hotkeys.dispose();
     heartbeat.unregister('watchdog');
     fullscreen.stop();
     media.stop();
@@ -706,6 +826,20 @@ function quitApp() {
 }
 
 // ---------------------------------------------------------------- 起動
+// ホットキーで全ウィジェットの表示を切り替える
+function toggleWidgetsVisible() {
+  widgetsHidden = !widgetsHidden;
+  broadcast('widgets-hidden', widgetsHidden);
+  for (const [id, win] of folderWins) {
+    if (win.isDestroyed()) continue;
+    if (widgetsHidden) win.hide();
+    else if (!editMode) {
+      win.showInactive();
+      placeFolder(id);
+    }
+  }
+}
+
 function onReady() {
   config.load();
 
@@ -713,6 +847,26 @@ function onReady() {
     cb(permission === 'local-fonts');
   });
   session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'local-fonts');
+
+  // ビジュアライザー用: システム音声のループバックキャプチャを許可
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+      callback({ video: sources[0], audio: 'loopback' });
+    }).catch(() => callback({}));
+  });
+
+  // ホットキーのアクションを配線 (登録自体は syncServices が設定に従って行う)
+  hotkeys.setActions({
+    toggleWidgets: () => toggleWidgetsVisible(),
+    toggleIcons: () => config.update(c => { c.settings.showDesktopIcons = !(c.settings.showDesktopIcons !== false); }),
+    nextLayout: () => cycleLayout(),
+    pomoToggle: () => {
+      for (const [id, win] of folderWins) {
+        const w = config.get().widgets.find(x => x.id === id);
+        if (w && w.type === 'pomo' && !win.isDestroyed()) win.webContents.send('pomo-toggle');
+      }
+    },
+  });
 
   rebuildWallWindows();
   createTray();
@@ -748,6 +902,10 @@ function onReady() {
     if (tray && tray.rebuild) tray.rebuild();
   });
   weather.on('update', (d) => broadcast('weather', d));
+  sysinfo.on('disks', (d) => broadcast('disks', d));
+  sysinfo.on('netinfo', (d) => broadcast('netinfo', d));
+  ics.on('ics', (d) => broadcast('ics', d));
+  onlinewall.on('update', () => broadcast('config', configEnvelope()));
   stats.on('update', (d) => { lastBuiltin = d; if (!lhm.isOnline()) broadcast('hw', mergedHw()); });
   lhm.on('update', () => broadcast('hw', mergedHw()));
   lhm.on('status', (on) => broadcast('lhm-status', on));
@@ -774,6 +932,15 @@ function onReady() {
   if (process.env.WW_TEST_EDIT) {
     setTimeout(() => enterEditMode(), 4000);
     setTimeout(() => exitEditMode(), 7500);
+  }
+  if (process.env.WW_TEST_THEME) {
+    setTimeout(() => applyTheme(process.env.WW_TEST_THEME), 4000);
+  }
+  if (process.env.WW_TEST_APPLYLAYOUT) {
+    setTimeout(() => {
+      const idx = (config.get().settings.layouts || []).findIndex(l => l.name === process.env.WW_TEST_APPLYLAYOUT);
+      if (idx >= 0) applyLayout(idx);
+    }, 4000);
   }
   if (process.env.WW_TEST_AUTOSTART) {
     setTimeout(() => {
@@ -959,6 +1126,7 @@ ipcMain.handle('folder:state', (e, id) => {
     fontsCss: gfonts.cssFor(config.get().settings.googleFonts),
     audio: audio.getLatest(),
     media: media.getLatest(),
+    osLocale: app.getLocale() || 'ja',
   };
 });
 
@@ -974,8 +1142,18 @@ ipcMain.on('media:key', (e, which) => {
 ipcMain.handle('city:search', (e, q) => weather.searchCity(q));
 ipcMain.handle('weather:get', () => weather.getLatest());
 ipcMain.handle('weather:refresh', () => {
-  const w = weatherWidget();
-  return w ? weather.refresh(w.options) : null;
+  const seen = new Set();
+  let last = null;
+  for (const w of config.get().widgets) {
+    if (w.type !== 'weather' && w.type !== 'forecast') continue;
+    const o = w.options || {};
+    if (o.lat == null) continue;
+    const k = `${o.lat},${o.lon}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    last = weather.refresh(o);
+  }
+  return last;
 });
 
 ipcMain.handle('hw:get', () => ({ hw: mergedHw(), lhmOnline: lhm.isOnline() }));
@@ -1010,6 +1188,7 @@ ipcMain.handle('autostart:set', (e, v) => setAutostart(!!v));
 
 ipcMain.handle('edit:enter', () => enterEditMode());
 
+// 編集モード中の一時的な表示切替 (設定は変えない。編集終了時に通常設定へ戻る)
 ipcMain.handle('icons:toggle', (e, visible) => {
   attach.setDesktopIconsVisible(!!visible);
   const now = attach.areDesktopIconsVisible();
@@ -1017,6 +1196,46 @@ ipcMain.handle('icons:toggle', (e, visible) => {
   return now;
 });
 ipcMain.handle('icons:get', () => attach.areDesktopIconsVisible());
+
+// テーマ
+ipcMain.handle('theme:list', () => THEMES);
+ipcMain.handle('theme:apply', (e, id) => applyTheme(id));
+
+// ウィジェット複製 (編集モードの Ctrl+D などから)
+ipcMain.handle('widget:duplicate', (e, id) => {
+  let created = null;
+  config.update(c => {
+    const src = c.widgets.find(x => x.id === id);
+    if (!src) return;
+    created = JSON.parse(JSON.stringify(src));
+    created.id = 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    created.x = Math.min(97, src.x + 2.5);
+    created.y = Math.min(97, src.y + 2.5);
+    c.widgets.push(created);
+  });
+  return created;
+});
+
+// スライドショー用のフォルダ選択と一覧
+ipcMain.handle('dir:pick', async () => {
+  const r = await dialog.showOpenDialog(settingsWin, {
+    title: 'スライドショーにするフォルダを選択',
+    properties: ['openDirectory'],
+  });
+  return (r.canceled || !r.filePaths[0]) ? null : r.filePaths[0];
+});
+
+const IMG_RE = /\.(jpe?g|png|gif|webp|bmp)$/i;
+ipcMain.handle('slides:list', (e, dir) => {
+  try {
+    return require('fs').readdirSync(dir)
+      .filter(f => IMG_RE.test(f))
+      .slice(0, 500)
+      .map(f => path.join(dir, f));
+  } catch (_) {
+    return [];
+  }
+});
 ipcMain.on('edit:live', (e, id, partial) => {
   if (!editMode || !id) return;
   const prev = pendingLayout.get(id) || {};
@@ -1029,9 +1248,13 @@ ipcMain.on('edit:finish', () => exitEditMode());
 ipcMain.handle('state:request', () => ({
   ...configEnvelope(),
   weather: weather.getLatest(),
+  weatherMap: weather.snapshot(),
   hw: mergedHw(),
   media: media.getLatest(),
   feeds: feeds.snapshot(),
+  sysinfo: sysinfo.snapshot(),
+  ics: ics.snapshot(),
+  widgetsHidden,
   editing: editMode,
   version: app.getVersion(),
 }));
@@ -1047,13 +1270,22 @@ ipcMain.handle('file:pickImages', async () => {
 });
 
 // ---- メモ / タイマーなど対話ウィジェットからの保存 (options の一部だけ許可) ----
-const INTER_SAVE_KEYS = new Set(['text', 'doneCount']);
+const INTER_SAVE_KEYS = new Set(['text', 'doneCount', 'items']);
 ipcMain.on('inter:save', (e, id, options) => {
   const w = config.get().widgets.find(x => x.id === id && INTERACTIVE_TYPES.has(x.type));
   if (!w || !options || typeof options !== 'object') return;
   const patch = {};
   for (const k of Object.keys(options)) {
-    if (INTER_SAVE_KEYS.has(k)) patch[k] = options[k];
+    if (!INTER_SAVE_KEYS.has(k)) continue;
+    if (k === 'items') {
+      if (!Array.isArray(options.items)) continue;
+      patch.items = options.items.slice(0, 200).map(it => ({
+        text: String((it && it.text) || '').slice(0, 300),
+        done: !!(it && it.done),
+      }));
+    } else {
+      patch[k] = options[k];
+    }
   }
   if (Object.keys(patch).length) {
     config.update(c => {

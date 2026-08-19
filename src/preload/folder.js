@@ -26,4 +26,7 @@ contextBridge.exposeInMainWorld('fw', {
   // 再生中の曲
   onMedia: (cb) => ipcRenderer.on('media', (_e, d) => cb(d)),
   mediaKey: (which) => ipcRenderer.send('media:key', which),
+
+  // ポモドーロのホットキー操作
+  onPomoToggle: (cb) => ipcRenderer.on('pomo-toggle', () => cb()),
 });

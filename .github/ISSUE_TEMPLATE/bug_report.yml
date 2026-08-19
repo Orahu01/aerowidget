@@ -1,0 +1,62 @@
+name: 不具合報告 / Bug report
+description: 動作がおかしい・エラーが出る場合はこちら / Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きましたか？ / What happened?
+      description: 症状と、期待していた動作を書いてください / Describe the issue and what you expected
+      placeholder: 例) メモウィジェットをクリックしても文字が入力できない
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順 / Steps to reproduce
+      placeholder: |
+        1. 設定を開く
+        2. ○○を追加する
+        3. △△をクリックする
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: WidgetWall のバージョン / Version
+      description: 設定 → 一般 → バージョン に表示されています
+      placeholder: v5.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: インストール方法 / Install type
+      options:
+        - インストーラ版 (Setup.exe)
+        - ポータブル版 (Portable.exe)
+        - ソースからビルド / Built from source
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows のバージョン / Windows version
+      placeholder: 例) Windows 11 24H2
+    validations:
+      required: false
+  - type: input
+    id: monitors
+    attributes:
+      label: モニタ構成 / Monitor setup
+      description: 台数・解像度・拡大率 (わかる範囲で)
+      placeholder: 例) 2560x1440 (125%) + 1920x1080 (100%) の 2 枚
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: その他 / Anything else
+      description: スクリーンショットや、%APPDATA%\widgetwall\config.json の関係部分など (個人情報は伏せて OK)
+    validations:
+      required: false

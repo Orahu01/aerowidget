@@ -31,12 +31,18 @@ const WEEK_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
 let config = null;
 let systemWallpaper = '';
-let weatherData = null;
+let onlineWallpaper = null;    // {source, file} — オンライン壁紙の実体
+const weatherMap = new Map();  // "lat,lon" -> 天気+予報データ
 let hwData = null;
 let mediaData = null;          // 再生中メディア (SMTC)
 const rssData = new Map();     // url -> { items, error }
 const tickerData = new Map();  // symbol -> { price, changePct, ... }
 const hwHist = new Map();      // metric -> number[] (スパークライン用)
+let disksData = [];
+let netinfoData = null;
+const pingHist = [];           // ネット遅延の履歴 (グラフ用)
+const icsData = new Map();     // url -> { events, error }
+let batteryData = null;        // { level, charging }
 let editing = false;
 let paused = false;
 let mediaKey = '';
@@ -44,6 +50,38 @@ let tickTimer = null;
 let slideTimer = null;
 let slideIdx = 0;
 const widgetEls = new Map();   // id -> { el, lastHtml }
+
+let osLocale = 'ja';
+
+function uiEn() {
+  const l = (config && config.settings && config.settings.language) || 'auto';
+  if (l === 'en') return true;
+  if (l === 'ja') return false;
+  return !(osLocale || 'ja').toLowerCase().startsWith('ja');
+}
+
+const EDIT_EN = {
+  'ドラッグで移動 ・ ホイールでサイズ ・ <b>Ctrl+クリック</b>で複数選択 ・ <b>Ctrl+Z</b>取り消し ・ <b>Ctrl+D</b>複製 ・ 右クリックでロック':
+    'Drag to move ・ Wheel to resize ・ <b>Ctrl+Click</b> multi-select ・ <b>Ctrl+Z</b> undo ・ <b>Ctrl+D</b> duplicate ・ Right-click to lock',
+  '保存して完了': 'Save & finish',
+  'アイコンを隠す': 'Hide icons',
+  'アイコンを表示': 'Show icons',
+};
+
+function applyEditI18n() {
+  const en = uiEn();
+  const hint = document.querySelector('.edit-hint');
+  if (hint) {
+    if (!hint.dataset.ja) hint.dataset.ja = hint.innerHTML;
+    hint.innerHTML = en ? EDIT_EN[hint.dataset.ja] || hint.dataset.ja : hint.dataset.ja;
+  }
+  const done = document.getElementById('edit-done');
+  if (done) done.textContent = en ? EDIT_EN['保存して完了'] : '保存して完了';
+}
+
+function wkey(o) {
+  return `${(+o.lat).toFixed(3)},${(+o.lon).toFixed(3)}`;
+}
 
 const $ = (s) => document.querySelector(s);
 const mediaBox = $('#media');
@@ -106,25 +144,46 @@ function mediaFilter(wp, el) {
   if (wp.blur > 0 && el.tagName !== 'DIV') el.style.transform = 'scale(1.06)';
 }
 
-// スライドショー: 2 枚の img をクロスフェードで入れ替える
-function startSlideshow(box, wp) {
+// スライドショー: 2 枚の img をクロスフェードで入れ替える。
+// フォルダ指定 (dir) の場合は都度スキャンし、シャッフルにも対応。
+async function resolveSlides(v) {
+  let files = v.files || [];
+  if (v.dir) {
+    try { files = await window.wall.listSlides(v.dir); } catch (_) {}
+  }
+  if (v.shuffle) {
+    files = [...files];
+    for (let i = files.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [files[i], files[j]] = [files[j], files[i]];
+    }
+  }
+  return files;
+}
+
+async function startSlideshow(box, wp) {
   clearTimeout(slideTimer);
   const v = wp.value || {};
-  const files = v.files || [];
-  if (!files.length) return;
+  let files = await resolveSlides(v);
+  if (!files.length || !box.isConnected) return;
   const imgs = box.querySelectorAll('img');
   let active = 0;
   slideIdx = slideIdx % files.length;
   imgs[0].src = fileUrl(files[slideIdx]);
   imgs[0].classList.add('on');
 
-  const advance = () => {
+  const advance = async () => {
     if (!box.isConnected) return; // 壁紙が切り替わったら終了
     if (!paused && files.length > 1) {
       slideIdx = (slideIdx + 1) % files.length;
+      if (slideIdx === 0) {
+        // 一巡したらフォルダを再スキャン (追加・削除に追従)
+        const next = await resolveSlides(v);
+        if (next.length) files = next;
+      }
       const next = imgs[1 - active];
       const cur = imgs[active];
-      next.src = fileUrl(files[slideIdx]);
+      next.src = fileUrl(files[slideIdx % files.length]);
       const show = () => {
         next.classList.add('on');
         if (v.fade === false) cur.classList.remove('on');
@@ -142,8 +201,9 @@ function startSlideshow(box, wp) {
 function renderMedia() {
   const wp = myWallpaper();
   const npArt = wp.type === 'nowplaying' ? (mediaData && mediaData.art) || '' : '';
+  const onlineFile = wp.type === 'online' && onlineWallpaper ? onlineWallpaper.file + '@' + onlineWallpaper.fetchedAt : '';
   const key = JSON.stringify([wp.type, wp.value, wp.blur, wp.bright, wp.animate,
-    wp.type === 'system' ? systemWallpaper : '', npArt.length ? npArt.length + npArt.slice(-32) : 0]);
+    wp.type === 'system' ? systemWallpaper : '', onlineFile, npArt.length ? npArt.length + npArt.slice(-32) : 0]);
   if (key !== mediaKey) {
     mediaKey = key;
     clearTimeout(slideTimer);
@@ -152,6 +212,10 @@ function renderMedia() {
     if (wp.type === 'image' || (wp.type === 'system' && systemWallpaper)) {
       el = document.createElement('img');
       el.src = fileUrl(wp.type === 'system' ? systemWallpaper : wp.value);
+    } else if (wp.type === 'online') {
+      el = document.createElement('img');
+      if (onlineWallpaper && onlineWallpaper.file) el.src = fileUrl(onlineWallpaper.file) + '?t=' + onlineWallpaper.fetchedAt;
+      else { el = document.createElement('div'); el.className = 'preset-bg'; el.style.background = PRESETS.midnight; }
     } else if (wp.type === 'video') {
       el = document.createElement('video');
       el.src = fileUrl(wp.value);
@@ -191,7 +255,32 @@ function renderMedia() {
     mediaBox.appendChild(el);
   }
   dimBox.style.opacity = (wp.dim || 0) / 100;
+  // 視差が無効なら transform を確実に外す
+  if (!wp.parallax) mediaBox.style.transform = '';
 }
+
+// ---------------------------------------------------------------- 視差効果
+let parX = 0, parY = 0, parTX = 0, parTY = 0, parRaf = 0;
+
+function parStep() {
+  parRaf = 0;
+  parX += (parTX - parX) * 0.1;
+  parY += (parTY - parY) * 0.1;
+  const amp = 16;
+  mediaBox.style.transform = `scale(1.035) translate(${(-parX * amp).toFixed(1)}px, ${(-parY * amp).toFixed(1)}px)`;
+  if (Math.abs(parTX - parX) + Math.abs(parTY - parY) > 0.003) {
+    parRaf = requestAnimationFrame(parStep);
+  }
+}
+
+window.wall.onCursor(({ x, y }) => {
+  if (editing || paused) return;
+  const wp = myWallpaper();
+  if (!wp.parallax) return;
+  parTX = x;
+  parTY = y;
+  if (!parRaf) parRaf = requestAnimationFrame(parStep);
+});
 
 // ---------------------------------------------------------------- ウィジェット内容
 // 数字を 1 桁ずつ固定幅の枠に入れる。プロポーショナルフォントでも
@@ -224,7 +313,7 @@ function dateHtml(o) {
 }
 
 function weatherHtml(o) {
-  const w = weatherData;
+  const w = o.lat != null ? weatherMap.get(wkey(o)) : null;
   if (!w || w.temp == null) return `<span class="wicon">🌡️</span> ─<div class="sub">${esc(o.city || '')} 取得中…</div>`;
   let html = '';
   html += (o.showIcon !== false ? `<span class="wicon">${w.emoji}</span> ` : '') + `${w.temp}°`;
@@ -458,6 +547,119 @@ function tickerHtml(o) {
   return rows.join('');
 }
 
+// ---------------------------------------------------------------- v5 の新ウィジェット
+function forecastHtml(o) {
+  const w = o.lat != null ? weatherMap.get(wkey(o)) : null;
+  if (!w || w.error) return '<span class="row sub">予報を取得中…</span>';
+  const icons = o.showIcons !== false;
+  if (o.mode === 'hourly') {
+    if (!w.hourly || !w.hourly.length) return '<span class="row sub">予報を取得中…</span>';
+    const cols = w.hourly.slice(0, Math.max(3, Math.min(6, o.count || 5))).map(h =>
+      `<div class="fc-col"><span class="fc-h">${h.h}時</span>${icons ? `<span class="wicon">${h.emoji}</span>` : ''}<span class="fc-t">${h.temp}°</span></div>`);
+    return `<div class="fc-row">${cols.join('')}</div>`;
+  }
+  if (!w.daily || !w.daily.length) return '<span class="row sub">予報を取得中…</span>';
+  return w.daily.slice(0, Math.max(3, Math.min(7, o.count || 5))).map((d, i) =>
+    `<span class="row">${i === 0 ? '今日' : d.dow.padEnd(2, '　')}　${icons ? `<span class="wicon">${d.emoji}</span>　` : ''}${padV(d.hi, 3)}° / ${padV(d.lo, 3)}°</span>`).join('');
+}
+
+function worldclockHtml(o) {
+  const lines = String(o.zones || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+  if (!lines.length) return '<span class="row sub">タイムゾーンを設定してください</span>';
+  const now = new Date();
+  const rows = [];
+  let labelW = 0;
+  const parsed = lines.map(line => {
+    const i = line.indexOf('=');
+    const label = i > 0 ? line.slice(0, i).trim() : line;
+    const tz = i > 0 ? line.slice(i + 1).trim() : line;
+    labelW = Math.max(labelW, [...label].length);
+    return { label, tz };
+  });
+  for (const { label, tz } of parsed) {
+    try {
+      const fmt = new Intl.DateTimeFormat('ja-JP', {
+        timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: !!o.hour12,
+        ...(o.showDate ? { month: 'numeric', day: 'numeric' } : {}),
+      });
+      rows.push(`<span class="row">${esc(label.padEnd(labelW, '　'))}　${esc(fmt.format(now))}</span>`);
+    } catch (_) {
+      rows.push(`<span class="row">${esc(label)}　<span class="sub">タイムゾーン不明</span></span>`);
+    }
+  }
+  return rows.join('');
+}
+
+function batteryHtml(o) {
+  const b = batteryData;
+  if (!b) return '<span class="sub">バッテリー情報なし</span>';
+  const pct = Math.round(b.level * 100);
+  const warn = pct <= (o.warnAt ?? 20) && !b.charging;
+  let html = `<span class="${warn ? 'hw-hot' : ''}">${b.charging ? '⚡ ' : '🔋 '}${pct}%</span>`;
+  if (o.showBar !== false) {
+    html += `<div class="bat-bar"><div class="bat-fill${warn ? ' warn' : ''}" style="width:${pct}%"></div></div>`;
+  }
+  return html;
+}
+
+function diskHtml(o) {
+  if (!disksData.length) return '<span class="row sub">ディスク情報を取得中…</span>';
+  const filter = String(o.drives || '').split(',').map(s => s.trim().toUpperCase().replace(':', '')).filter(Boolean);
+  const list = disksData.filter(d => !filter.length || filter.includes(d.letter));
+  if (!list.length) return '<span class="row sub">対象ドライブなし</span>';
+  return list.map(d => {
+    const bar = o.showBar !== false
+      ? `<span class="disk-bar"><span class="disk-fill${d.pct >= 90 ? ' warn' : ''}" style="width:${d.pct}%"></span></span>`
+      : '';
+    return `<span class="row">${d.letter}: ${bar} 空き ${padV(d.freeGb, 6)} / ${d.totalGb}GB</span>`;
+  }).join('');
+}
+
+function netinfoHtml(o) {
+  const n = netinfoData;
+  if (!n) return '<span class="row sub">ネットワーク情報を取得中…</span>';
+  const rows = [];
+  if (o.showIp !== false) rows.push(`IP   ${esc(n.localIp || '--')}`);
+  if (o.showSsid !== false && n.ssid) rows.push(`WiFi ${esc(n.ssid)}`);
+  if (o.showPing !== false) {
+    rows.push(`PING ${n.pingMs != null ? padV(n.pingMs, 4) + ' ms' : '  -- '}${o.showGraph ? '<canvas class="hw-spark" data-k="ping"></canvas>' : ''}`);
+  }
+  if (!rows.length) return '';
+  return rows.map(r => `<span class="row">${r}</span>`).join('');
+}
+
+const ICS_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+
+function icsHtml(o) {
+  if (!o.url) return '<span class="row sub">カレンダーの URL を設定してください</span>';
+  const rec = icsData.get(o.url);
+  if (!rec) return '<span class="row sub">予定を取得中…</span>';
+  if (rec.error && !(rec.events || []).length) return '<span class="row sub">予定を取得できません</span>';
+  const events = (rec.events || []).filter(ev => ev.end >= Date.now() - 60000).slice(0, Math.max(1, o.count || 5));
+  if (!events.length) return '<span class="row sub">直近の予定はありません</span>';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const rows = [];
+  let lastDay = '';
+  for (const ev of events) {
+    const d = new Date(ev.start);
+    const dayDiff = Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 86400000);
+    const dayLabel = dayDiff === 0 ? '今日' : dayDiff === 1 ? '明日' : `${d.getMonth() + 1}/${d.getDate()}(${ICS_WEEK[d.getDay()]})`;
+    if (dayLabel !== lastDay) {
+      rows.push(`<span class="row ics-day">${dayLabel}</span>`);
+      lastDay = dayLabel;
+    }
+    const time = ev.allDay || o.showTime === false
+      ? '終日'
+      : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    rows.push(`<span class="row"><span class="ics-time">${time}</span> ${esc(ev.title)}</span>`);
+  }
+  return rows.join('');
+}
+
+function visualizerHtml() {
+  return '<canvas class="vis-canvas"></canvas>';
+}
+
 // メモ / タイマー / 音量 / 再生中の曲は別ウィンドウ実体。編集モード用のプレースホルダだけ描く
 function interPhHtml(w, label) {
   const o = w.options || {};
@@ -484,6 +686,14 @@ function widgetHtml(w) {
     case 'note': return interPhHtml(w, 'メモ');
     case 'pomo': return interPhHtml(w, 'ポモドーロ');
     case 'volume': return interPhHtml(w, '音量');
+    case 'todo': return interPhHtml(w, 'ToDo');
+    case 'forecast': return forecastHtml(w.options || {});
+    case 'worldclock': return worldclockHtml(w.options || {});
+    case 'battery': return batteryHtml(w.options || {});
+    case 'disk': return diskHtml(w.options || {});
+    case 'netinfo': return netinfoHtml(w.options || {});
+    case 'ics': return icsHtml(w.options || {});
+    case 'visualizer': return visualizerHtml();
     default: return '';
   }
 }
@@ -492,7 +702,8 @@ function applyWidgetStyle(el, w) {
   const o = w.options || {};
   el.className = 'widget ' + w.type
     + (w.type === 'folder' ? ' folderph' : '')
-    + (['note', 'pomo', 'volume', 'nowplaying'].includes(w.type) ? ' interph' : '')
+    + (['note', 'pomo', 'volume', 'nowplaying', 'todo'].includes(w.type) ? ' interph' : '')
+    + (w.locked ? ' locked' : '')
     + (w.type === 'line' && o.orient === 'v' ? ' vert' : '');
   el.style.cssText = '';
   el.style.left = w.x + '%';
@@ -561,15 +772,19 @@ function applyWidgetStyle(el, w) {
       el.style.padding = '0.7em 0.9em';
     }
     el.style.setProperty('--cal-acc', o.accent || '#e3a94f');
-  } else if (['note', 'pomo', 'volume', 'nowplaying'].includes(w.type)) {
-    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96] }[w.type];
+  } else if (['note', 'pomo', 'volume', 'nowplaying', 'todo'].includes(w.type)) {
+    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96], todo: [250, 220] }[w.type];
     el.style.width = (o.w || defs[0]) + 'px';
     el.style.height = (o.h || defs[1]) + 'px';
     el.style.background = `rgba(13, 16, 22, ${o.bgOpacity ?? 0.6})`;
     el.style.border = '1px solid rgba(255,255,255,0.12)';
     el.style.borderRadius = '14px';
-  } else if (w.type === 'rss' || w.type === 'ticker') {
+  } else if (['rss', 'ticker', 'disk', 'netinfo', 'worldclock', 'ics', 'forecast'].includes(w.type)) {
     el.style.textAlign = 'left';
+  } else if (w.type === 'visualizer') {
+    el.style.width = (o.wPct || 40) + '%';
+    el.style.height = (o.hPx || 90) + 'px';
+    el.style.textShadow = 'none';
   }
 }
 
@@ -629,7 +844,7 @@ function scheduleTick() {
   const now = Date.now();
   const delay = needSec ? (1000 - now % 1000) + 5 : (60000 - now % 60000) + 10;
   tickTimer = setTimeout(() => {
-    tick(['clock', 'date', 'analog', 'calendar', 'countdown', 'rss']);
+    tick(['clock', 'date', 'analog', 'calendar', 'countdown', 'rss', 'worldclock', 'ics']);
     scheduleTick();
   }, delay);
 }
@@ -640,10 +855,104 @@ function renderAll() {
   renderWidgets();
   tick();
   scheduleTick();
+  visSync();
+}
+
+// ---------------------------------------------------------------- ビジュアライザー
+// システム音声のループバックを解析して描く。再生中だけ 30fps、それ以外は完全停止。
+let visAnalyser = null;
+let visData = null;
+let visTimer = null;
+let visFailed = false;
+let visStarting = false;
+
+function visWidgets() {
+  return myWidgets().filter(w => w.type === 'visualizer');
+}
+
+async function ensureVisCapture() {
+  if (visAnalyser || visFailed || visStarting) return;
+  visStarting = true;
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    for (const t of stream.getVideoTracks()) t.stop(); // 映像は不要
+    if (!stream.getAudioTracks().length) throw new Error('no audio track');
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(stream);
+    visAnalyser = ctx.createAnalyser();
+    visAnalyser.fftSize = 256;
+    visAnalyser.smoothingTimeConstant = 0.82;
+    src.connect(visAnalyser);
+    visData = new Uint8Array(visAnalyser.frequencyBinCount);
+  } catch (e) {
+    visFailed = true;
+  } finally {
+    visStarting = false;
+    visSync();
+  }
+}
+
+function drawVis(cv, w, live) {
+  const el = cv.parentElement;
+  const cw = el.clientWidth || 200;
+  const ch = el.clientHeight || 80;
+  if (cv.width !== cw) cv.width = cw;
+  if (cv.height !== ch) cv.height = ch;
+  const ctx2 = cv.getContext('2d');
+  ctx2.clearRect(0, 0, cw, ch);
+  const o = w.options || {};
+  const bars = Math.max(12, Math.min(96, o.bars || 48));
+  const gap = 2;
+  const bw = (cw - gap * (bars - 1)) / bars;
+  ctx2.fillStyle = hexA(w.color, 0.9);
+  const n = visData ? visData.length : 0;
+  for (let i = 0; i < bars; i++) {
+    let v = 0;
+    if (live && n) {
+      // 低域〜中域を対数寄りにサンプリング
+      const idx = Math.min(n - 1, Math.floor(Math.pow(i / bars, 1.4) * n * 0.8));
+      v = visData[idx] / 255;
+    }
+    const h = Math.max(2, v * ch);
+    const x = i * (bw + gap);
+    if (o.mirror !== false) {
+      ctx2.fillRect(x, ch / 2 - h / 2, bw, h);
+    } else {
+      ctx2.fillRect(x, ch - h, bw, h);
+    }
+  }
+}
+
+function visFrame() {
+  const playing = !!(mediaData && mediaData.playing);
+  if (visAnalyser && playing) visAnalyser.getByteFrequencyData(visData);
+  for (const w of visWidgets()) {
+    const rec = widgetEls.get(w.id);
+    const cv = rec && rec.el.querySelector('.vis-canvas');
+    if (cv) drawVis(cv, w, playing && !!visAnalyser);
+  }
+  if (playing && visAnalyser && !paused) {
+    visTimer = setTimeout(visFrame, 33);
+  } else {
+    visTimer = null;
+  }
+}
+
+function visSync() {
+  const ws = visWidgets();
+  clearTimeout(visTimer);
+  visTimer = null;
+  if (!ws.length) return;
+  if (!visAnalyser && !visFailed) ensureVisCapture();
+  visFrame(); // 停止中でも 1 回は描いてアイドル状態を見せる
 }
 
 // ---------------------------------------------------------------- 編集モード
-let drag = null; // { w, el, mode:'move'|'resize', offX, offY }
+let drag = null;                 // { items:[{w,el,startX,startY}], primary, mode, offX, offY }
+const selectedIds = new Set();
+const undoStack = [];            // 位置・サイズのスナップショット (最大 50)
+let wheelSnapAt = 0;
+let arrowSnapAt = 0;
 
 function findWidget(el) {
   const box = el && el.closest ? el.closest('.widget') : null;
@@ -661,35 +970,106 @@ function showBadge(text, x, y) {
   showBadge.t = setTimeout(() => { sizeBadge.style.display = 'none'; }, 1200);
 }
 
+function refreshSelection() {
+  for (const [id, rec] of widgetEls) {
+    rec.el.classList.toggle('selected', selectedIds.has(id));
+  }
+  const tools = $('#align-tools');
+  if (tools) tools.style.display = selectedIds.size >= 2 ? 'flex' : 'none';
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  refreshSelection();
+}
+
+// 現在の全ウィジェットの配置ジオメトリを undo 用に保存
+function pushUndo() {
+  undoStack.push(myWidgets().map(w => ({
+    id: w.id, x: w.x, y: w.y, size: w.size, locked: !!w.locked,
+    options: {
+      w: (w.options || {}).w, h: (w.options || {}).h,
+      len: (w.options || {}).len, thick: (w.options || {}).thick,
+      iconSize: (w.options || {}).iconSize,
+    },
+  })));
+  if (undoStack.length > 50) undoStack.shift();
+}
+
+function applyGeom(w, g) {
+  w.x = g.x; w.y = g.y; w.size = g.size; w.locked = g.locked;
+  const o = w.options || (w.options = {});
+  for (const k of ['w', 'h', 'len', 'thick', 'iconSize']) {
+    if (g.options[k] !== undefined) o[k] = g.options[k];
+  }
+  window.wall.editLive(w.id, {
+    x: w.x, y: w.y, size: w.size, locked: w.locked,
+    options: { ...g.options },
+  });
+  const rec = widgetEls.get(w.id);
+  if (rec) applyWidgetStyle(rec.el, w);
+}
+
+function undo() {
+  const snap = undoStack.pop();
+  if (!snap) return;
+  for (const g of snap) {
+    const w = config.widgets.find(x => x.id === g.id);
+    if (w) applyGeom(w, g);
+  }
+  showBadge('取り消しました', innerWidth / 2, 80);
+}
+
 widgetsBox.addEventListener('pointerdown', (e) => {
-  if (!editing) return;
+  if (!editing || e.button !== 0) return;
   const hit = findWidget(e.target);
-  if (!hit) return;
+  if (!hit) { clearSelection(); return; }
+
+  // Ctrl+クリック: 選択のトグルのみ
+  if (e.ctrlKey) {
+    if (selectedIds.has(hit.w.id)) selectedIds.delete(hit.w.id);
+    else selectedIds.add(hit.w.id);
+    refreshSelection();
+    return;
+  }
+  if (!selectedIds.has(hit.w.id)) {
+    selectedIds.clear();
+    selectedIds.add(hit.w.id);
+    refreshSelection();
+  }
+  if (hit.w.locked) {
+    showBadge('ロック中 (右クリックで解除)', e.clientX, e.clientY);
+    return;
+  }
+
   const isHandle = e.target.classList && e.target.classList.contains('rs-handle');
+  pushUndo();
+  const items = [...selectedIds]
+    .map(id => ({ w: config.widgets.find(x => x.id === id), el: (widgetEls.get(id) || {}).el }))
+    .filter(it => it.w && it.el && !it.w.locked)
+    .map(it => ({ ...it, startX: it.w.x, startY: it.w.y }));
   const rect = hit.el.getBoundingClientRect();
   drag = {
-    w: hit.w, el: hit.el,
+    items, primary: hit.w,
     mode: isHandle ? 'resize' : 'move',
     offX: e.clientX - (rect.left + rect.width / 2),
     offY: e.clientY - (rect.top + rect.height / 2),
   };
-  hit.el.classList.add('dragging');
+  for (const it of items) it.el.classList.add('dragging');
   hit.el.setPointerCapture(e.pointerId);
 });
 
 widgetsBox.addEventListener('pointermove', (e) => {
   if (!editing || !drag) return;
-  const w = drag.w;
+  const w = drag.primary;
   const o = w.options || {};
 
   if (drag.mode === 'resize') {
     const cx = (w.x / 100) * innerWidth;
     const cy = (w.y / 100) * innerHeight;
     if (w.type === 'zone') {
-      o.w = Math.max(4, Math.min(100, (Math.abs(e.clientX - cx) * 2 / innerWidth) * 100));
-      o.h = Math.max(4, Math.min(100, (Math.abs(e.clientY - cy) * 2 / innerHeight) * 100));
-      o.w = Math.round(o.w * 10) / 10;
-      o.h = Math.round(o.h * 10) / 10;
+      o.w = Math.round(Math.max(4, Math.min(100, (Math.abs(e.clientX - cx) * 2 / innerWidth) * 100)) * 10) / 10;
+      o.h = Math.round(Math.max(4, Math.min(100, (Math.abs(e.clientY - cy) * 2 / innerHeight) * 100)) * 10) / 10;
       window.wall.editLive(w.id, { options: { w: o.w, h: o.h } });
       showBadge(`${o.w.toFixed(0)}% × ${o.h.toFixed(0)}%`, e.clientX, e.clientY);
     } else if (w.type === 'line') {
@@ -702,16 +1082,19 @@ widgetsBox.addEventListener('pointermove', (e) => {
       window.wall.editLive(w.id, { options: { len: o.len } });
       showBadge(`長さ ${o.len.toFixed(0)}%`, e.clientX, e.clientY);
     }
-    applyWidgetStyle(drag.el, w);
+    const rec = widgetEls.get(w.id);
+    if (rec) applyWidgetStyle(rec.el, w);
     return;
   }
 
+  const prim = drag.items.find(it => it.w.id === w.id) || drag.items[0];
+  if (!prim) return;
   let x = ((e.clientX - drag.offX) / innerWidth) * 100;
   let y = ((e.clientY - drag.offY) / innerHeight) * 100;
 
   const xs = [50], ys = [50];
   for (const other of myWidgets()) {
-    if (other.id !== w.id) { xs.push(other.x); ys.push(other.y); }
+    if (!selectedIds.has(other.id)) { xs.push(other.x); ys.push(other.y); }
   }
   let sx = null, sy = null;
   for (const c of xs) if (Math.abs(x - c) < 0.7) { x = c; sx = c; break; }
@@ -721,19 +1104,35 @@ widgetsBox.addEventListener('pointermove', (e) => {
   if (sx != null) guideV.style.left = sx + '%';
   if (sy != null) guideH.style.top = sy + '%';
 
-  w.x = Math.max(0, Math.min(100, x));
-  w.y = Math.max(0, Math.min(100, y));
-  drag.el.style.left = w.x + '%';
-  drag.el.style.top = w.y + '%';
-  window.wall.editLive(w.id, { x: w.x, y: w.y });
-  showBadge(`${Math.round(w.size)}px ・ ${w.x.toFixed(1)}% , ${w.y.toFixed(1)}%`, e.clientX, e.clientY);
+  const dx = Math.max(0, Math.min(100, x)) - prim.startX;
+  const dy = Math.max(0, Math.min(100, y)) - prim.startY;
+  for (const it of drag.items) {
+    it.w.x = Math.max(0, Math.min(100, it.startX + dx));
+    it.w.y = Math.max(0, Math.min(100, it.startY + dy));
+    it.el.style.left = it.w.x + '%';
+    it.el.style.top = it.w.y + '%';
+    window.wall.editLive(it.w.id, { x: it.w.x, y: it.w.y });
+  }
+  showBadge(`${w.x.toFixed(1)}% , ${w.y.toFixed(1)}%`, e.clientX, e.clientY);
 });
 
 widgetsBox.addEventListener('pointerup', () => {
-  if (drag) drag.el.classList.remove('dragging');
+  if (drag) for (const it of drag.items) it.el.classList.remove('dragging');
   drag = null;
   guideV.style.display = 'none';
   guideH.style.display = 'none';
+});
+
+// 右クリックでロック切替
+widgetsBox.addEventListener('contextmenu', (e) => {
+  if (!editing) return;
+  const hit = findWidget(e.target);
+  if (!hit) return;
+  e.preventDefault();
+  hit.w.locked = !hit.w.locked;
+  window.wall.editLive(hit.w.id, { locked: hit.w.locked });
+  applyWidgetStyle(hit.el, hit.w);
+  showBadge(hit.w.locked ? 'ロックしました' : 'ロック解除', e.clientX, e.clientY);
 });
 
 window.addEventListener('wheel', (e) => {
@@ -742,6 +1141,9 @@ window.addEventListener('wheel', (e) => {
   if (!hit) return;
   e.preventDefault();
   const w = hit.w;
+  if (w.locked) { showBadge('ロック中', e.clientX, e.clientY); return; }
+  if (Date.now() - wheelSnapAt > 800) pushUndo();
+  wheelSnapAt = Date.now();
   const o = w.options || {};
   const up = e.deltaY < 0;
 
@@ -754,9 +1156,14 @@ window.addEventListener('wheel', (e) => {
     o.w = Math.max(3, Math.min(100, Math.round(((o.w || 18) + (up ? step : -step)) * 10) / 10));
     window.wall.editLive(w.id, { options: { w: o.w } });
     showBadge(`幅 ${o.w}%`, e.clientX, e.clientY);
-  } else if (['note', 'pomo', 'volume', 'nowplaying'].includes(w.type)) {
+  } else if (w.type === 'visualizer') {
+    const step = e.shiftKey ? 4 : 1;
+    o.wPct = Math.max(10, Math.min(100, (o.wPct || 40) + (up ? step : -step)));
+    window.wall.editLive(w.id, { options: { wPct: o.wPct } });
+    showBadge(`幅 ${o.wPct}%`, e.clientX, e.clientY);
+  } else if (['note', 'pomo', 'volume', 'nowplaying', 'todo'].includes(w.type)) {
     const f = up ? 1.05 : 0.95;
-    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96] }[w.type];
+    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96], todo: [250, 220] }[w.type];
     o.w = Math.round(Math.max(140, Math.min(800, (o.w || defs[0]) * f)));
     o.h = Math.round(Math.max(60, Math.min(600, (o.h || defs[1]) * f)));
     window.wall.editLive(w.id, { options: { w: o.w, h: o.h } });
@@ -776,12 +1183,48 @@ window.addEventListener('wheel', (e) => {
   applyWidgetStyle(hit.el, w);
 }, { passive: false });
 
+// ---- 整列 / 等間隔 ----
+function selectedWidgets() {
+  return [...selectedIds].map(id => config.widgets.find(x => x.id === id)).filter(w => w && !w.locked);
+}
+
+function alignSelection(kind) {
+  const ws = selectedWidgets();
+  if (ws.length < 2) return;
+  pushUndo();
+  if (kind === 'dist-h' || kind === 'dist-v') {
+    const axis = kind === 'dist-h' ? 'x' : 'y';
+    const sorted = [...ws].sort((a, b) => a[axis] - b[axis]);
+    const min = sorted[0][axis];
+    const max = sorted[sorted.length - 1][axis];
+    sorted.forEach((w, i) => { w[axis] = min + (max - min) * (i / (sorted.length - 1)); });
+  } else {
+    const axis = ['left', 'center', 'right'].includes(kind) ? 'x' : 'y';
+    const vals = ws.map(w => w[axis]);
+    let target;
+    if (kind === 'left' || kind === 'top') target = Math.min(...vals);
+    else if (kind === 'right' || kind === 'bottom') target = Math.max(...vals);
+    else target = vals.reduce((a, b) => a + b, 0) / vals.length;
+    for (const w of ws) w[axis] = target;
+  }
+  for (const w of ws) {
+    w.x = Math.round(w.x * 100) / 100;
+    w.y = Math.round(w.y * 100) / 100;
+    window.wall.editLive(w.id, { x: w.x, y: w.y });
+    const rec = widgetEls.get(w.id);
+    if (rec) { rec.el.style.left = w.x + '%'; rec.el.style.top = w.y + '%'; }
+  }
+}
+
+document.querySelectorAll('#align-tools button').forEach(b =>
+  b.addEventListener('click', () => alignSelection(b.dataset.al)));
+
 $('#edit-done').addEventListener('click', () => window.wall.finishEdit());
 
-// デスクトップアイコンの表示切替 (編集モード中のみ操作できる)
+// デスクトップアイコンの表示切替 (編集モード中の一時的なプレビュー。設定は変えない)
 const iconsBtn = $('#edit-icons');
 function renderIconsBtn(visible) {
-  iconsBtn.textContent = visible ? 'アイコンを隠す' : 'アイコンを表示';
+  iconsBtn.textContent = uiEn() ? (visible ? EDIT_EN['アイコンを隠す'] : EDIT_EN['アイコンを表示']) : (visible ? 'アイコンを隠す' : 'アイコンを表示');
   iconsBtn.classList.toggle('on', !visible);
 }
 iconsBtn.addEventListener('click', async () => {
@@ -789,8 +1232,45 @@ iconsBtn.addEventListener('click', async () => {
   renderIconsBtn(await window.wall.setIconsVisible(!now));
 });
 window.wall.onIconsState((v) => renderIconsBtn(v));
-window.addEventListener('keydown', (e) => {
-  if (editing && e.key === 'Escape') window.wall.finishEdit();
+
+window.addEventListener('keydown', async (e) => {
+  if (!editing) return;
+  if (e.key === 'Escape') { window.wall.finishEdit(); return; }
+
+  if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undo(); return; }
+
+  if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
+    e.preventDefault();
+    const id = [...selectedIds][0];
+    if (id) {
+      const created = await window.wall.duplicateWidget(id);
+      if (created) {
+        selectedIds.clear();
+        selectedIds.add(created.id);
+        showBadge('複製しました', innerWidth / 2, 80);
+      }
+    }
+    return;
+  }
+
+  // 矢印キー: 1px (Shift で 10px) 移動
+  const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (ARROWS[e.key] && selectedIds.size) {
+    e.preventDefault();
+    if (Date.now() - arrowSnapAt > 1000) pushUndo();
+    arrowSnapAt = Date.now();
+    const px = e.shiftKey ? 10 : 1;
+    const [mx, my] = ARROWS[e.key];
+    for (const w of selectedWidgets()) {
+      w.x = Math.max(0, Math.min(100, w.x + (mx * px * 100) / innerWidth));
+      w.y = Math.max(0, Math.min(100, w.y + (my * px * 100) / innerHeight));
+      w.x = Math.round(w.x * 1000) / 1000;
+      w.y = Math.round(w.y * 1000) / 1000;
+      window.wall.editLive(w.id, { x: w.x, y: w.y });
+      const rec = widgetEls.get(w.id);
+      if (rec) { rec.el.style.left = w.x + '%'; rec.el.style.top = w.y + '%'; }
+    }
+  }
 });
 
 // ---------------------------------------------------------------- フォント / 購読 / 初期化
@@ -803,11 +1283,34 @@ async function injectFonts() {
 function applyEnv(env) {
   config = env.config;
   systemWallpaper = env.systemWallpaper || '';
+  onlineWallpaper = env.onlineWallpaper || null;
+  if (env.osLocale) osLocale = env.osLocale;
   renderAll();
 }
 
 window.wall.onConfig((env) => applyEnv(env));
-window.wall.onWeather((d) => { weatherData = d; tick(['weather']); });
+window.wall.onWeather((d) => {
+  if (d && d.key) weatherMap.set(d.key, d.data);
+  tick(['weather', 'forecast']);
+});
+window.wall.onDisks((d) => { disksData = d || []; tick(['disk']); });
+window.wall.onNetinfo((d) => {
+  netinfoData = d;
+  if (d && d.pingMs != null) {
+    // スパークライン用に 0-100 スケールへ丸める (200ms を上限とみなす)
+    pingHist.push(Math.min(100, d.pingMs / 2));
+    if (pingHist.length > 90) pingHist.shift();
+    hwHist.set('ping', pingHist);
+  }
+  tick(['netinfo']);
+});
+window.wall.onIcs((d) => {
+  if (d && d.url) icsData.set(d.url, d);
+  tick(['ics']);
+});
+window.wall.onWidgetsHidden((v) => {
+  document.body.classList.toggle('whidden', !!v);
+});
 window.wall.onHw((d) => {
   hwData = d;
   if (d && d.ok) {
@@ -821,7 +1324,21 @@ window.wall.onMedia((d) => {
   mediaData = d;
   tick(['nowplaying']);
   if (myWallpaper().type === 'nowplaying') renderMedia();
+  visSync();
 });
+
+// バッテリー (対応機のみ。イベント駆動なのでタイマー不要)
+if (navigator.getBattery) {
+  navigator.getBattery().then((b) => {
+    const upd = () => {
+      batteryData = { level: b.level, charging: b.charging };
+      tick(['battery']);
+    };
+    b.addEventListener('levelchange', upd);
+    b.addEventListener('chargingchange', upd);
+    upd();
+  }).catch(() => {});
+}
 window.wall.onRss((d) => {
   rssData.set(d.url, d);
   tick(['rss']);
@@ -837,9 +1354,12 @@ window.wall.onEditMode((v) => {
   if (!v) {
     guideV.style.display = guideH.style.display = 'none';
     sizeBadge.style.display = 'none';
+    clearSelection();
+    undoStack.length = 0;
   } else {
     renderWidgets();
     tick();
+    applyEditI18n();
     window.wall.getIconsVisible().then(renderIconsBtn);
   }
 });
@@ -856,13 +1376,24 @@ window.wall.onPower(({ paused: p }) => {
   const st = await window.wall.requestState();
   config = st.config;
   systemWallpaper = st.systemWallpaper || '';
-  weatherData = st.weather;
+  onlineWallpaper = st.onlineWallpaper || null;
   hwData = st.hw;
   mediaData = st.media;
+  if (st.weatherMap) {
+    for (const [k, v] of Object.entries(st.weatherMap)) weatherMap.set(k, v);
+  }
   if (st.feeds) {
     for (const [url, v] of Object.entries(st.feeds.rss || {})) rssData.set(url, { url, ...v });
     for (const [sym, v] of Object.entries(st.feeds.ticker || {})) tickerData.set(sym, { symbol: sym, ...v });
   }
+  if (st.sysinfo) {
+    disksData = st.sysinfo.disks || [];
+    netinfoData = st.sysinfo.netinfo || null;
+  }
+  if (st.ics) {
+    for (const [url, v] of Object.entries(st.ics)) icsData.set(url, { url, ...v });
+  }
+  document.body.classList.toggle('whidden', !!st.widgetsHidden);
   editing = !!st.editing;
   document.body.classList.toggle('edit', editing);
   injectFonts();

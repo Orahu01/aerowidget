@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('api', {
   pickFile: () => ipcRenderer.invoke('file:pick'),
   pickImage: () => ipcRenderer.invoke('file:pickImage'),
   pickImages: () => ipcRenderer.invoke('file:pickImages'),
+  pickDir: () => ipcRenderer.invoke('dir:pick'),
+  listThemes: () => ipcRenderer.invoke('theme:list'),
+  applyTheme: (id) => ipcRenderer.invoke('theme:apply', id),
 
   exportConfig: () => ipcRenderer.invoke('config:export'),
   importConfig: () => ipcRenderer.invoke('config:import'),

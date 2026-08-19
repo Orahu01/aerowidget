@@ -762,3 +762,82 @@ input[type=checkbox]:checked::after {
 
 .font-pick { flex: 1; min-width: 0; }
 .font-pick input { width: 100%; }
+
+/* ================= ミニプレビュー (壁紙 / テーマカード共通) ================= */
+.mini-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r);
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  background: #101014;
+}
+.mini-preview .pv-w {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: pre;
+  line-height: 1.25;
+  text-align: center;
+  color: #fff;
+  pointer-events: none;
+}
+.mini-preview .pv-card {
+  background: rgba(13, 16, 22, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  display: grid;
+  place-items: center;
+  white-space: nowrap;
+}
+.mini-preview .pv-ring {
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+}
+#live-preview-wrap { margin: 12px 0 4px; }
+#live-preview { max-width: 560px; }
+
+/* ================= テーマ ================= */
+#theme-grid, #wizard-themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.theme-card {
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.theme-card:hover { border-color: var(--acc); transform: translateY(-2px); }
+.theme-card .mini-preview { border: none; border-radius: 0; border-bottom: 1px solid var(--line); }
+.theme-meta { padding: 10px 14px 12px; }
+.theme-name { font-weight: 650; font-size: 13px; }
+.theme-desc { color: var(--dim); font-size: 11.5px; margin-top: 2px; line-height: 1.5; }
+.theme-apply { margin-top: 9px; }
+
+/* ================= ウィザード ================= */
+#wizard {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(10, 11, 13, 0.85);
+  display: grid;
+  place-items: center;
+  padding: 30px;
+}
+#wizard-card {
+  width: min(860px, 96vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--bg0);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 30px 34px 26px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+}
+.wiz-logo { width: 44px; height: 44px; border-radius: 11px; display: block; margin-bottom: 14px; }
+.wiz-title { font-size: 20px; font-weight: 650; margin: 0 0 6px; text-transform: none; letter-spacing: 0.02em; color: var(--text); }
+.wiz-sub { color: var(--dim); font-size: 13px; }
+.wiz-foot { display: flex; justify-content: center; margin-top: 18px; }
