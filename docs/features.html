@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>機能 — WidgetWall</title>
+<meta name="description" content="WidgetWall の全 26 種のウィジェット、壁紙の種類、レイアウト編集、ホットキーなどの機能一覧。">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/icon.png" alt=""><span>WIDGETWALL</span></a>
+    <button class="menu-btn" aria-expanded="false" aria-label="メニュー">MENU</button>
+    <nav class="site">
+      <a href="index.html">ホーム</a>
+      <a href="features.html" aria-current="page">機能</a>
+      <a href="themes.html">テーマ</a>
+      <a href="changelog.html">更新履歴</a>
+      <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+      <a class="get" href="download.html">ダウンロード</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="cover">
+    <p class="kicker">Features</p>
+    <h1>置けるもの、<br>できること。</h1>
+    <p class="lede">
+      ウィジェットは全 26 種。壁紙は画像・動画・スライドショーから、いま流れている曲のジャケットまで。
+      ここではひと通りを並べています。
+    </p>
+  </section>
+
+  <!-- 01 ウィジェット -->
+  <section class="chapter">
+    <div class="rail"><span class="num">01</span><span class="label">Widgets</span></div>
+    <div>
+      <h2 class="head">ウィジェット 26 種</h2>
+      <p class="body mt-m">
+        どれもフォント・文字サイズ・色・影・不透明度・配置を個別に設定できます。
+        <span class="badge">NEW</span> は v5.0.0 で追加されたものです。
+      </p>
+
+      <p class="group-title">時間と予定 — 7</p>
+      <div class="list">
+        <div class="item"><span class="n">01</span><span class="t">時計 (デジタル)</span><span class="d">12/24 時間、秒の表示、区切り記号を選択。数字がガタつかない等幅表示です。</span></div>
+        <div class="item"><span class="n">02</span><span class="t">時計 (アナログ)</span><span class="d">文字盤の太さ・目盛り・秒針の有無を調整。滑らかに動く秒針も選べます。</span></div>
+        <div class="item"><span class="n">03</span><span class="t">日付</span><span class="d">和暦・曜日・書式を自由に指定。「2026年8月19日 水曜日」から「AUG 19」まで。</span></div>
+        <div class="item"><span class="n">04</span><span class="t">カレンダー</span><span class="d">今月のカレンダー。今日の日付がアクセント色で示されます。</span></div>
+        <div class="item"><span class="n">05</span><span class="t">世界時計 <span class="badge">NEW</span></span><span class="d">タイムゾーンを並べて表示。海外とやりとりする人向けに、都市名は自由に付けられます。</span></div>
+        <div class="item"><span class="n">06</span><span class="t">予定表 (カレンダー購読) <span class="badge">NEW</span></span><span class="d">Google カレンダーなどの非公開 ICS URL を貼るだけ。今日・明日・以降の予定を時刻つきで。繰り返し予定にも対応。</span></div>
+        <div class="item"><span class="n">07</span><span class="t">カウントダウン</span><span class="d">締切や記念日までの残り日数。過ぎたあとは経過日数として数え続けます。</span></div>
+      </div>
+
+      <p class="group-title">天気とニュース — 4</p>
+      <div class="list">
+        <div class="item"><span class="n">08</span><span class="t">天気</span><span class="d">現在の気温・天候・体感温度。地名から座標を検索して設定します (Open-Meteo)。</span></div>
+        <div class="item"><span class="n">09</span><span class="t">天気予報 (時間別・週間) <span class="badge">NEW</span></span><span class="d">3 時間ごと 18 時間先まで、または 7 日間。降水確率と最高最低気温つき。</span></div>
+        <div class="item"><span class="n">10</span><span class="t">ニュース (RSS)</span><span class="d">好きな RSS を登録して見出しを巡回表示。切り替え間隔も指定できます。</span></div>
+        <div class="item"><span class="n">11</span><span class="t">株価・為替</span><span class="d">銘柄コードを並べて現在値と騰落率を表示。上げ下げで色が変わります。</span></div>
+      </div>
+
+      <p class="group-title">PC の状態 — 4</p>
+      <div class="list">
+        <div class="item"><span class="n">12</span><span class="t">ハードウェアモニタ</span><span class="d">CPU / GPU の使用率と温度、メモリ、ネット速度。推移グラフと、しきい値を超えると赤くなる温度アラートつき (Libre Hardware Monitor 連携)。</span></div>
+        <div class="item"><span class="n">13</span><span class="t">バッテリー <span class="badge">NEW</span></span><span class="d">残量と充電状態。ノート PC で、残り時間の目安を壁紙のまま確認できます。</span></div>
+        <div class="item"><span class="n">14</span><span class="t">ディスク空き容量 <span class="badge">NEW</span></span><span class="d">ドライブごとの空き容量をバーで。90% を超えると警告色になります。</span></div>
+        <div class="item"><span class="n">15</span><span class="t">ネットワーク情報 <span class="badge">NEW</span></span><span class="d">IP アドレス、接続中の Wi-Fi の SSID、応答速度 (ping) の推移グラフ。</span></div>
+      </div>
+
+      <p class="group-title">音楽 — 3</p>
+      <div class="list">
+        <div class="item"><span class="n">16</span><span class="t">再生中の曲</span><span class="d">曲名・アーティスト・ジャケット画像と、再生 / 一時停止・前へ・次へのボタン。Windows の再生情報 (SMTC) を使うので、Spotify でもブラウザでも動きます。</span></div>
+        <div class="item"><span class="n">17</span><span class="t">音量・出力切替</span><span class="d">スライダーとホイールで音量調整、ミュート切替、スピーカーとヘッドホンの切り替えもその場で。</span></div>
+        <div class="item"><span class="n">18</span><span class="t">ビジュアライザー <span class="badge">NEW</span></span><span class="d">いま鳴っている音に反応するバー表示。再生中だけ描画し、止まれば休みます。</span></div>
+      </div>
+
+      <p class="group-title">作業まわり — 3</p>
+      <div class="list">
+        <div class="item"><span class="n">19</span><span class="t">メモ (書き込める付箋)</span><span class="d">デスクトップに直接書ける付箋。打った内容はそのまま自動保存されます。</span></div>
+        <div class="item"><span class="n">20</span><span class="t">ToDo リスト <span class="badge">NEW</span></span><span class="d">Enter で追加、クリックで完了。済んだものは下へ沈みます。</span></div>
+        <div class="item"><span class="n">21</span><span class="t">ポモドーロタイマー</span><span class="d">25 分作業 + 5 分休憩。作業時間・休憩時間は変更でき、ホットキーからも開始できます。</span></div>
+      </div>
+
+      <p class="group-title">飾りと整理 — 5</p>
+      <div class="list">
+        <div class="item"><span class="n">22</span><span class="t">テキスト</span><span class="d">好きな言葉を好きな書体で。座右の銘でも、モニタの名前でも。</span></div>
+        <div class="item"><span class="n">23</span><span class="t">画像</span><span class="d">ロゴやイラストを配置。角丸と不透明度を調整できます。</span></div>
+        <div class="item"><span class="n">24</span><span class="t">ゾーン (色分け枠)</span><span class="d">デスクトップを色の枠で区切り、アイコンを「仕事」「素材」などに仕分けるための下敷き。</span></div>
+        <div class="item"><span class="n">25</span><span class="t">ライン (線)</span><span class="d">区切りの一本。太さ・角度・長さを指定できます。</span></div>
+        <div class="item"><span class="n">26</span><span class="t">フォルダ (アプリまとめ)</span><span class="d">よく使うアプリやショートカットをまとめる小さなランチャー。<code>.lnk</code> / <code>.url</code> のリンク先アイコンも解決します。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 壁紙 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">02</span><span class="label">Wallpaper</span></div>
+    <div>
+      <h2 class="head">壁紙そのものも、動かせる。</h2>
+      <div class="list mt-l">
+        <div class="item"><span class="t">画像・動画</span><span class="d">手持ちの画像や動画ファイルをそのまま壁紙に。ぼかし・暗く・明るくのスライダーで、ウィジェットが読みやすい濃さに調整できます。</span></div>
+        <div class="item"><span class="t">スライドショー</span><span class="d">複数の画像をクロスフェードで切り替え。フォルダをまるごと指定でき、シャッフルにも対応 <span class="badge">NEW</span></span></div>
+        <div class="item"><span class="t">オンライン壁紙 <span class="badge">NEW</span></span><span class="d">Bing の日替わり画像や、ランダムな写真を自動で取得して表示します。</span></div>
+        <div class="item"><span class="t">アルバムアート壁紙</span><span class="d">いま流れている曲のジャケットをぼかして壁紙に。ジャケットの色をウィジェットのアクセント色に反映させることもできます <span class="badge">NEW</span></span></div>
+        <div class="item"><span class="t">グラデーション</span><span class="d">最大 10 色まで指定できるカスタムグラデーション。角度も自由に。</span></div>
+        <div class="item"><span class="t">時間・曜日で自動切替</span><span class="d">昼と夜で壁紙を変える、あるいは曜日ごとに変える。切り替え時刻も指定できます。</span></div>
+        <div class="item"><span class="t">マウス視差 <span class="badge">NEW</span></span><span class="d">カーソルの動きに合わせて壁紙がわずかに追従します。使う人向けの任意設定です。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 編集 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">03</span><span class="label">Editing</span></div>
+    <div>
+      <h2 class="head">配置は、デスクトップの上で。</h2>
+      <p class="body mt-m">
+        設定画面で数字を入れるのではなく、実際の画面を見ながら動かします。
+        「レイアウトを編集」を押すと、その場でつかんで動かせるようになります。
+      </p>
+      <div class="list mt-l">
+        <div class="item"><span class="t">ドラッグ / ホイール</span><span class="d">つかんで移動、ホイールで拡大縮小。画面の端や他のウィジェットに吸い付きます。</span></div>
+        <div class="item"><span class="t">複数選択と整列 <span class="badge">NEW</span></span><span class="d"><kbd>Ctrl</kbd>+クリックで複数選択し、左揃え・中央揃え・等間隔に配置。</span></div>
+        <div class="item"><span class="t">キーボード微調整 <span class="badge">NEW</span></span><span class="d">矢印キーで 1px、<kbd>Shift</kbd>+矢印で 10px。<kbd>Ctrl</kbd>+<kbd>D</kbd> で複製、<kbd>Ctrl</kbd>+<kbd>Z</kbd> で取り消し。</span></div>
+        <div class="item"><span class="t">ロック <span class="badge">NEW</span></span><span class="d">位置が決まったウィジェットは右クリックでロック。もう誤って動きません。</span></div>
+        <div class="item"><span class="t">レイアウトプリセット</span><span class="d">構成をまるごと保存して切り替え。「仕事用」「配信用」などを行き来できます。トレイからも切替可能。</span></div>
+        <div class="item"><span class="t">ホットキー <span class="badge">NEW</span></span><span class="d"><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>W</kbd> でウィジェットの表示、<kbd>D</kbd> でアイコンの表示、<kbd>L</kbd> でレイアウト切替、<kbd>P</kbd> でポモドーロ。割り当ては変更できます。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 その他 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">04</span><span class="label">System</span></div>
+    <div>
+      <h2 class="head">日々使うための、こまごまとしたこと。</h2>
+      <div class="cards mt-l">
+        <div><h3>マルチモニタ</h3><p>モニタごとに別の壁紙と配置。解像度も拡大率も違う組み合わせで正しく表示されます。</p></div>
+        <div><h3>デスクトップアイコンを隠す</h3><p>ウィジェットと壁紙だけの画面に。設定とトレイから切り替えられ、アプリを終了すれば必ず元に戻ります。</p></div>
+        <div><h3>自動起動・トレイ常駐</h3><p>サインイン時に前回の状態で復元。ふだんはトレイに収まっています。</p></div>
+        <div><h3>自動アップデート</h3><p>新しい版が出ると通知され、その場で更新できます (インストーラ版)。</p></div>
+        <div><h3>設定の書き出し・読み込み</h3><p>構成をファイルに保存して別の PC へ。読み込む前には自動でバックアップが取られます。</p></div>
+        <div><h3>日本語 / 英語</h3><p>システムの言語に合わせて自動で切り替わり、手動で固定することもできます。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closer">
+    <h2>気になったものから、ひとつずつ。</h2>
+    <p>ウィジェットは後からいくらでも足せます。まずは入れてみてください。</p>
+    <div class="btn-row">
+      <a class="btn primary" href="download.html">ダウンロード<span class="arw">→</span></a>
+      <a class="btn" href="themes.html">テーマを見る</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>WidgetWall</span>
+    <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+    <a href="https://github.com/Orahu01/wallpaper/wiki">Wiki</a>
+    <a href="https://github.com/Orahu01/wallpaper/issues">不具合報告・要望</a>
+    <span class="sp">MIT License</span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

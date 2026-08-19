@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テーマ — WidgetWall</title>
+<meta name="description" content="WidgetWall に同梱された 6 つのデスクテーマ。ミニマル・サイバー・和・情報ダッシュボード・フォーカス・ミュージック。">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  /* テーマの見本 (実機写真のないものは CSS で再現) */
+  .mock {
+    position: relative; overflow: hidden;
+    aspect-ratio: 16 / 9; border-radius: 9px;
+    border: 1px solid var(--rule-s); color: #fff;
+    font-family: var(--sans);
+  }
+  .mock > * { position: absolute; }
+
+  .m-min { background: linear-gradient(170deg, #101013, #17171b 60%, #0d0d10); }
+  .m-min .c {
+    left: 50%; top: 48%; transform: translate(-50%, -50%); text-align: center;
+    font-weight: 100; font-size: clamp(38px, 9vw, 86px); letter-spacing: .1em; color: #f2f2f4;
+    font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .m-min .d {
+    left: 50%; top: 66%; transform: translateX(-50%);
+    font-size: clamp(8px, 1.4vw, 13px); letter-spacing: .5em; color: rgba(255,255,255,.45); white-space: nowrap;
+  }
+
+  .m-foc { background: linear-gradient(150deg, #17211f, #101b1a 55%, #0c1413); }
+  .m-foc .ring {
+    left: 13%; top: 50%; transform: translateY(-50%);
+    width: clamp(78px, 17vw, 148px); aspect-ratio: 1; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.1);
+    background: conic-gradient(#5ec5a8 0 62%, transparent 0);
+    -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%);
+    mask: radial-gradient(circle, transparent 62%, #000 63%);
+  }
+  .m-foc .rt {
+    left: 13%; top: 50%; transform: translateY(-50%);
+    width: clamp(78px, 17vw, 148px); text-align: center;
+    font-size: clamp(15px, 3.3vw, 31px); font-weight: 300; letter-spacing: .04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .m-foc .todo {
+    right: 8%; top: 50%; transform: translateY(-50%);
+    width: clamp(126px, 34%, 260px);
+    font-size: clamp(7.5px, 1.35vw, 13px); line-height: 2.1; color: rgba(255,255,255,.9);
+  }
+  .m-foc .todo b { display: block; font-family: var(--mono); font-size: .78em; letter-spacing: .22em; color: rgba(255,255,255,.4); margin-bottom: 6px; font-weight: 500; }
+  .m-foc .todo i { font-style: normal; color: #5ec5a8; margin-right: .6em; }
+  .m-foc .todo s { color: rgba(255,255,255,.32); }
+
+  .m-mus { background: linear-gradient(135deg, #3a1f3c, #241a3a 45%, #16182c); }
+  .m-mus::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(40% 55% at 26% 45%, rgba(226,120,90,.5), transparent 70%),
+                radial-gradient(45% 50% at 74% 62%, rgba(90,120,226,.45), transparent 70%);
+    filter: blur(2px);
+  }
+  .m-mus .art {
+    left: 8%; top: 50%; transform: translateY(-50%); z-index: 2;
+    width: clamp(60px, 15vw, 128px); aspect-ratio: 1; border-radius: 7px;
+    background: linear-gradient(140deg, #e2785a, #7a4bd0 60%, #2e3f8f);
+    box-shadow: 0 12px 34px rgba(0,0,0,.45);
+  }
+  .m-mus .meta { left: 30%; top: 39%; z-index: 2; }
+  .m-mus .meta b { display: block; font-size: clamp(10px, 2.1vw, 20px); font-weight: 600; letter-spacing: .01em; }
+  .m-mus .meta span { font-size: clamp(7.5px, 1.4vw, 13px); color: rgba(255,255,255,.62); }
+  .m-mus .bars { left: 30%; bottom: 26%; z-index: 2; display: flex; align-items: flex-end; gap: clamp(2px, .55vw, 5px); height: clamp(18px, 6vw, 48px); }
+  .m-mus .bars s { display: block; width: clamp(2.5px, .7vw, 6px); background: rgba(255,255,255,.82); border-radius: 1px; }
+
+  .theme-meta { display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: baseline; margin-top: 14px; }
+  .theme-meta .k { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--paper-3); text-transform: uppercase; }
+  .theme-meta .v { font-size: 13.5px; color: var(--paper-2); }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/icon.png" alt=""><span>WIDGETWALL</span></a>
+    <button class="menu-btn" aria-expanded="false" aria-label="メニュー">MENU</button>
+    <nav class="site">
+      <a href="index.html">ホーム</a>
+      <a href="features.html">機能</a>
+      <a href="themes.html" aria-current="page">テーマ</a>
+      <a href="changelog.html">更新履歴</a>
+      <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+      <a class="get" href="download.html">ダウンロード</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="cover">
+    <p class="kicker">Themes</p>
+    <h1>選ぶだけで、<br>できあがっている。</h1>
+    <p class="lede">
+      6 つのテーマを同梱しています。初回起動のウィザードで選ぶか、設定の「テーマ」タブからいつでも。
+      適用すると、それまでの構成は「適用前の構成 (自動)」として保存されるので、気に入らなければ元に戻せます。
+    </p>
+  </section>
+
+  <!-- 01 ミニマル -->
+  <section class="chapter">
+    <div class="rail"><span class="num">01</span><span class="label">Minimal</span></div>
+    <div>
+      <h2 class="head">ミニマル</h2>
+      <p class="body mt-m">時計と日付だけ。壁紙の写真を邪魔したくない人へ。静かなモノトーンで、余白がいちばんの要素です。</p>
+      <div class="mock m-min mt-l" aria-hidden="true">
+        <div class="c">10:47</div>
+        <div class="d">WEDNESDAY, AUGUST 19</div>
+      </div>
+      <div class="theme-meta">
+        <span class="k">Widgets</span><span class="v">時計 (デジタル) ・ 日付</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 サイバー -->
+  <section class="chapter">
+    <div class="rail"><span class="num">02</span><span class="label">Cyber</span></div>
+    <div>
+      <h2 class="head">サイバー</h2>
+      <p class="body mt-m">ネオン発光の時計と、CPU / GPU の温度が並ぶモニタ類。ゲーミングデスクに置いたときにいちばん映えるテーマです。</p>
+      <figure class="mt-l"><img src="shot_cyber.jpg" alt="サイバーテーマを適用したデスクトップ"><figcaption>実際の画面 (デスクトップアイコンを隠した状態)</figcaption></figure>
+      <div class="theme-meta">
+        <span class="k">Widgets</span><span class="v">時計 ・ 日付 ・ ハードウェアモニタ ・ ネットワーク情報 ・ ライン</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 和 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">03</span><span class="label">Zen</span></div>
+    <div>
+      <h2 class="head">和</h2>
+      <p class="body mt-m">明朝体と桜色。数字を大きく見せるのではなく、余白と字面で見せる設え。落ち着いた作業机に。</p>
+      <figure class="mt-l"><img src="shot_wa.jpg" alt="和テーマを適用したデスクトップ"><figcaption>実際の画面 (デスクトップアイコンを隠した状態)</figcaption></figure>
+      <div class="theme-meta">
+        <span class="k">Widgets</span><span class="v">時計 ・ 日付 ・ 天気 ・ カレンダー ・ テキスト</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 情報ダッシュボード -->
+  <section class="chapter">
+    <div class="rail"><span class="num">04</span><span class="label">Dashboard</span></div>
+    <div>
+      <h2 class="head">情報ダッシュボード</h2>
+      <p class="body mt-m">天気・週間予報・PC の状態・ニュース・株価を一望する、いちばん情報量の多いテーマ。ブラウザを開く回数がいちばん減ります。</p>
+      <figure class="mt-l"><img src="shot_dash.jpg" alt="情報ダッシュボードテーマを適用したデスクトップ"><figcaption>実際の画面 (デスクトップアイコンを隠した状態)</figcaption></figure>
+      <div class="theme-meta">
+        <span class="k">Widgets</span><span class="v">時計 ・ 日付 ・ 天気 ・ 天気予報 ・ カレンダー ・ ハードウェアモニタ ・ ニュース ・ 株価</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 フォーカス -->
+  <section class="chapter">
+    <div class="rail"><span class="num">05</span><span class="label">Focus</span></div>
+    <div>
+      <h2 class="head">フォーカス</h2>
+      <p class="body mt-m">ポモドーロタイマーと ToDo リストだけを置いた、作業のためのテーマ。デスクトップに戻るたび、残り時間と次にやることが目に入ります。</p>
+      <div class="mock m-foc mt-l" aria-hidden="true">
+        <div class="ring"></div>
+        <div class="rt">15:24</div>
+        <div class="todo">
+          <b>TODO</b>
+          <div><i>☐</i>デザイン案を送る</div>
+          <div><i>☐</i>見積もりを確認する</div>
+          <div><i>✓</i><s>朝の打ち合わせ</s></div>
+        </div>
+      </div>
+      <div class="theme-meta">
+        <span class="k">Widgets</span><span class="v">ポモドーロタイマー ・ ToDo リスト ・ 時計</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 ミュージック -->
+  <section class="chapter">
+    <div class="rail"><span class="num">06</span><span class="label">Music</span></div>
+    <div>
+      <h2 class="head">ミュージック</h2>
+      <p class="body mt-m">再生中の曲のジャケットをぼかして壁紙にし、その色をアクセントに反映。再生操作とビジュアライザーが並びます。曲が変わると、壁紙の色も変わります。</p>
+      <div class="mock m-mus mt-l" aria-hidden="true">
+        <div class="art"></div>
+        <div class="meta"><b>Nightfall</b><span>Otoha Kurose</span></div>
+        <div class="bars">
+          <s style="height:38%"></s><s style="height:66%"></s><s style="height:92%"></s><s style="height:54%"></s>
+          <s style="height:78%"></s><s style="height:34%"></s><s style="height:60%"></s><s style="height:86%"></s>
+          <s style="height:44%"></s><s style="height:70%"></s><s style="height:28%"></s><s style="height:52%"></s>
+        </div>
+      </div>
+      <div class="theme-meta">
+        <span class="k">Widgets</span><span class="v">再生中の曲 ・ ビジュアライザー ・ 音量 ・ 時計</span>
+        <span class="k">Wallpaper</span><span class="v">アルバムアート (ぼかし) + アクセント色の反映</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="closer">
+    <h2>選んだあとは、好きに崩していい。</h2>
+    <p>テーマはあくまで出発点です。要らないウィジェットは消して、足りないものを足してください。</p>
+    <div class="btn-row">
+      <a class="btn primary" href="download.html">ダウンロード<span class="arw">→</span></a>
+      <a class="btn" href="features.html">機能を見る</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>WidgetWall</span>
+    <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+    <a href="https://github.com/Orahu01/wallpaper/wiki">Wiki</a>
+    <a href="https://github.com/Orahu01/wallpaper/issues">不具合報告・要望</a>
+    <span class="sp">MIT License</span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

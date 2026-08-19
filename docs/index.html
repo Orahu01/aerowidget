@@ -1,216 +1,175 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WidgetWall — ウィジェット壁紙 for Windows</title>
-  <meta name="description" content="時計・天気・ハードウェアモニタ・メモをデスクトップアイコンの背面に自由に配置できる、軽量なライブ壁紙アプリ。無料・オープンソース。">
-  <style>
-    :root {
-      --bg0: #141518; --bg1: #1a1c20; --bg2: #22242a;
-      --line: rgba(255,255,255,.07); --line-s: rgba(255,255,255,.13);
-      --text: #e6e7ea; --dim: #9a9ea6; --faint: #686d75;
-      --acc: #e3a94f; --acc-text: #1c1508;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      background: var(--bg0); color: var(--text);
-      font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
-      font-size: 15px; line-height: 1.7;
-      -webkit-font-smoothing: antialiased;
-    }
-    a { color: var(--acc); text-decoration: none; }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-
-    header {
-      display: flex; align-items: center; gap: 10px;
-      padding: 18px 0;
-    }
-    .mark { width: 11px; height: 11px; border-radius: 3px; background: var(--acc); transform: rotate(45deg); }
-    .brand { font-weight: 650; letter-spacing: .08em; font-size: 15px; }
-    .tb-spacer { flex: 1; }
-    header a { color: var(--dim); font-size: 13.5px; margin-left: 22px; }
-    header a:hover { color: var(--text); }
-
-    .hero { text-align: center; padding: 64px 0 40px; }
-    .hero h1 {
-      font-size: clamp(30px, 5.5vw, 46px);
-      font-weight: 700; letter-spacing: .02em; line-height: 1.35;
-    }
-    .hero h1 .gold { color: var(--acc); }
-    .hero p.lead { color: var(--dim); font-size: clamp(15px, 2.4vw, 17.5px); margin: 18px auto 0; max-width: 620px; }
-
-    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
-    .btn {
-      display: inline-flex; align-items: center; gap: 9px;
-      padding: 13px 26px; border-radius: 8px;
-      font-size: 15px; font-weight: 650; letter-spacing: .02em;
-      border: 1px solid var(--line-s); background: var(--bg1); color: var(--text);
-      transition: filter .12s, background .12s;
-    }
-    .btn:hover { background: var(--bg2); }
-    .btn.primary { background: var(--acc); border-color: transparent; color: var(--acc-text); }
-    .btn.primary:hover { filter: brightness(1.07); background: var(--acc); }
-    .cta-note { color: var(--faint); font-size: 12px; margin-top: 14px; }
-
-    /* CSS 描画のデスクトッププレビュー */
-    .preview {
-      margin: 56px auto 0; max-width: 860px;
-      aspect-ratio: 16 / 9; border-radius: 12px; position: relative; overflow: hidden;
-      border: 1px solid var(--line-s);
-      background:
-        radial-gradient(45% 60% at 18% 82%, rgba(56,110,240,.55), transparent 65%),
-        radial-gradient(50% 55% at 82% 20%, rgba(20,190,180,.4), transparent 65%),
-        radial-gradient(55% 65% at 70% 85%, rgba(120,80,220,.45), transparent 65%),
-        linear-gradient(155deg, #070b18, #0b1228 55%, #081120);
-      box-shadow: 0 30px 80px rgba(0,0,0,.5);
-    }
-    .pv-clock {
-      position: absolute; left: 50%; top: 30%; transform: translate(-50%,-50%);
-      font-size: clamp(40px, 9vw, 84px); font-weight: 200; letter-spacing: .06em;
-      color: #fff; text-shadow: 0 2px 24px rgba(0,0,0,.4);
-      font-variant-numeric: tabular-nums;
-    }
-    .pv-date {
-      position: absolute; left: 50%; top: 47%; transform: translateX(-50%);
-      font-size: clamp(11px, 1.8vw, 16px); letter-spacing: .35em; color: rgba(255,255,255,.85);
-      white-space: nowrap;
-    }
-    .pv-hw {
-      position: absolute; right: 3.5%; top: 7%;
-      font-family: Consolas, monospace; font-size: clamp(8px, 1.35vw, 12.5px);
-      color: rgba(255,255,255,.92); line-height: 1.65; white-space: pre;
-      text-shadow: 0 1px 8px rgba(0,0,0,.5); text-align: left;
-    }
-    .pv-hw .hot { color: #ff6b72; }
-    .pv-weather {
-      position: absolute; left: 4%; top: 8%;
-      color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.45);
-      font-size: clamp(14px, 2.6vw, 26px); line-height: 1.3;
-    }
-    .pv-weather small { display: block; font-size: .45em; letter-spacing: .12em; opacity: .85; }
-    .pv-note {
-      position: absolute; right: 4%; bottom: 9%;
-      width: clamp(110px, 22%, 190px); border-radius: 10px;
-      background: rgba(13,16,22,.62); border: 1px solid rgba(255,255,255,.14);
-      padding: 8px 12px; font-size: clamp(7.5px, 1.25vw, 12px); color: #dfe2e8;
-    }
-    .pv-note b { display: block; font-size: .85em; letter-spacing: .14em; opacity: .7; margin-bottom: 3px; font-weight: 600; }
-    .pv-folder {
-      position: absolute; left: 4%; bottom: 9%;
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px;
-      background: rgba(13,16,22,.6); border: 1px solid rgba(255,255,255,.13);
-      border-radius: 10px; padding: 10px;
-    }
-    .pv-folder span {
-      width: clamp(16px, 3vw, 26px); height: clamp(16px, 3vw, 26px);
-      border-radius: 6px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.14);
-    }
-    .pv-cal {
-      position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%);
-      font-size: clamp(8px, 1.3vw, 12px); letter-spacing: .1em; color: rgba(255,255,255,.9);
-      background: rgba(8,10,14,.35); padding: 6px 14px; border-radius: 9px;
-    }
-    .pv-cal .today {
-      display: inline-block; background: var(--acc); color: #16130a;
-      width: 1.7em; border-radius: 50%; text-align: center; font-weight: 600;
-    }
-
-    h2.sec {
-      font-size: 12px; font-weight: 650; color: var(--faint);
-      letter-spacing: .18em; text-transform: uppercase;
-      margin: 72px 0 18px; text-align: center;
-    }
-    .grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;
-    }
-    .card {
-      background: var(--bg1); border: 1px solid var(--line); border-radius: 10px;
-      padding: 18px 20px;
-    }
-    .card h3 { font-size: 14.5px; font-weight: 650; margin-bottom: 6px; }
-    .card h3 .tag { color: var(--acc); }
-    .card p { color: var(--dim); font-size: 13px; }
-
-    .steps { max-width: 640px; margin: 0 auto; }
-    .step { display: flex; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-    .step:last-child { border-bottom: none; }
-    .step .n {
-      flex: none; width: 26px; height: 26px; border-radius: 7px;
-      background: var(--bg2); border: 1px solid var(--line-s);
-      display: grid; place-items: center; font-size: 13px; font-weight: 650; color: var(--acc);
-    }
-    .step p { color: var(--dim); font-size: 14px; }
-    .step p b { color: var(--text); font-weight: 600; }
-
-    footer {
-      margin-top: 80px; padding: 28px 0 40px;
-      border-top: 1px solid var(--line);
-      color: var(--faint); font-size: 12.5px; text-align: center;
-    }
-    footer a { color: var(--dim); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WidgetWall — デスクトップを、じぶんのダッシュボードに。</title>
+<meta name="description" content="時計・天気・PC の温度・メモ・再生中の曲を、デスクトップアイコンの背面へ自由に配置できる Windows 向けライブ壁紙アプリ。無料・オープンソース (MIT)。">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<meta property="og:title" content="WidgetWall — デスクトップを、じぶんのダッシュボードに。">
+<meta property="og:description" content="26 種のウィジェットをアイコンの背面へ。Windows 向けライブ壁紙アプリ。無料・オープンソース。">
+<meta property="og:image" content="https://orahu01.github.io/wallpaper/shot_cyber.jpg">
+<meta property="og:type" content="website">
 </head>
 <body>
+
+<header class="site">
   <div class="wrap">
-    <header>
-      <span class="mark"></span><span class="brand">WidgetWall</span>
-      <span class="tb-spacer"></span>
+    <a class="brand" href="index.html"><img src="assets/icon.png" alt=""><span>WIDGETWALL</span></a>
+    <button class="menu-btn" aria-expanded="false" aria-label="メニュー">MENU</button>
+    <nav class="site">
+      <a href="index.html" aria-current="page">ホーム</a>
+      <a href="features.html">機能</a>
+      <a href="themes.html">テーマ</a>
+      <a href="changelog.html">更新履歴</a>
       <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
-      <a href="https://github.com/Orahu01/wallpaper/releases/latest">ダウンロード</a>
-    </header>
+      <a class="get" href="download.html">ダウンロード</a>
+    </nav>
+  </div>
+</header>
 
-    <section class="hero">
-      <h1>デスクトップを、<br>じぶんの<span class="gold">ダッシュボード</span>に。</h1>
-      <p class="lead">時計・天気・PC の温度・メモ・再生中の曲——ぜんぶ壁紙の上に、好きなフォントで、好きな場所へ。アイコンの背面に住み着く、軽量ウィジェット壁紙アプリ。</p>
-      <div class="cta-row">
-        <a class="btn primary" href="https://github.com/Orahu01/wallpaper/releases/latest">⬇ 無料ダウンロード (Windows)</a>
-        <a class="btn" href="https://github.com/Orahu01/wallpaper#readme">機能をくわしく</a>
-      </div>
-      <p class="cta-note">Windows 10 / 11 ・ 無料・オープンソース (MIT) ・ インストール不要のポータブル版もあります</p>
+<main class="wrap">
 
-      <div class="preview" aria-hidden="true">
-        <div class="pv-weather">☀ 29°<small>TOKYO ・ 晴れ</small></div>
-        <div class="pv-hw">CPU  14%   49°C
+  <section class="cover">
+    <p class="kicker">Live wallpaper for Windows</p>
+    <h1>デスクトップを、<br>じぶんの<em>ダッシュボード</em>に。</h1>
+    <p class="lede">
+      時計、天気、PC の温度、書きかけのメモ、いま流れている曲。
+      ぜんぶ壁紙の上に、好きなフォントで、好きな場所へ。
+      アイコンの背面に静かに住み着く、軽量なウィジェット壁紙アプリです。
+    </p>
+    <div class="btn-row">
+      <a class="btn primary" href="download.html">無料でダウンロード<span class="arw">→</span></a>
+      <a class="btn" href="features.html">できることを見る</a>
+    </div>
+    <p class="fine">Windows 10 / 11 ・ 無料・オープンソース (MIT) ・ インストール不要のポータブル版もあります</p>
+  </section>
+
+  <div class="mt-l">
+    <div class="screen" aria-hidden="true">
+      <div class="w weather">☀ 29°<small>TOKYO ・ 晴れ</small></div>
+      <div class="w hw">CPU  14%   49°C
 GPU  16%   43°C
 MEM  41%   21.3/51GB
-NET ↓  14 KB/s ↑ 691 KB/s</div>
-        <div class="pv-clock">10:47</div>
-        <div class="pv-date">2026年8月19日 水曜日</div>
-        <div class="pv-folder"><span></span><span></span><span></span><span></span><span></span><span></span></div>
-        <div class="pv-cal">日 月 火 水 木 金 土 ・ <span class="today">19</span></div>
-        <div class="pv-note"><b>MEMO</b>今日やること<br>・デザイン案を送る<br>・牛乳を買う</div>
-      </div>
-    </section>
-
-    <h2 class="sec">できること</h2>
-    <div class="grid">
-      <div class="card"><h3>ウィジェット <span class="tag">26 種</span></h3><p>時計・世界時計・カレンダー・予定表 (ICS)・天気予報・ニュース・株価・再生中の曲・音量・メモ・ToDo・ポモドーロ・ハードウェアモニタ・ビジュアライザーなど。</p></div>
-      <div class="card"><h3>テーマでワンクリック</h3><p>ミニマル・サイバー・和・ダッシュボードなど完成済みテーマを同梱。初回起動で選ぶだけ。もちろん 1px 単位のカスタマイズも。</p></div>
-      <div class="card"><h3>PC の状態がひと目でわかる</h3><p>Libre Hardware Monitor 連携で CPU / GPU の温度・使用率、SSD、ネット速度を表示。推移グラフと温度アラート付き。</p></div>
-      <div class="card"><h3>壁紙も自由自在</h3><p>画像・動画・スライドショー・グラデーション・再生中の曲のジャケット。昼と夜、曜日ごとの自動切替にも対応。</p></div>
-      <div class="card"><h3>アイコン整理もおまかせ</h3><p>色分けゾーンでデスクトップを仕分け。フォルダウィジェットにアプリをまとめれば、スマホのホーム画面のように使えます。</p></div>
-      <div class="card"><h3>軽い。とにかく軽い</h3><p>アイドル時 GPU 0%。ゲームなどフルスクリーン中は描画を自動停止。実測 CPU 約 3% (1 コア比) の省電力設計です。</p></div>
+SSD  C:  612GB free
+NET  ↓ 14KB/s  ↑ <i>691KB/s</i></div>
+      <div class="w clock">10:47</div>
+      <div class="w date">2026年8月19日 水曜日</div>
+      <div class="w dock"><s></s><s></s><s></s><s></s><s></s><s></s></div>
+      <div class="w cal">日 月 火 水 木 金 土 ・ <u>19</u></div>
+      <div class="w note"><b>MEMO</b>今日やること<br>・デザイン案を送る<br>・牛乳を買う</div>
     </div>
-
-    <h2 class="sec">スクリーンショット</h2>
-    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
-      <img src="shot_dash.jpg" alt="情報ダッシュボードテーマ" style="width:100%;border-radius:10px;border:1px solid var(--line-s)">
-      <img src="shot_cyber.jpg" alt="サイバーテーマ" style="width:100%;border-radius:10px;border:1px solid var(--line-s)">
-      <img src="shot_wa.jpg" alt="和テーマ" style="width:100%;border-radius:10px;border:1px solid var(--line-s)">
-    </div>
-
-    <h2 class="sec">はじめかた</h2>
-    <div class="steps">
-      <div class="step"><span class="n">1</span><p><b>WidgetWall-Setup.exe をダウンロードして実行。</b>ワンクリックでインストールされ、すぐに壁紙が表示されます。SmartScreen が出たら「詳細情報」→「実行」。</p></div>
-      <div class="step"><span class="n">2</span><p><b>壁紙とウィジェットを選ぶ。</b>設定画面から好きな壁紙にして、ウィジェットを追加。</p></div>
-      <div class="step"><span class="n">3</span><p><b>「レイアウトを編集」でドラッグ配置。</b>ホイールでサイズを変えて、保存して完了。あとはトレイに常駐して、サインイン時に自動で復元されます。</p></div>
-    </div>
-
-    <footer>
-      WidgetWall — MIT License ・ <a href="https://github.com/Orahu01/wallpaper">ソースコード</a> ・ <a href="https://github.com/Orahu01/wallpaper/issues">不具合報告・要望</a>
-    </footer>
+    <p class="caption">上の見本の時計は、いまこの瞬間の時刻を表示しています。</p>
   </div>
+
+  <!-- 01 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">01</span><span class="label">Concept</span></div>
+    <div>
+      <h2 class="head">壁紙は、いちばん長く見ている画面。</h2>
+      <p class="body mt-m">
+        デスクトップは一日に何十回も目に入るのに、たいていはただの背景です。
+        WidgetWall は、そこへ知りたいことを置いておくためのアプリ。
+        いま何時か、外は暑いか、CPU は熱くないか、次の予定は何時か——
+        <b>ウィンドウを開かずに済むことが増えるほど、作業は途切れません。</b>
+      </p>
+      <p class="body">
+        ウィジェットはアイコンの<b>背面</b>に描かれます。だからアイコンもファイルもそのまま使えるし、
+        壁紙を右クリックする感覚も変わりません。必要なときだけ、メモやタイマーは前面で反応します。
+      </p>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">02</span><span class="label">Widgets</span></div>
+    <div>
+      <h2 class="head">26 種のウィジェットを、1px 単位で。</h2>
+      <p class="body mt-m">
+        時計だけでも 3 種類。天気、週間予報、購読カレンダーの予定表、世界時計、
+        ハードウェアモニタ、ディスク残量、ニュース、株価、付箋、ToDo、ポモドーロ、
+        音量つまみ、再生中の曲、音に反応するビジュアライザー。
+        フォント・サイズ・色・影・不透明度は、すべて個別に決められます。
+      </p>
+      <div class="cards mt-l">
+        <div>
+          <h3>ドラッグで、置くだけ</h3>
+          <p>「レイアウトを編集」を押せば、デスクトップ上でそのまま移動。ホイールで拡大縮小、矢印キーで 1px ずつ、複数選択して整列も。</p>
+        </div>
+        <div>
+          <h3>モニタごとに別の顔</h3>
+          <p>解像度も拡大率も違う複数のモニタで、それぞれに壁紙と配置を持てます。混在 DPI でもズレません。</p>
+        </div>
+        <div>
+          <h3>触れるウィジェット</h3>
+          <p>付箋には直接書き込め、タイマーは押せて、音量つまみは動きます。フォルダにアプリをまとめれば、スマホのホーム画面のように。</p>
+        </div>
+      </div>
+      <div class="btn-row mt-l"><a class="btn" href="features.html">全 26 種の一覧を見る<span class="arw">→</span></a></div>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">03</span><span class="label">Themes</span></div>
+    <div>
+      <h2 class="head">迷ったら、できあがったものから。</h2>
+      <p class="body mt-m">
+        6 つのテーマを同梱しています。初回起動で選ぶだけで配置と配色が完成し、
+        そこから好きに崩していけます。適用前の構成は自動で保存されるので、いつでも戻せます。
+      </p>
+      <div class="shots mt-l">
+        <figure><img src="shot_cyber.jpg" alt="サイバーテーマのデスクトップ"><figcaption>サイバー — ネオン発光の時計とモニタ類</figcaption></figure>
+        <figure><img src="shot_dash.jpg" alt="情報ダッシュボードテーマのデスクトップ"><figcaption>情報ダッシュボード — 天気・予報・PC・ニュース</figcaption></figure>
+        <figure><img src="shot_wa.jpg" alt="和テーマのデスクトップ"><figcaption>和 — 明朝体と桜色の設え</figcaption></figure>
+      </div>
+      <div class="btn-row mt-l"><a class="btn" href="themes.html">6 つのテーマを見る<span class="arw">→</span></a></div>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section class="chapter">
+    <div class="rail"><span class="num">04</span><span class="label">Performance</span></div>
+    <div>
+      <h2 class="head">常駐するものは、軽くなければ。</h2>
+      <p class="body mt-m">
+        止まっている絵に GPU を使わない設計です。<b>アイドル時の GPU 使用率は 0%</b>。
+        秒針や数字が変わる瞬間だけ描き直し、更新のいらないウィジェットはタイマーすら持ちません。
+      </p>
+      <p class="body">
+        ゲームや動画をフルスクリーンにすると、描画は自動的に止まります。
+        壁紙のために fps を 1 でも失うのは、本末転倒なので。
+      </p>
+      <div class="cards mt-l">
+        <div><h3>GPU 0% <span class="mono">/ IDLE</span></h3><p>静止中は再描画しません。動画壁紙を選んだときだけ動きます。</p></div>
+        <div><h3>CPU 約 3% <span class="mono">/ 1 CORE</span></h3><p>実測値。時計を含むひと通りのウィジェットを表示した状態で。</p></div>
+        <div><h3>フルスクリーン検知</h3><p>ゲーム中・動画再生中は自動で停止し、戻ると再開します。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closer">
+    <h2>まずは、時計をひとつ置いてみる。</h2>
+    <p>インストールした瞬間から壁紙は表示されます。あとは好きなものを足していくだけ。</p>
+    <div class="btn-row">
+      <a class="btn primary" href="download.html">ダウンロード<span class="arw">→</span></a>
+      <a class="btn" href="https://github.com/Orahu01/wallpaper">ソースコード</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>WidgetWall</span>
+    <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+    <a href="https://github.com/Orahu01/wallpaper/wiki">Wiki</a>
+    <a href="https://github.com/Orahu01/wallpaper/issues">不具合報告・要望</a>
+    <span class="sp">MIT License</span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
 </body>
 </html>

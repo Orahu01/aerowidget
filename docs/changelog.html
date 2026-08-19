@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>更新履歴 — WidgetWall</title>
+<meta name="description" content="WidgetWall のバージョンごとの変更点。v1.0.0 から最新の v5.0.0 まで。">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/icon.png" alt=""><span>WIDGETWALL</span></a>
+    <button class="menu-btn" aria-expanded="false" aria-label="メニュー">MENU</button>
+    <nav class="site">
+      <a href="index.html">ホーム</a>
+      <a href="features.html">機能</a>
+      <a href="themes.html">テーマ</a>
+      <a href="changelog.html" aria-current="page">更新履歴</a>
+      <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+      <a class="get" href="download.html">ダウンロード</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="cover">
+    <p class="kicker">Changelog</p>
+    <h1>ここまでの道のり。</h1>
+    <p class="lede">
+      各版の配布物と詳細は <a href="https://github.com/Orahu01/wallpaper/releases">GitHub の Releases</a> にあります。
+      番号の付け方は、<b>v5</b> のような整数が機能追加、<b>v4.2</b> が小さな追加と修正、<b>v4.2.1</b> が残っていた不具合の修正です。
+    </p>
+  </section>
+
+  <!-- v5 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.0.0</div><div class="when">最新</div></div>
+    <div>
+      <h4>テーマとセットアップ</h4>
+      <ul>
+        <li><b>デスクテーマ集 6 種</b>をワンクリック適用 (ミニマル / サイバー / 和 / 情報ダッシュボード / フォーカス / ミュージック)</li>
+        <li>初回起動ウィザード — テーマを選ぶだけで完成した状態から始められます</li>
+        <li>設定画面のライブプレビュー — いじった結果がその場で確認できます</li>
+      </ul>
+      <h4>新ウィジェット 8 種 (全 26 種に)</h4>
+      <ul>
+        <li>天気予報 (時間別 / 週間)、予定表 (ICS 購読・Google カレンダー対応)、世界時計、ToDo リスト</li>
+        <li>バッテリー、ディスク空き容量、ネットワーク情報 (IP / SSID / 遅延グラフ)、ビジュアライザー</li>
+      </ul>
+      <h4>壁紙</h4>
+      <ul>
+        <li>フォルダ指定のスライドショー + シャッフル</li>
+        <li>オンライン壁紙 (Bing の日替わり / ランダム写真)</li>
+        <li>マウス視差効果</li>
+      </ul>
+      <h4>操作性</h4>
+      <ul>
+        <li>グローバルホットキー (ウィジェット表示 / アイコン表示 / レイアウト切替 / ポモドーロ)</li>
+        <li>編集モード強化 — 複数選択・整列・等間隔、矢印キー微調整、<b>Ctrl+Z 取り消し</b>、Ctrl+D 複製、右クリックでロック</li>
+        <li>デスクトップアイコンの表示設定を「一般」タブとトレイへ移動。編集バーのボタンは<b>配置作業中だけの一時切替</b>になりました</li>
+      </ul>
+      <h4>その他</h4>
+      <ul>
+        <li>英語 UI に対応 (システム言語から自動判定 / 手動切替も可)</li>
+        <li>winget への登録を申請、実機スクリーンショットを紹介ページに掲載</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v4.2.1 -->
+  <section class="rel">
+    <div class="rail"><div class="v">4.2.1</div><div class="when">修正</div></div>
+    <div>
+      <h4>バグ修正</h4>
+      <ul>
+        <li><b>「A JavaScript error occurred in the main process」で起動できない問題を修正。</b>音量・再生中の曲で使う PowerShell スクリプトが配布アーカイブ内に固められており、実行できずにエラーになっていました</li>
+        <li>あわせて、インストール版で「再生中の曲」が表示されなかった問題も解消 (同じ原因でした)</li>
+        <li>ヘルパーの停止時にアプリごと落ちないよう、エラー処理を強化</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v4.2.0 -->
+  <section class="rel">
+    <div class="rail"><div class="v">4.2.0</div><div class="when">追加と修正</div></div>
+    <div>
+      <h4>新機能</h4>
+      <ul>
+        <li><b>音量・出力切替ウィジェット</b> — デスクトップ上でスライダー / ホイールから音量調整、ミュート、再生先の切り替え</li>
+        <li><b>再生中の曲に再生操作を追加</b> — 再生 / 一時停止・前へ・次へ</li>
+        <li>編集モードでデスクトップアイコンの表示を切り替えられるように</li>
+      </ul>
+      <h4>バグ修正</h4>
+      <ul>
+        <li>メモ・タイマーの枠をドラッグするとレイアウトが崩れる問題を修正 (サイズ変更は設定のスライダーか編集モードのホイールから)</li>
+        <li>設定画面のウィジェット項目が右端で見切れる問題を修正</li>
+        <li>設定画面のロゴをアプリアイコンに変更</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v4.1.0 -->
+  <section class="rel">
+    <div class="rail"><div class="v">4.1.0</div><div class="when">修正</div></div>
+    <div>
+      <h4>バグ修正</h4>
+      <ul>
+        <li><b>メモ・ポモドーロタイマー・フォルダがクリックできない問題を修正。</b>デスクトップに貼り付ける際、ウィンドウを Progman の子にしていたためマウス・キーボード入力が一切届いていませんでした。トップレベルのまま Z オーダーだけデスクトップ直上に差し込む方式へ変更しています</li>
+        <li>メモに文字を入力できるようになりました (自動保存も動作)</li>
+        <li>対話ウィジェットのサイズが、解像度・拡大率の違うモニタでばらつく問題を修正</li>
+        <li>フォルダから一部のアプリ (電卓など) が起動しなかった問題を修正</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v4.0.0 -->
+  <section class="rel">
+    <div class="rail"><div class="v">4.0.0</div><div class="when">機能追加</div></div>
+    <div>
+      <h4>新ウィジェット 6 種 (全 17 種に)</h4>
+      <ul>
+        <li>再生中の曲 (SMTC 連携)、ニュース (RSS)、株価・為替、カウントダウン、メモ、ポモドーロタイマー</li>
+      </ul>
+      <h4>壁紙</h4>
+      <ul>
+        <li>スライドショー (クロスフェード切替)、アルバムアート壁紙、明るさスライダー、曜日ごとのスケジュール</li>
+      </ul>
+      <h4>ハードウェアモニタ</h4>
+      <ul>
+        <li>推移グラフ (スパークライン)、温度アラート (しきい値超えで赤表示)</li>
+      </ul>
+      <h4>使い勝手・信頼性</h4>
+      <ul>
+        <li>自動アップデート、レイアウトプリセット、設定の書き出し / 読み込み、修復・アンインストールボタン</li>
+        <li>フォルダウィジェットのサイズ不安定を修正、混在 DPI での設定ウィンドウの位置ずれを修正</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v3.0.0 -->
+  <section class="rel">
+    <div class="rail"><div class="v">3.0.0</div><div class="when">機能追加</div></div>
+    <div>
+      <ul>
+        <li><b>設定画面を全面リニューアル</b> — チャコール + ゴールドのフラットデザイン、ストローク SVG アイコン</li>
+        <li>新ウィジェット: アナログ時計、カレンダー、画像</li>
+        <li>壁紙スケジュール (昼 / 夜の自動切替)</li>
+        <li>カスタムグラデーションが最大 10 色に対応</li>
+        <li>フォルダウィジェットが <code>.lnk</code> / <code>.url</code> に対応 (リンク先のアイコンを解決)</li>
+        <li>デジタル時計・ハードウェアモニタ表示のガタつきを修正、フォントピッカーを検索式に変更</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v2.0.0 -->
+  <section class="rel">
+    <div class="rail"><div class="v">2.0.0</div><div class="when">機能追加</div></div>
+    <div>
+      <ul>
+        <li><b>マルチモニタ対応</b> — モニタごとに壁紙とウィジェット配置を持てるように</li>
+        <li><b>省電力設計の全面見直し</b> — アイドル時 GPU 使用率 0%、フルスクリーン検知による自動停止</li>
+        <li>新ウィジェット: ハードウェアモニタ、ゾーン、ライン、フォルダ</li>
+        <li>Google Fonts のワンクリック追加に対応</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- v1.0.0 -->
+  <section class="rel">
+    <div class="rail"><div class="v">1.0.0</div><div class="when">初回リリース</div></div>
+    <div>
+      <ul>
+        <li>時計・日付ウィジェット</li>
+        <li>壁紙プリセット、画像 / 動画壁紙</li>
+        <li>デスクトップ上でのドラッグ配置編集</li>
+        <li>トレイ常駐、自動起動</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="closer">
+    <h2>最新版は 5.0.0 です。</h2>
+    <p>インストーラ版をお使いであれば、設定画面から更新できます。</p>
+    <div class="btn-row">
+      <a class="btn primary" href="download.html">ダウンロード<span class="arw">→</span></a>
+      <a class="btn" href="https://github.com/Orahu01/wallpaper/releases">Releases を見る</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>WidgetWall</span>
+    <a href="https://github.com/Orahu01/wallpaper">GitHub</a>
+    <a href="https://github.com/Orahu01/wallpaper/wiki">Wiki</a>
+    <a href="https://github.com/Orahu01/wallpaper/issues">不具合報告・要望</a>
+    <span class="sp">MIT License</span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
