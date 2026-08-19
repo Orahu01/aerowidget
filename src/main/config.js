@@ -9,7 +9,7 @@ const path = require('path');
 const emitter = new EventEmitter();
 
 function defaultWallpaper() {
-  return { type: 'preset', value: 'aurora', dim: 12, blur: 0, animate: false };
+  return { type: 'preset', value: 'aurora', dim: 12, bright: 0, blur: 0, animate: false };
 }
 
 function defaults() {
@@ -39,13 +39,16 @@ function defaults() {
       customPresets: [],           // 保存したカスタム壁紙 [{kind,colors,angle}]
       googleFonts: [],             // [{family, cssFile}]
       lhmUrl: 'http://127.0.0.1:8085/data.json',
-      schedule: {                  // 時間帯による壁紙の自動切替
+      schedule: {                  // 時間帯・曜日による壁紙の自動切替
         enabled: false,
+        mode: 'daynight',          // 'daynight' | 'weekly'
         dayStart: '07:00',
         nightStart: '19:00',
-        day: null,                 // 壁紙スナップショット {type,value,dim,blur,animate}
+        day: null,                 // 壁紙スナップショット {type,value,dim,bright,blur,animate}
         night: null,
+        weekly: {},                // { "0".."6": スナップショット } 日曜=0
       },
+      layouts: [],                 // レイアウトプリセット [{name, wallpapers, widgets}]
     },
   };
 }
@@ -84,9 +87,10 @@ function load() {
     };
     cfg.settings = Object.assign(d.settings, parsed.settings || {});
     cfg.settings.schedule = Object.assign(
-      { enabled: false, dayStart: '07:00', nightStart: '19:00', day: null, night: null },
+      { enabled: false, mode: 'daynight', dayStart: '07:00', nightStart: '19:00', day: null, night: null, weekly: {} },
       (parsed.settings || {}).schedule || {},
     );
+    if (!Array.isArray(cfg.settings.layouts)) cfg.settings.layouts = [];
     if (!Array.isArray(cfg.widgets)) cfg.widgets = d.widgets;
     for (const w of cfg.widgets) {
       if (typeof w.display !== 'number') w.display = 0;
@@ -125,6 +129,24 @@ function update(mutator) {
   save();
   emitter.emit('change', c);
   return c;
+}
+
+// 設定全体を置き換える (インポート用)。現行設定はバックアップしてから適用する
+function replace(parsed) {
+  try {
+    const fp = filePath();
+    if (fs.existsSync(fp)) {
+      fs.copyFileSync(fp, path.join(path.dirname(fp), `config.backup-${Date.now()}.json`));
+    }
+  } catch (_) { /* バックアップは best-effort */ }
+  cfg = null;
+  const tmp = migrate(parsed);
+  // load() と同じ正規化を通すため、一旦ファイルに書いて読み直す
+  fs.mkdirSync(path.dirname(filePath()), { recursive: true });
+  fs.writeFileSync(filePath(), JSON.stringify(tmp, null, 2), 'utf8');
+  load();
+  emitter.emit('change', cfg);
+  return cfg;
 }
 
 // 指定モニタの壁紙設定を解決
@@ -191,6 +213,36 @@ function newWidget(type) {
       return {
         ...base, x: 85, y: 62, size: 15, weight: 400, letterSpacing: 1, shadow: 'soft',
         options: { accent: '#e3a94f', showWeekdays: true, sundayColor: true, bg: true, bgOpacity: 0.3 },
+      };
+    case 'countdown':
+      return {
+        ...base, x: 82, y: 30, size: 42, weight: 300, letterSpacing: 2, shadow: 'soft',
+        options: { title: '夏休みまで', date: '', showPast: true },
+      };
+    case 'rss':
+      return {
+        ...base, x: 30, y: 88, size: 16, weight: 400, letterSpacing: 0, opacity: 0.9, shadow: 'soft',
+        options: { url: 'https://www.nhk.or.jp/rss/news/cat0.xml', count: 3, rotateSec: 0, showSource: false },
+      };
+    case 'ticker':
+      return {
+        ...base, x: 14, y: 12, size: 18, font: 'Consolas', weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { symbols: 'AAPL, 7203.T, USDJPY=X, BTC-USD', showChange: true },
+      };
+    case 'nowplaying':
+      return {
+        ...base, x: 50, y: 82, size: 22, weight: 400, letterSpacing: 1, shadow: 'soft',
+        options: { showArt: true, showArtist: true, hideWhenStopped: true },
+      };
+    case 'note':
+      return {
+        ...base, x: 82, y: 82, size: 14, color: '#e6e7ea', shadow: 'none',
+        options: { title: 'メモ', text: '', w: 240, h: 180, bgOpacity: 0.6 },
+      };
+    case 'pomo':
+      return {
+        ...base, x: 50, y: 14, size: 14, color: '#e6e7ea', shadow: 'none',
+        options: { workMin: 25, breakMin: 5, w: 210, h: 150, bgOpacity: 0.6 },
       };
     default:
       return base;

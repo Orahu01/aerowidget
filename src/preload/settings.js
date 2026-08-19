@@ -24,6 +24,21 @@ contextBridge.exposeInMainWorld('api', {
 
   pickFile: () => ipcRenderer.invoke('file:pick'),
   pickImage: () => ipcRenderer.invoke('file:pickImage'),
+  pickImages: () => ipcRenderer.invoke('file:pickImages'),
+
+  exportConfig: () => ipcRenderer.invoke('config:export'),
+  importConfig: () => ipcRenderer.invoke('config:import'),
+  saveLayout: (name) => ipcRenderer.invoke('layout:save', name),
+  applyLayout: (i) => ipcRenderer.invoke('layout:apply', i),
+  overwriteLayout: (i) => ipcRenderer.invoke('layout:overwrite', i),
+  removeLayout: (i) => ipcRenderer.invoke('layout:remove', i),
+
+  repair: () => ipcRenderer.invoke('app:repair'),
+  uninstall: () => ipcRenderer.invoke('app:uninstall'),
+  getUpdateStatus: () => ipcRenderer.invoke('update:get'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.send('update:install'),
+  onUpdateStatus: (cb) => ipcRenderer.on('update-status', (_e, s) => cb(s)),
   pickFolderItems: () => ipcRenderer.invoke('folder:pick'),
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),
   searchCity: (q) => ipcRenderer.invoke('city:search', q),

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('fw', {
   getState: () => ipcRenderer.invoke('folder:state', wid),
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),
   launch: (p) => ipcRenderer.send('folder:launch', wid, p),
+  save: (options) => ipcRenderer.send('inter:save', wid, options),
   onWidget: (cb) => ipcRenderer.on('fw', (_e, w) => cb(w)),
   onConfig: (cb) => ipcRenderer.on('config', (_e, env) => cb(env)),
   onFontsChanged: (cb) => ipcRenderer.on('fonts-changed', () => cb()),

@@ -38,6 +38,17 @@
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.8 6.8 0 0 0 9.7 9.7z"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L19.5 7"/></symbol>
     <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-rss" viewBox="0 0 24 24"><path d="M4.5 11a8.5 8.5 0 0 1 8.5 8.5M4.5 4.5a15 15 0 0 1 15 15"/><circle cx="5.5" cy="18.5" r="1.6"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17.5l6-6 4 4 7.5-7.5"/><path d="M15.5 7.5H21V13"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 5v9l-6 6H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M14 20v-6h6"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V3.5"/><path d="M5.5 4.5h12l-2.5 4 2.5 4h-12"/></symbol>
+    <symbol id="i-timer" viewBox="0 0 24 24"><path d="M9.5 2.5h5"/><circle cx="12" cy="13.5" r="8"/><path d="M12 9.5v4l2.8 1.6"/></symbol>
+    <symbol id="i-slides" viewBox="0 0 24 24"><rect x="6" y="6" width="15" height="12" rx="2"/><path d="M3 16V5.5A1.5 1.5 0 0 1 4.5 4H17"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 14V3M8 6.5L12 2.5l4 4"/><path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M20.7 6.4a5.2 5.2 0 0 1-6.9 6.9L7 20.1a2.05 2.05 0 0 1-2.9-2.9l6.8-6.8a5.2 5.2 0 0 1 6.9-6.9l-3.2 3.2 2.9 2.9z"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5"/></symbol>
   </svg>
 
   <!-- ================= タイトルバー ================= -->
@@ -119,7 +130,21 @@
               <button class="btn" id="btn-pick">選択…</button>
             </div>
           </div>
-          <p class="foot-note">jpg / png / gif / webp / mp4 / webm に対応。動画はループ再生されます。</p>
+          <div class="row">
+            <label>スライドショー</label>
+            <span id="slideshow-label" class="file-label">未設定</span>
+            <div class="ctl">
+              <select id="slideshow-interval">
+                <option value="1">1分</option>
+                <option value="5">5分</option>
+                <option value="10">10分</option>
+                <option value="30">30分</option>
+                <option value="60">60分</option>
+              </select>
+              <button class="btn" id="btn-pick-slideshow"><svg class="ic"><use href="#i-slides"/></svg>画像を複数選択…</button>
+            </div>
+          </div>
+          <p class="foot-note">jpg / png / gif / webp / mp4 / webm に対応。動画はループ再生、スライドショーはクロスフェードで切り替わります。</p>
         </div>
 
         <h2>効果</h2>
@@ -128,6 +153,11 @@
             <label>暗くする</label>
             <input type="range" id="wp-dim" min="0" max="70" step="1">
             <span class="val" id="wp-dim-val"></span>
+          </div>
+          <div class="row">
+            <label>明るくする</label>
+            <input type="range" id="wp-bright" min="0" max="60" step="1">
+            <span class="val" id="wp-bright-val"></span>
           </div>
           <div class="row">
             <label>ぼかし</label>
@@ -176,12 +206,16 @@
         <h2>壁紙スケジュール</h2>
         <div class="group">
           <div class="row">
-            <label>時間帯で壁紙を自動で切り替える</label>
+            <label>壁紙を自動で切り替える</label>
             <div class="ctl">
+              <div class="seg" id="sched-mode-seg">
+                <button data-v="daynight">昼 / 夜</button>
+                <button data-v="weekly">曜日ごと</button>
+              </div>
               <label class="switch"><input type="checkbox" id="sched-on"><span class="knob"></span></label>
             </div>
           </div>
-          <div class="row">
+          <div class="row sched-daynight">
             <label><svg class="ic inline"><use href="#i-sun"/></svg> 昼の開始</label>
             <div class="ctl">
               <input type="time" id="sched-day">
@@ -189,7 +223,7 @@
               <button class="btn" id="sched-set-day">今の壁紙を昼用に登録</button>
             </div>
           </div>
-          <div class="row">
+          <div class="row sched-daynight">
             <label><svg class="ic inline"><use href="#i-moon"/></svg> 夜の開始</label>
             <div class="ctl">
               <input type="time" id="sched-night">
@@ -197,7 +231,34 @@
               <button class="btn" id="sched-set-night">今の壁紙を夜用に登録</button>
             </div>
           </div>
-          <p class="foot-note" id="sched-note">「すべて共通」の壁紙が時刻で切り替わります。先に壁紙タブで好みの壁紙にしてから登録してください。</p>
+          <div class="row sched-weekly" style="display:none">
+            <label>曜日ごとの壁紙</label>
+            <div class="ctl">
+              <div class="chips" id="sched-week-chips"></div>
+            </div>
+          </div>
+          <div class="row sched-weekly" style="display:none">
+            <label id="sched-week-sel-label">選択中: 日曜日</label>
+            <div class="ctl">
+              <span id="sched-week-prev" class="sched-prev"></span>
+              <button class="btn" id="sched-week-set">今の壁紙を登録</button>
+              <button class="btn" id="sched-week-clear">クリア</button>
+            </div>
+          </div>
+          <p class="foot-note" id="sched-note">「すべて共通」の壁紙が自動で切り替わります。先に壁紙タブで好みの壁紙にしてから登録してください。未登録の曜日は変更されません。</p>
+        </div>
+
+        <h2>レイアウトプリセット</h2>
+        <div class="group">
+          <div class="row">
+            <label>現在の構成を保存</label>
+            <div class="ctl gf-ctl">
+              <input type="text" id="layout-name" placeholder="例: 作業用 / 配信用 / シンプル">
+              <button class="btn" id="layout-save"><svg class="ic"><use href="#i-layers"/></svg>保存</button>
+            </div>
+          </div>
+          <p class="foot-note">壁紙とウィジェット配置をまるごと保存し、ワンクリック (またはトレイメニュー) で切り替えられます。</p>
+          <div id="layout-list"></div>
         </div>
 
         <h2>天気</h2>
@@ -229,6 +290,37 @@
           <div id="gf-list"></div>
         </div>
 
+        <h2>バックアップ</h2>
+        <div class="group">
+          <div class="row">
+            <label>設定のエクスポート / インポート</label>
+            <div class="ctl">
+              <button class="btn" id="btn-export"><svg class="ic"><use href="#i-export"/></svg>エクスポート</button>
+              <button class="btn" id="btn-import"><svg class="ic"><use href="#i-import"/></svg>インポート</button>
+            </div>
+          </div>
+          <p class="foot-note" id="backup-status">壁紙・ウィジェット・レイアウトを 1 つの JSON ファイルに保存し、別の PC へ移行できます。インポート時は現在の設定を自動でバックアップします。</p>
+        </div>
+
+        <h2>アップデートとメンテナンス</h2>
+        <div class="group">
+          <div class="row">
+            <label>アップデート</label>
+            <span class="dim" id="update-status-text">未確認</span>
+            <div class="ctl">
+              <button class="btn" id="btn-update-check"><svg class="ic"><use href="#i-refresh"/></svg>確認</button>
+              <button class="btn primary" id="btn-update-install" style="display:none">再起動して更新</button>
+            </div>
+          </div>
+          <div class="row">
+            <label>表示がおかしいとき</label>
+            <div class="ctl">
+              <button class="btn" id="btn-repair"><svg class="ic"><use href="#i-wrench"/></svg>壁紙を再適用 (修復)</button>
+            </div>
+          </div>
+          <p class="foot-note" id="repair-note">壁紙が消えた・位置がずれた等の場合に、すべてのウィンドウを作り直して貼り付け直します。</p>
+        </div>
+
         <h2>アプリ</h2>
         <div class="group">
           <div class="row">
@@ -236,6 +328,13 @@
             <span class="dim" id="version"></span>
             <div class="ctl">
               <button class="btn danger" id="btn-quit"><svg class="ic"><use href="#i-power"/></svg>完全終了</button>
+            </div>
+          </div>
+          <div class="row">
+            <label>アンインストール</label>
+            <span class="dim" id="uninstall-note"></span>
+            <div class="ctl">
+              <button class="btn danger" id="btn-uninstall">アンインストール…</button>
             </div>
           </div>
           <p class="foot-note">ウィンドウを閉じてもトレイに常駐し、壁紙は表示され続けます。</p>

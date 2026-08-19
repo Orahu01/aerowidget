@@ -33,10 +33,16 @@ let config = null;
 let systemWallpaper = '';
 let weatherData = null;
 let hwData = null;
+let mediaData = null;          // 再生中メディア (SMTC)
+const rssData = new Map();     // url -> { items, error }
+const tickerData = new Map();  // symbol -> { price, changePct, ... }
+const hwHist = new Map();      // metric -> number[] (スパークライン用)
 let editing = false;
 let paused = false;
 let mediaKey = '';
 let tickTimer = null;
+let slideTimer = null;
+let slideIdx = 0;
 const widgetEls = new Map();   // id -> { el, lastHtml }
 
 const $ = (s) => document.querySelector(s);
@@ -92,11 +98,55 @@ function folderDims(o) {
 }
 
 // ---------------------------------------------------------------- 背景
+function mediaFilter(wp, el) {
+  const parts = [];
+  if (wp.bright > 0) parts.push(`brightness(${1 + wp.bright / 100})`);
+  if (wp.blur > 0) parts.push(`blur(${wp.blur}px)`);
+  el.style.filter = parts.join(' ');
+  if (wp.blur > 0 && el.tagName !== 'DIV') el.style.transform = 'scale(1.06)';
+}
+
+// スライドショー: 2 枚の img をクロスフェードで入れ替える
+function startSlideshow(box, wp) {
+  clearTimeout(slideTimer);
+  const v = wp.value || {};
+  const files = v.files || [];
+  if (!files.length) return;
+  const imgs = box.querySelectorAll('img');
+  let active = 0;
+  slideIdx = slideIdx % files.length;
+  imgs[0].src = fileUrl(files[slideIdx]);
+  imgs[0].classList.add('on');
+
+  const advance = () => {
+    if (!box.isConnected) return; // 壁紙が切り替わったら終了
+    if (!paused && files.length > 1) {
+      slideIdx = (slideIdx + 1) % files.length;
+      const next = imgs[1 - active];
+      const cur = imgs[active];
+      next.src = fileUrl(files[slideIdx]);
+      const show = () => {
+        next.classList.add('on');
+        if (v.fade === false) cur.classList.remove('on');
+        else setTimeout(() => cur.classList.remove('on'), 60);
+        active = 1 - active;
+      };
+      if (next.complete) show();
+      else next.onload = show;
+    }
+    slideTimer = setTimeout(advance, Math.max(1, v.intervalMin || 5) * 60 * 1000);
+  };
+  slideTimer = setTimeout(advance, Math.max(1, v.intervalMin || 5) * 60 * 1000);
+}
+
 function renderMedia() {
   const wp = myWallpaper();
-  const key = JSON.stringify([wp.type, wp.value, wp.blur, wp.animate, wp.type === 'system' ? systemWallpaper : '']);
+  const npArt = wp.type === 'nowplaying' ? (mediaData && mediaData.art) || '' : '';
+  const key = JSON.stringify([wp.type, wp.value, wp.blur, wp.bright, wp.animate,
+    wp.type === 'system' ? systemWallpaper : '', npArt.length ? npArt.length + npArt.slice(-32) : 0]);
   if (key !== mediaKey) {
     mediaKey = key;
+    clearTimeout(slideTimer);
     mediaBox.innerHTML = '';
     let el = null;
     if (wp.type === 'image' || (wp.type === 'system' && systemWallpaper)) {
@@ -107,6 +157,21 @@ function renderMedia() {
       el.src = fileUrl(wp.value);
       el.autoplay = true; el.loop = true; el.muted = true; el.playsInline = true;
       if (paused) el.pause();
+    } else if (wp.type === 'slideshow') {
+      el = document.createElement('div');
+      el.className = 'slide-box';
+      el.innerHTML = '<img class="slide" draggable="false"><img class="slide" draggable="false">';
+      startSlideshow(el, wp);
+    } else if (wp.type === 'nowplaying') {
+      el = document.createElement('div');
+      el.className = 'np-bg';
+      if (npArt) {
+        const img = document.createElement('img');
+        img.src = npArt;
+        el.appendChild(img);
+      } else {
+        el.style.background = PRESETS.midnight;
+      }
     } else if (wp.type === 'color') {
       el = document.createElement('div');
       el.className = 'preset-bg';
@@ -122,10 +187,7 @@ function renderMedia() {
       el.style.background = PRESETS[wp.value] || PRESETS.aurora;
       if (wp.animate) el.classList.add('anim');
     }
-    if (wp.blur > 0) {
-      el.style.filter = `blur(${wp.blur}px)`;
-      if (el.tagName !== 'DIV') el.style.transform = 'scale(1.06)';
-    }
+    mediaFilter(wp, el);
     mediaBox.appendChild(el);
   }
   dimBox.style.opacity = (wp.dim || 0) / 100;
@@ -184,32 +246,41 @@ function fmtRate(x) {
   return String(Math.round(x * 1024)).padStart(5, ' ') + ' KB/s';
 }
 
+// 温度をしきい値で色分けして描画する
+function tempHtml(temp, warn) {
+  if (temp == null) return '       ';
+  const s = `  ${padV(temp, 3)}°C`;
+  return temp >= warn ? `<span class="hw-hot">${s}</span>` : s;
+}
+
 function statsHtml(o) {
   const d = hwData;
   if (!d || !d.ok) return '<span class="row">HWモニタ待機中…</span>';
   const temps = o.showTemps !== false;
+  const warn = +o.tempWarn > 0 ? +o.tempWarn : 85;
+  const spark = (k) => (o.showGraph ? `<canvas class="hw-spark" data-k="${k}"></canvas>` : '');
   const rows = [];
   if (o.showCpu !== false && d.cpu) {
     let s = `CPU ${padV(d.cpu.load, 3)}%`;
-    if (temps) s += d.cpu.temp != null ? `  ${padV(d.cpu.temp, 3)}°C` : '       ';
-    rows.push(s);
+    if (temps) s += tempHtml(d.cpu.temp, warn);
+    rows.push(s + spark('cpu'));
   }
   if (o.showGpu !== false && d.gpu && (d.gpu.load != null || d.gpu.temp != null)) {
     let s = `GPU ${padV(d.gpu.load, 3)}%`;
-    if (temps) s += d.gpu.temp != null ? `  ${padV(d.gpu.temp, 3)}°C` : '       ';
-    rows.push(s);
+    if (temps) s += tempHtml(d.gpu.temp, warn);
+    rows.push(s + spark('gpu'));
   }
   if (o.showMem !== false && d.mem) {
     let s = `MEM ${padV(d.mem.load, 3)}%`;
     if (!o.compact && d.mem.usedGb != null && d.mem.totalGb) {
       s += `  ${padV(d.mem.usedGb.toFixed(1), 5)}/${d.mem.totalGb}GB`;
     }
-    rows.push(s);
+    rows.push(s + spark('mem'));
   }
   if (o.showDrives && d.drives) {
     for (const dr of d.drives) {
       const name = String(dr.name || 'Drive').slice(0, 14).padEnd(14, ' ');
-      rows.push(`SSD ${esc(name)}${dr.temp != null ? ` ${padV(dr.temp, 3)}°C` : '      '}${dr.used != null ? ` ${padV(dr.used, 3)}%` : ''}`);
+      rows.push(`SSD ${esc(name)}${dr.temp != null ? tempHtml(dr.temp, warn) : '      '}${dr.used != null ? ` ${padV(dr.used, 3)}%` : ''}`);
     }
   }
   if (o.showNet && d.net) {
@@ -218,6 +289,45 @@ function statsHtml(o) {
   if (!rows.length) return '';
   if (o.compact) return `<span class="row">${rows.map(r => r.replace(/ +$/, '')).join('　')}</span>`;
   return rows.map(r => `<span class="row">${r}</span>`).join('');
+}
+
+// スパークライン履歴の蓄積 (hw 更新ごとに 1 点、最大 90 点 = 約 3 分)
+function pushHist(k, v) {
+  if (v == null) return;
+  const a = hwHist.get(k) || [];
+  a.push(v);
+  if (a.length > 90) a.shift();
+  hwHist.set(k, a);
+}
+
+function drawSparks(root, w) {
+  const canvases = root.querySelectorAll('.hw-spark');
+  if (!canvases.length) return;
+  const cw = Math.round(Math.min(220, Math.max(60, w.size * 5)));
+  const ch = Math.round(Math.max(10, w.size * 0.85));
+  for (const cv of canvases) {
+    const data = hwHist.get(cv.dataset.k) || [];
+    if (cv.width !== cw) cv.width = cw;
+    if (cv.height !== ch) cv.height = ch;
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cw, ch);
+    if (data.length < 2) continue;
+    ctx.beginPath();
+    const n = data.length;
+    for (let i = 0; i < n; i++) {
+      const x = (i / (90 - 1)) * cw;
+      const y = ch - 1 - (Math.min(100, Math.max(0, data[i])) / 100) * (ch - 2);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = hexA(w.color, 0.85);
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.lineTo(((n - 1) / 89) * cw, ch);
+    ctx.lineTo(0, ch);
+    ctx.closePath();
+    ctx.fillStyle = hexA(w.color, 0.14);
+    ctx.fill();
+  }
 }
 
 function zoneHtml(o) {
@@ -292,6 +402,80 @@ function calendarHtml(o) {
   return html;
 }
 
+function countdownHtml(o) {
+  if (!o.date) return '<span class="sub">日付を設定してください</span>';
+  const target = new Date(o.date + 'T00:00:00');
+  if (isNaN(target)) return '<span class="sub">日付が不正です</span>';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((target - today) / 86400000);
+  let main;
+  if (days > 0) main = `あと <span class="cd-num">${days}</span> 日`;
+  else if (days === 0) main = '<span class="cd-num">今日</span>';
+  else if (o.showPast !== false) main = `<span class="cd-num">${-days}</span> 日経過`;
+  else main = '終了';
+  return (o.title ? `<div class="sub cd-title">${esc(o.title)}</div>` : '') + main;
+}
+
+function rssHtml(o) {
+  const rec = rssData.get(o.url);
+  if (!rec || !rec.items || !rec.items.length) {
+    return `<span class="row sub">${rec && rec.error ? 'フィードを取得できません' : 'ニュース取得中…'}</span>`;
+  }
+  const items = rec.items;
+  const rotate = +o.rotateSec > 0;
+  if (rotate) {
+    const idx = Math.floor(Date.now() / (o.rotateSec * 1000)) % items.length;
+    return `<span class="row">・ ${esc(items[idx].title)}</span>`;
+  }
+  return items.slice(0, Math.max(1, o.count || 3))
+    .map(it => `<span class="row">・ ${esc(it.title)}</span>`)
+    .join('');
+}
+
+function fmtPrice(p) {
+  if (p == null) return '   --';
+  if (p >= 1000) return Math.round(p).toLocaleString('en-US');
+  if (p >= 100) return p.toFixed(1);
+  return p.toFixed(2);
+}
+
+function tickerHtml(o) {
+  const syms = String(o.symbols || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!syms.length) return '<span class="row sub">銘柄を設定してください</span>';
+  const width = Math.min(12, Math.max(4, ...syms.map(s => s.length)));
+  const rows = syms.map(sym => {
+    const d = tickerData.get(sym);
+    const name = esc(sym.padEnd(width, ' '));
+    if (!d || d.price == null) return `<span class="row">${name}  ${d && d.error ? '--' : '…'}</span>`;
+    let chg = '';
+    if (o.showChange !== false && d.changePct != null) {
+      const up = d.changePct >= 0;
+      chg = `  <span class="${up ? 'tk-up' : 'tk-down'}">${up ? '▲' : '▼'}${Math.abs(d.changePct).toFixed(2)}%</span>`;
+    }
+    return `<span class="row">${name}  ${padV(fmtPrice(d.price), 9)}${chg}</span>`;
+  });
+  return rows.join('');
+}
+
+function npWidgetHtml(o) {
+  const m = mediaData;
+  if (!m || !m.title) {
+    return editing ? '<span class="np-idle sub">♪ 再生中のメディアなし</span>' : (o.hideWhenStopped !== false ? '' : '<span class="np-idle sub">♪ ─</span>');
+  }
+  const art = (o.showArt !== false && m.art) ? `<img class="np-art" src="${m.art}" draggable="false">` : '';
+  return `<div class="np${m.playing ? '' : ' np-paused'}">${art}<div class="np-meta">`
+    + `<div class="np-title">${esc(m.title)}</div>`
+    + (o.showArtist !== false && m.artist ? `<div class="sub">${esc(m.artist)}</div>` : '')
+    + '</div></div>';
+}
+
+// メモ / タイマーは別ウィンドウ実体。編集モード用のプレースホルダだけ描く
+function interPhHtml(w, label) {
+  const o = w.options || {};
+  return `<div class="iph"><span class="iph-label">${esc(o.title || label)}</span></div>`;
+}
+
 function widgetHtml(w) {
   switch (w.type) {
     case 'clock': return clockHtml(w.options || {});
@@ -305,13 +489,22 @@ function widgetHtml(w) {
     case 'image': return imageHtml(w.options || {});
     case 'analog': return analogHtml(w.options || {});
     case 'calendar': return calendarHtml(w.options || {});
+    case 'countdown': return countdownHtml(w.options || {});
+    case 'rss': return rssHtml(w.options || {});
+    case 'ticker': return tickerHtml(w.options || {});
+    case 'nowplaying': return npWidgetHtml(w.options || {});
+    case 'note': return interPhHtml(w, 'メモ');
+    case 'pomo': return interPhHtml(w, 'ポモドーロ');
     default: return '';
   }
 }
 
 function applyWidgetStyle(el, w) {
   const o = w.options || {};
-  el.className = 'widget ' + w.type + (w.type === 'folder' ? ' folderph' : '') + (w.type === 'line' && o.orient === 'v' ? ' vert' : '');
+  el.className = 'widget ' + w.type
+    + (w.type === 'folder' ? ' folderph' : '')
+    + (['note', 'pomo'].includes(w.type) ? ' interph' : '')
+    + (w.type === 'line' && o.orient === 'v' ? ' vert' : '');
   el.style.cssText = '';
   el.style.left = w.x + '%';
   el.style.top = w.y + '%';
@@ -379,6 +572,14 @@ function applyWidgetStyle(el, w) {
       el.style.padding = '0.7em 0.9em';
     }
     el.style.setProperty('--cal-acc', o.accent || '#e3a94f');
+  } else if (w.type === 'note' || w.type === 'pomo') {
+    el.style.width = (o.w || (w.type === 'note' ? 240 : 210)) + 'px';
+    el.style.height = (o.h || (w.type === 'note' ? 180 : 150)) + 'px';
+    el.style.background = `rgba(13, 16, 22, ${o.bgOpacity ?? 0.6})`;
+    el.style.border = '1px solid rgba(255,255,255,0.12)';
+    el.style.borderRadius = '14px';
+  } else if (w.type === 'rss' || w.type === 'ticker') {
+    el.style.textAlign = 'left';
   }
 }
 
@@ -420,6 +621,9 @@ function tick(kinds) {
     if (html !== rec.lastHtml) {
       rec.lastHtml = html;
       rec.el.innerHTML = html;
+      if (w.type === 'stats') drawSparks(rec.el, w);
+    } else if (w.type === 'stats' && (w.options || {}).showGraph) {
+      drawSparks(rec.el, w);
     }
   }
 }
@@ -430,11 +634,12 @@ function scheduleTick() {
   if (paused || !config) return;
   const needSec = myWidgets().some(w =>
     (w.type === 'clock' && w.options && w.options.showSeconds) ||
-    (w.type === 'analog' && (!w.options || w.options.showSeconds !== false)));
+    (w.type === 'analog' && (!w.options || w.options.showSeconds !== false)) ||
+    (w.type === 'rss' && w.options && +w.options.rotateSec > 0 && +w.options.rotateSec < 60));
   const now = Date.now();
   const delay = needSec ? (1000 - now % 1000) + 5 : (60000 - now % 60000) + 10;
   tickTimer = setTimeout(() => {
-    tick(['clock', 'date', 'analog', 'calendar']);
+    tick(['clock', 'date', 'analog', 'calendar', 'countdown', 'rss']);
     scheduleTick();
   }, delay);
 }
@@ -559,6 +764,13 @@ window.addEventListener('wheel', (e) => {
     o.w = Math.max(3, Math.min(100, Math.round(((o.w || 18) + (up ? step : -step)) * 10) / 10));
     window.wall.editLive(w.id, { options: { w: o.w } });
     showBadge(`幅 ${o.w}%`, e.clientX, e.clientY);
+  } else if (w.type === 'note' || w.type === 'pomo') {
+    const f = up ? 1.05 : 0.95;
+    const defs = w.type === 'note' ? [240, 180] : [210, 150];
+    o.w = Math.round(Math.max(140, Math.min(700, (o.w || defs[0]) * f)));
+    o.h = Math.round(Math.max(100, Math.min(600, (o.h || defs[1]) * f)));
+    window.wall.editLive(w.id, { options: { w: o.w, h: o.h } });
+    showBadge(`${o.w} × ${o.h}px`, e.clientX, e.clientY);
   } else if (w.type === 'folder') {
     o.iconSize = Math.max(20, Math.min(72, (o.iconSize || 34) + (up ? 2 : -2)));
     window.wall.editLive(w.id, { options: { iconSize: o.iconSize } });
@@ -594,7 +806,28 @@ function applyEnv(env) {
 
 window.wall.onConfig((env) => applyEnv(env));
 window.wall.onWeather((d) => { weatherData = d; tick(['weather']); });
-window.wall.onHw((d) => { hwData = d; tick(['stats']); });
+window.wall.onHw((d) => {
+  hwData = d;
+  if (d && d.ok) {
+    pushHist('cpu', d.cpu && d.cpu.load);
+    pushHist('gpu', d.gpu && d.gpu.load);
+    pushHist('mem', d.mem && d.mem.load);
+  }
+  tick(['stats']);
+});
+window.wall.onMedia((d) => {
+  mediaData = d;
+  tick(['nowplaying']);
+  if (myWallpaper().type === 'nowplaying') renderMedia();
+});
+window.wall.onRss((d) => {
+  rssData.set(d.url, d);
+  tick(['rss']);
+});
+window.wall.onTicker((d) => {
+  tickerData.set(d.symbol, d);
+  tick(['ticker']);
+});
 window.wall.onFontsChanged(() => injectFonts());
 window.wall.onEditMode((v) => {
   editing = v;
@@ -622,6 +855,11 @@ window.wall.onPower(({ paused: p }) => {
   systemWallpaper = st.systemWallpaper || '';
   weatherData = st.weather;
   hwData = st.hw;
+  mediaData = st.media;
+  if (st.feeds) {
+    for (const [url, v] of Object.entries(st.feeds.rss || {})) rssData.set(url, { url, ...v });
+    for (const [sym, v] of Object.entries(st.feeds.ticker || {})) tickerData.set(sym, { symbol: sym, ...v });
+  }
   editing = !!st.editing;
   document.body.classList.toggle('edit', editing);
   injectFonts();

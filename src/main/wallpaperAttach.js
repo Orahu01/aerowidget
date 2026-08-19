@@ -132,7 +132,10 @@ function attachAbove(hwnd, rect) {
   const savedStyle = prev ? prev.savedStyle : makeChildStyle(hwnd);
   if (!prev) attached.set(hwnd, { savedStyle });
 
-  SetParent(hwnd, target.progman);
+  // すでに同じ親に付いているなら SetParent し直さない (再親付けはちらつき・再配置の原因)
+  if (!prev || prev.parent !== target.progman || !IsWindow(target.progman)) {
+    SetParent(hwnd, target.progman);
+  }
   moveToPhysRect(hwnd, rect);
   SetWindowPos(hwnd, 0 /* HWND_TOP */, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
 

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
+  <title>WidgetWall Timer</title>
+  <link rel="stylesheet" href="pomo.css">
+</head>
+<body>
+  <div id="card">
+    <div id="phase">作業</div>
+    <div id="time">25:00</div>
+    <div id="bar"><div id="bar-fill"></div></div>
+    <div id="ctrl">
+      <button id="btn-toggle" title="開始 / 一時停止">開始</button>
+      <button id="btn-reset" title="リセット">リセット</button>
+    </div>
+    <div id="count"></div>
+  </div>
+  <style id="gfonts"></style>
+  <script src="pomo.js"></script>
+</body>
+</html>

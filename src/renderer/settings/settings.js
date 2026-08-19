@@ -19,6 +19,12 @@ const TYPES = {
   text: { icon: 'i-text', label: 'テキスト' },
   image: { icon: 'i-photo', label: '画像' },
   stats: { icon: 'i-stats', label: 'ハードウェアモニタ' },
+  nowplaying: { icon: 'i-music', label: '再生中の曲' },
+  countdown: { icon: 'i-flag', label: 'カウントダウン' },
+  rss: { icon: 'i-rss', label: 'ニュース (RSS)' },
+  ticker: { icon: 'i-trend', label: '株価・為替' },
+  note: { icon: 'i-note', label: 'メモ (書き込める付箋)' },
+  pomo: { icon: 'i-timer', label: 'ポモドーロタイマー' },
   zone: { icon: 'i-zone', label: 'ゾーン (色分け枠)' },
   line: { icon: 'i-line', label: 'ライン (線)' },
   folder: { icon: 'i-folder', label: 'フォルダ (アプリまとめ)' },
@@ -98,6 +104,7 @@ function wpCss(wp) {
   if (wp.type === 'preset') return (PRESETS[wp.value] || PRESETS.aurora).css;
   if (wp.type === 'custom') return customCss(wp.value || {});
   if (wp.type === 'color') return wp.value;
+  if (wp.type === 'nowplaying') return PRESETS.midnight.css;
   return 'linear-gradient(155deg, #202329, #16181c)';
 }
 
@@ -193,6 +200,12 @@ function renderPresets() {
     () => setWp({ type: 'system', value: '' }));
   sys.title = 'Windows の壁紙はそのままに、ウィジェットだけ表示します';
   grid.appendChild(sys);
+
+  // 再生中の曲のアルバムアートを壁紙に
+  const np = presetCard(svgIcon('i-music'), wp.type === 'nowplaying', 'アルバムアート',
+    () => setWp({ type: 'nowplaying', value: '' }));
+  np.title = 'Spotify やブラウザで再生中の曲のジャケットを、ぼかして壁紙にします';
+  grid.appendChild(np);
 
   for (const [key, p] of Object.entries(PRESETS)) {
     grid.appendChild(presetCard(p.css, wp.type === 'preset' && wp.value === key, p.label,
@@ -291,9 +304,18 @@ function renderWallpaperTab() {
   } else {
     label.textContent = '未選択';
   }
+  const ssLabel = $('#slideshow-label');
+  if (wp.type === 'slideshow' && wp.value && wp.value.files) {
+    ssLabel.textContent = `${wp.value.files.length} 枚を再生中`;
+    $('#slideshow-interval').value = String(wp.value.intervalMin || 5);
+  } else {
+    ssLabel.textContent = '未設定';
+  }
   if (document.activeElement !== $('#wp-dim')) $('#wp-dim').value = wp.dim;
+  if (document.activeElement !== $('#wp-bright')) $('#wp-bright').value = wp.bright || 0;
   if (document.activeElement !== $('#wp-blur')) $('#wp-blur').value = wp.blur;
   $('#wp-dim-val').textContent = wp.dim + '%';
+  $('#wp-bright-val').textContent = '+' + (wp.bright || 0) + '%';
   $('#wp-blur-val').textContent = wp.blur + 'px';
   $('#wp-animate').checked = !!wp.animate;
 }
@@ -304,11 +326,24 @@ $('#btn-pick').addEventListener('click', async () => {
   setWp({ type: r.kind, value: r.path });
 });
 
-for (const [id, prop, unit] of [['wp-dim', 'dim', '%'], ['wp-blur', 'blur', 'px']]) {
+$('#btn-pick-slideshow').addEventListener('click', async () => {
+  const files = await window.api.pickImages();
+  if (!files || !files.length) return;
+  setWp({ type: 'slideshow', value: { files, intervalMin: +$('#slideshow-interval').value || 5, fade: true } });
+});
+
+$('#slideshow-interval').addEventListener('change', (e) => {
+  const wp = curWp();
+  if (wp.type === 'slideshow' && wp.value) {
+    setWp({ value: { ...wp.value, intervalMin: +e.target.value || 5 } });
+  }
+});
+
+for (const [id, prop, unit] of [['wp-dim', 'dim', '%'], ['wp-bright', 'bright', '%'], ['wp-blur', 'blur', 'px']]) {
   $('#' + id).addEventListener('input', (e) => {
     touch();
     const v = +e.target.value;
-    $('#' + id + '-val').textContent = v + unit;
+    $('#' + id + '-val').textContent = (prop === 'bright' ? '+' : '') + v + unit;
     debounced('wp:' + prop, 140, () => setWp({ [prop]: v }));
   });
 }
@@ -679,7 +714,21 @@ function typeOptionsUI(w) {
     row.appendChild(mkCheck('ネットワーク', !!o.showNet, v => patchWidget(w.id, { options: { showNet: v } })));
     row.appendChild(mkCheck('温度を表示', o.showTemps !== false, v => patchWidget(w.id, { options: { showTemps: v } })));
     row.appendChild(mkCheck('1行にまとめる', !!o.compact, v => patchWidget(w.id, { options: { compact: v } })));
+    row.appendChild(mkCheck('グラフを表示', !!o.showGraph, v => patchWidget(w.id, { options: { showGraph: v } })));
     wrap.appendChild(row);
+
+    {
+      const warn = document.createElement('input');
+      warn.type = 'number'; warn.min = 40; warn.max = 110; warn.step = 1;
+      warn.value = o.tempWarn || 85;
+      warn.style.width = '72px';
+      warn.addEventListener('change', () => patchWidget(w.id, { options: { tempWarn: +warn.value || 85 } }));
+      const unit = document.createElement('span');
+      unit.className = 'note';
+      unit.style.padding = '0';
+      unit.textContent = '°C 以上で赤く表示';
+      wrap.appendChild(ctlRow('温度アラート', warn, unit));
+    }
 
     wrap.appendChild(ctlRow('LHM URL', mkText(cfg.settings.lhmUrl, 'http://127.0.0.1:8085/data.json', v => {
       touch();
@@ -687,6 +736,90 @@ function typeOptionsUI(w) {
       window.api.setSettings({ lhmUrl: v });
     })));
     wrap.appendChild(noteEl('温度・GPU・SSD・ネット速度の表示には Libre Hardware Monitor が必要です。LHM を起動し、Options → Remote Web Server → Run を有効にしてください。'));
+
+  } else if (w.type === 'countdown') {
+    wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: 誕生日 / 締切 / 旅行', v => patchWidget(w.id, { options: { title: v } }))));
+    {
+      const d = document.createElement('input');
+      d.type = 'date';
+      d.value = o.date || '';
+      d.addEventListener('change', () => patchWidget(w.id, { options: { date: d.value } }));
+      wrap.appendChild(ctlRow('日付', d));
+    }
+    const row = document.createElement('div');
+    row.className = 'chk-row';
+    row.appendChild(mkCheck('過ぎたら経過日数を表示', o.showPast !== false, v => patchWidget(w.id, { options: { showPast: v } })));
+    wrap.appendChild(row);
+    wrap.appendChild(noteEl('複数のカウントダウンを置きたいときは、ウィジェットを複数追加してください。'));
+
+  } else if (w.type === 'rss') {
+    wrap.appendChild(ctlRow('フィード URL', mkText(o.url, 'https://…/rss.xml', v => patchWidget(w.id, { options: { url: v.trim() } }))));
+    wrap.appendChild(ctlRow('表示件数', mkSelect(
+      [['1', '1件'], ['2', '2件'], ['3', '3件'], ['5', '5件'], ['8', '8件']],
+      String(o.count || 3), v => patchWidget(w.id, { options: { count: +v } }))));
+    wrap.appendChild(ctlRow('見出しの切替', mkSelect(
+      [['0', 'なし (リスト表示)'], ['10', '10秒ごとに1件'], ['30', '30秒ごとに1件'], ['60', '60秒ごとに1件']],
+      String(o.rotateSec || 0), v => patchWidget(w.id, { options: { rotateSec: +v } }))));
+    wrap.appendChild(noteEl('例: NHK https://www.nhk.or.jp/rss/news/cat0.xml ・ ITmedia https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml ・ 30分ごとに自動更新します。'));
+
+  } else if (w.type === 'ticker') {
+    wrap.appendChild(ctlRow('銘柄 (カンマ区切り)', mkText(o.symbols, '例: AAPL, 7203.T, USDJPY=X, BTC-USD', v => patchWidget(w.id, { options: { symbols: v } }))));
+    const row = document.createElement('div');
+    row.className = 'chk-row';
+    row.appendChild(mkCheck('前日比を表示', o.showChange !== false, v => patchWidget(w.id, { options: { showChange: v } })));
+    wrap.appendChild(row);
+    wrap.appendChild(noteEl('Yahoo Finance のティッカーが使えます。日本株は「7203.T」(トヨタ) のように .T、為替は「USDJPY=X」、暗号資産は「BTC-USD」。10分ごとに更新 (データは遅延があります)。'));
+
+  } else if (w.type === 'nowplaying') {
+    const row = document.createElement('div');
+    row.className = 'chk-row';
+    row.appendChild(mkCheck('アルバムアート', o.showArt !== false, v => patchWidget(w.id, { options: { showArt: v } })));
+    row.appendChild(mkCheck('アーティスト名', o.showArtist !== false, v => patchWidget(w.id, { options: { showArtist: v } })));
+    row.appendChild(mkCheck('停止中は隠す', o.hideWhenStopped !== false, v => patchWidget(w.id, { options: { hideWhenStopped: v } })));
+    wrap.appendChild(row);
+    wrap.appendChild(noteEl('Spotify・ブラウザの YouTube など、Windows のメディア再生 (SMTC) に対応したアプリの曲名とジャケットを表示します。'));
+
+  } else if (w.type === 'note') {
+    wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: メモ / TODO', v => patchWidget(w.id, { options: { title: v } }))));
+    {
+      const [r, val, show] = mkRange(140, 700, 10, o.w ?? 240, v => { show(v + 'px'); patchWidget(w.id, { options: { w: v } }, { debounce: true }); });
+      val.textContent = (o.w ?? 240) + 'px';
+      wrap.appendChild(ctlRow('幅', r, val));
+    }
+    {
+      const [r, val, show] = mkRange(100, 600, 10, o.h ?? 180, v => { show(v + 'px'); patchWidget(w.id, { options: { h: v } }, { debounce: true }); });
+      val.textContent = (o.h ?? 180) + 'px';
+      wrap.appendChild(ctlRow('高さ', r, val));
+    }
+    {
+      const [r, val, show] = mkRange(0, 100, 5, Math.round((o.bgOpacity ?? 0.6) * 100), v => { show(v + '%'); patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true }); });
+      val.textContent = Math.round((o.bgOpacity ?? 0.6) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+    wrap.appendChild(noteEl('デスクトップ上のカードに直接文字を書けます。内容は自動保存されます。'));
+
+  } else if (w.type === 'pomo') {
+    {
+      const work = document.createElement('input');
+      work.type = 'number'; work.min = 1; work.max = 120; work.value = o.workMin || 25;
+      work.style.width = '64px';
+      work.addEventListener('change', () => patchWidget(w.id, { options: { workMin: +work.value || 25 } }));
+      const brk = document.createElement('input');
+      brk.type = 'number'; brk.min = 1; brk.max = 60; brk.value = o.breakMin || 5;
+      brk.style.width = '64px';
+      brk.addEventListener('change', () => patchWidget(w.id, { options: { breakMin: +brk.value || 5 } }));
+      const unit = document.createElement('span');
+      unit.className = 'note';
+      unit.style.padding = '0';
+      unit.textContent = '分 (作業 / 休憩)';
+      wrap.appendChild(ctlRow('時間', work, brk, unit));
+    }
+    {
+      const [r, val, show] = mkRange(0, 100, 5, Math.round((o.bgOpacity ?? 0.6) * 100), v => { show(v + '%'); patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true }); });
+      val.textContent = Math.round((o.bgOpacity ?? 0.6) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+    wrap.appendChild(noteEl('デスクトップ上でクリックして開始・一時停止。作業セット完了時に通知が届きます。'));
 
   } else if (w.type === 'zone') {
     {
@@ -960,6 +1093,8 @@ async function renderGeneral() {
   pfs.onchange = () => { touch(); window.api.setSettings({ pauseOnFullscreen: pfs.checked }); };
 
   renderSchedule();
+  renderLayouts();
+  updateStatusText(await window.api.getUpdateStatus());
 
   const sel = $('#weather-interval');
   sel.value = String(cfg.settings.weatherIntervalMin || 30);
@@ -976,9 +1111,12 @@ async function renderGeneral() {
 }
 
 // ---- 壁紙スケジュール ----
+const WEEK_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+let schedDay = new Date().getDay();  // 曜日モードで選択中の曜日
+
 function schedState() {
   return Object.assign(
-    { enabled: false, dayStart: '07:00', nightStart: '19:00', day: null, night: null },
+    { enabled: false, mode: 'daynight', dayStart: '07:00', nightStart: '19:00', day: null, night: null, weekly: {} },
     cfg.settings.schedule || {},
   );
 }
@@ -991,26 +1129,162 @@ function pushSched(patch) {
   renderSchedule();
 }
 
+function paintSwatch(el, wp) {
+  el.style.background = wp ? wpCss(wp) : 'transparent';
+  el.title = wp
+    ? (wp.type === 'image' || wp.type === 'video' ? String(wp.value).split(/[\\/]/).pop() : '登録済み')
+    : '未登録 (壁紙タブで設定してから登録してください)';
+}
+
 function renderSchedule() {
   const s = schedState();
   $('#sched-on').checked = !!s.enabled;
+  $$('#sched-mode-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === (s.mode || 'daynight')));
+  const weekly = s.mode === 'weekly';
+  $$('.sched-daynight').forEach(el => { el.style.display = weekly ? 'none' : 'flex'; });
+  $$('.sched-weekly').forEach(el => { el.style.display = weekly ? 'flex' : 'none'; });
+
   if (document.activeElement !== $('#sched-day')) $('#sched-day').value = s.dayStart;
   if (document.activeElement !== $('#sched-night')) $('#sched-night').value = s.nightStart;
-  const paint = (el, wp) => {
-    el.style.background = wp ? wpCss(wp) : 'transparent';
-    el.title = wp
-      ? (wp.type === 'image' || wp.type === 'video' ? wp.value.split(/[\\/]/).pop() : '登録済み')
-      : '未登録 (壁紙タブで設定してから登録してください)';
-  };
-  paint($('#sched-day-prev'), s.day);
-  paint($('#sched-night-prev'), s.night);
+  paintSwatch($('#sched-day-prev'), s.day);
+  paintSwatch($('#sched-night-prev'), s.night);
+
+  const chips = $('#sched-week-chips');
+  chips.innerHTML = '';
+  WEEK_LABELS.forEach((lb, i) => {
+    const c = document.createElement('button');
+    c.className = 'chip' + (schedDay === i ? ' active' : '');
+    c.textContent = lb + ((s.weekly || {})[String(i)] ? ' ●' : '');
+    c.addEventListener('click', () => { schedDay = i; renderSchedule(); });
+    chips.appendChild(c);
+  });
+  $('#sched-week-sel-label').textContent = `選択中: ${WEEK_LABELS[schedDay]}曜日`;
+  paintSwatch($('#sched-week-prev'), (s.weekly || {})[String(schedDay)]);
 }
 
 $('#sched-on').addEventListener('change', (e) => pushSched({ enabled: e.target.checked }));
+$$('#sched-mode-seg button').forEach(b => b.addEventListener('click', () => pushSched({ mode: b.dataset.v })));
 $('#sched-day').addEventListener('change', (e) => pushSched({ dayStart: e.target.value || '07:00' }));
 $('#sched-night').addEventListener('change', (e) => pushSched({ nightStart: e.target.value || '19:00' }));
 $('#sched-set-day').addEventListener('click', () => pushSched({ day: clone(cfg.wallpapers.default) }));
 $('#sched-set-night').addEventListener('click', () => pushSched({ night: clone(cfg.wallpapers.default) }));
+$('#sched-week-set').addEventListener('click', () => {
+  const weekly = { ...(schedState().weekly || {}) };
+  weekly[String(schedDay)] = clone(cfg.wallpapers.default);
+  pushSched({ weekly });
+});
+$('#sched-week-clear').addEventListener('click', () => {
+  const weekly = { ...(schedState().weekly || {}) };
+  delete weekly[String(schedDay)];
+  pushSched({ weekly });
+});
+
+// ---- レイアウトプリセット ----
+function renderLayouts() {
+  const list = $('#layout-list');
+  list.innerHTML = '';
+  const layouts = cfg.settings.layouts || [];
+  for (const [i, l] of layouts.entries()) {
+    const row = document.createElement('div');
+    row.className = 'gf-item';
+    const name = document.createElement('span');
+    name.className = 'gf-name';
+    name.textContent = l.name;
+    const meta = document.createElement('span');
+    meta.className = 'note';
+    meta.style.padding = '0';
+    meta.textContent = `ウィジェット ${(l.widgets || []).length} 個`;
+    const apply = document.createElement('button');
+    apply.className = 'btn';
+    apply.textContent = '適用';
+    apply.addEventListener('click', async () => {
+      touch();
+      await window.api.applyLayout(i);
+      cfg = (await window.api.getConfig()).config;
+      renderWallpaperTab();
+      renderWidgetList();
+      renderLayouts();
+    });
+    const over = document.createElement('button');
+    over.className = 'btn';
+    over.textContent = '上書き';
+    over.title = '現在の構成でこのプリセットを上書き';
+    over.addEventListener('click', async () => {
+      touch();
+      cfg.settings.layouts = await window.api.overwriteLayout(i);
+      renderLayouts();
+    });
+    row.appendChild(name);
+    row.appendChild(meta);
+    row.appendChild(apply);
+    row.appendChild(over);
+    row.appendChild(mkDelBtn(async () => {
+      touch();
+      cfg.settings.layouts = await window.api.removeLayout(i);
+      renderLayouts();
+    }));
+    list.appendChild(row);
+  }
+}
+
+$('#layout-save').addEventListener('click', async () => {
+  touch();
+  cfg.settings.layouts = await window.api.saveLayout($('#layout-name').value.trim());
+  $('#layout-name').value = '';
+  renderLayouts();
+});
+$('#layout-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#layout-save').click(); });
+
+// ---- バックアップ ----
+$('#btn-export').addEventListener('click', async () => {
+  const r = await window.api.exportConfig();
+  $('#backup-status').textContent = r.msg;
+});
+$('#btn-import').addEventListener('click', async () => {
+  const r = await window.api.importConfig();
+  $('#backup-status').textContent = r.msg;
+  if (r.ok) {
+    cfg = (await window.api.getConfig()).config;
+    renderWallpaperTab();
+    renderWidgetList();
+    renderGeneral();
+  }
+});
+
+// ---- アップデート / 修復 / アンインストール ----
+function updateStatusText(s) {
+  const t = $('#update-status-text');
+  const install = $('#btn-update-install');
+  install.style.display = s.state === 'ready' ? '' : 'none';
+  switch (s.state) {
+    case 'checking': t.textContent = '確認中…'; break;
+    case 'available': t.textContent = `v${s.version} をダウンロード中…`; break;
+    case 'downloading': t.textContent = `v${s.version || ''} をダウンロード中 ${s.message || ''}`; break;
+    case 'ready': t.textContent = `v${s.version} の準備ができました`; break;
+    case 'latest': t.textContent = '最新版です'; break;
+    case 'portable': t.textContent = 'ポータブル版は手動更新です (Releases から最新版をダウンロード)'; break;
+    case 'dev': t.textContent = '開発モードでは無効'; break;
+    case 'error': t.textContent = `確認できませんでした${s.message ? ' (' + s.message + ')' : ''}`; break;
+    default: t.textContent = '未確認';
+  }
+}
+
+$('#btn-update-check').addEventListener('click', async () => {
+  updateStatusText(await window.api.checkUpdate());
+});
+$('#btn-update-install').addEventListener('click', () => window.api.installUpdate());
+window.api.onUpdateStatus((s) => updateStatusText(s));
+
+$('#btn-repair').addEventListener('click', async () => {
+  $('#repair-note').textContent = '再適用中…';
+  await window.api.repair();
+  $('#repair-note').textContent = '壁紙を貼り付け直しました。';
+});
+
+$('#btn-uninstall').addEventListener('click', async () => {
+  const r = await window.api.uninstall();
+  if (!r.ok && r.msg) $('#uninstall-note').textContent = r.msg;
+});
 
 function updateWeatherStatus(w) {
   const el = $('#weather-status');

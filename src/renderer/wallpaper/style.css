@@ -46,6 +46,40 @@ body.paused #media .preset-bg.anim { animation-play-state: paused; }
   object-fit: cover;
 }
 
+/* スライドショー (2 枚をクロスフェード) */
+.slide-box {
+  position: absolute;
+  inset: 0;
+  background: #0b0d12;
+}
+.slide-box .slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.slide-box .slide.on { opacity: 1; }
+
+/* アルバムアート壁紙 (低解像度アートを大きくぼかして敷く) */
+.np-bg {
+  position: absolute;
+  inset: 0;
+  background: #0b0d12;
+  overflow: hidden;
+}
+.np-bg img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(52px) saturate(1.25) brightness(0.85);
+  transform: scale(1.2);
+}
+
 #dim {
   position: fixed;
   inset: 0;
@@ -104,6 +138,58 @@ body.paused #media .preset-bg.anim { animation-play-state: paused; }
 /* システム情報 */
 .widget.stats { text-align: left; font-variant-numeric: tabular-nums; }
 .widget.stats .row { display: block; line-height: 1.55; }
+.hw-hot { color: #ff6b72; }
+.hw-spark {
+  display: inline-block;
+  vertical-align: -0.12em;
+  margin-left: 0.7em;
+  opacity: 0.9;
+}
+
+/* RSS / 株価 */
+.widget.rss .row, .widget.ticker .row { display: block; line-height: 1.6; }
+.tk-up { color: #7ed7a0; }
+.tk-down { color: #ff8089; }
+
+/* カウントダウン */
+.widget.countdown .cd-title { margin-bottom: 0.3em; }
+.widget.countdown .cd-num { font-size: 1.6em; font-variant-numeric: tabular-nums; }
+
+/* 再生中メディア */
+.widget.nowplaying { white-space: normal; }
+.np {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  text-align: left;
+}
+.np-paused { opacity: 0.55; }
+.np-art {
+  width: 3em;
+  height: 3em;
+  border-radius: 0.45em;
+  object-fit: cover;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  flex: none;
+}
+.np-title {
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-meta .sub { text-align: left; }
+
+/* メモ / タイマーのプレースホルダ (編集モードのみ表示) */
+.widget.interph { white-space: normal; }
+body:not(.edit) .widget.interph { display: none; }
+.iph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.iph-label { font-size: 13px; opacity: 0.75; letter-spacing: 0.08em; }
 
 /* 画像ウィジェット */
 .widget.image .img-body { width: 100%; height: auto; display: block; }
