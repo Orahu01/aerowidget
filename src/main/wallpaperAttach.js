@@ -2,7 +2,7 @@
 // Wallpaper Engine / Lively と同じ手法。Win10 と Win11 24H2 以降の両方のレイアウトに対応する。
 //
 // - attachAt():    アイコンの「背面」に配置 (壁紙ウィンドウ用)
-// - attachAbove(): アイコンの「前面」かつ全アプリの背面に配置 (フォルダウィジェット用、クリック可能)
+// - placeOnDesktopLayer(): アイコンの「前面」かつ全アプリの背面に配置 (対話ウィジェット用、クリック可能)
 'use strict';
 
 const koffi = require('koffi');
@@ -124,29 +124,49 @@ function attachAt(hwnd, rect) {
 
 // フォルダウィジェット: アイコンの前面 (かつ全アプリの背面 = デスクトップ上) に配置。
 // Progman の子の最前面に置くことで、クリックを受け取れてアプリには隠れない。
-function attachAbove(hwnd, rect) {
-  const target = findTarget();
-  if (!target || !target.progman) return false;
+// 対話ウィジェット (フォルダ / メモ / タイマー) を「デスクトップ直上」の層に置く。
+//
+// 以前は Progman の子ウィンドウにしていたが、別プロセスのウィンドウの子にすると
+// Chromium にマウス/キーボード入力が一切届かず、クリックできなかった。
+// そのためトップレベルのまま維持し、Z オーダーだけ Progman の直上に差し込む
+// (Rainmeter の "OnDesktop" と同じ考え方)。アイコンより手前・全アプリより奥に居座り、
+// かつ入力は通常のトップレベルウィンドウとして正しく処理される。
+function placeOnDesktopLayer(hwnd) {
+  const progman = num(FindWindowW('Progman', null));
+  if (!progman) return false;
 
   const prev = attached.get(hwnd);
-  const savedStyle = prev ? prev.savedStyle : makeChildStyle(hwnd);
-  if (!prev) attached.set(hwnd, { savedStyle });
-
-  // すでに同じ親に付いているなら SetParent し直さない (再親付けはちらつき・再配置の原因)
-  if (!prev || prev.parent !== target.progman || !IsWindow(target.progman)) {
-    SetParent(hwnd, target.progman);
+  if (!prev) {
+    // タスクバー / Alt+Tab には出さない (入力は殺さないので NOACTIVATE は付けない)
+    const ex = num(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
+    attached.set(hwnd, { savedStyle: null, desktopLayer: true });
   }
-  moveToPhysRect(hwnd, rect);
-  SetWindowPos(hwnd, 0 /* HWND_TOP */, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
-  Object.assign(attached.get(hwnd), { parent: target.progman, mode: target.mode, above: true, rect });
+  if (!IsWindowVisible(hwnd)) ShowWindow(hwnd, 8 /* SW_SHOWNA */);
+  SetWindowPos(hwnd, progman, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+  Object.assign(attached.get(hwnd), { parent: progman, above: true, desktopLayer: true });
   return true;
+}
+
+// 一度前面に出た対話ウィジェットを、再びデスクトップ直上まで下げる
+function lowerToDesktopLayer(hwnd) {
+  const st = attached.get(hwnd);
+  if (!st || !st.desktopLayer) return;
+  const progman = num(FindWindowW('Progman', null));
+  if (progman) SetWindowPos(hwnd, progman, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 // 通常のトップレベルウィンドウに戻す (レイアウト編集 / 終了時)
 function detach(hwnd) {
   const st = attached.get(hwnd);
   if (!st) return;
+  if (st.desktopLayer) {
+    // 元からトップレベル。Z オーダーを戻すだけでよい
+    attached.delete(hwnd);
+    return;
+  }
   SetParent(hwnd, 0);
   if (st.savedStyle != null) SetWindowLongPtrW(hwnd, GWL_STYLE, st.savedStyle);
   attached.delete(hwnd);
@@ -157,6 +177,8 @@ function detach(hwnd) {
 function ensurePlacement(hwnd, rect) {
   const st = attached.get(hwnd);
   if (!st) return;
+  // デスクトップ層のトップレベル窓は Electron が座標を管理するので Z 順だけ保つ
+  if (st.desktopLayer) { lowerToDesktopLayer(hwnd); return; }
   const target = rect || st.rect;
   if (!target) return;
   st.rect = target;
@@ -177,7 +199,10 @@ function isAttached(hwnd) {
 
 function isParentAlive(hwnd) {
   const st = attached.get(hwnd);
-  return !!(st && st.parent && IsWindow(st.parent));
+  if (!st) return false;
+  // デスクトップ層の窓は親を持たない。Progman が生きていれば健全とみなす
+  if (st.desktopLayer) return !!num(FindWindowW('Progman', null));
+  return !!(st.parent && IsWindow(st.parent));
 }
 
 function isWindowAlive(hwnd) {
@@ -228,7 +253,7 @@ function getRect(hwnd) {
 }
 
 module.exports = {
-  findTarget, attachAt, attachAbove, detach, ensurePlacement, getRect,
+  findTarget, attachAt, placeOnDesktopLayer, lowerToDesktopLayer, detach, ensurePlacement, getRect,
   isAttached, isParentAlive, isWindowAlive,
   setRoundRegion, getSystemWallpaperPath, refreshDesktop,
 };

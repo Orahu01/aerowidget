@@ -204,13 +204,20 @@ function createFolderWindow(widget) {
     width: dims.w, height: dims.h,
     frame: false, resizable: true, movable: false,
     minimizable: false, maximizable: false, closable: false,
-    skipTaskbar: true, focusable: false, show: false,
+    // focusable:false (WS_EX_NOACTIVATE) だと Chromium が入力を処理せず、
+    // クリックもキーボードも一切効かなくなる。対話ウィジェットなので true にする。
+    skipTaskbar: true, focusable: true, show: false,
     hasShadow: false, roundedCorners: false, thickFrame: false,
     backgroundColor: '#0e1116',
     webPreferences: {
       preload: PRELOAD('folder.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Chromium のズーム倍率は file:// オリジン単位でセッションに永続化される。
+      // 壁紙側 (子ウィンドウのため DPI 補正でズームを使う) と食い合わないよう、
+      // 対話ウィジェットは専用セッションに隔離して常に等倍で描く
+      partition: 'persist:widgets',
+      zoomFactor: 1,
     },
   });
   folderWins.set(widget.id, win);
@@ -222,6 +229,11 @@ function createFolderWindow(widget) {
       placeFolder(widget.id);
     }
   });
+  // クリックすると一時的に前面へ出るので、操作が終わったらデスクトップ直上へ戻す
+  win.on('blur', () => {
+    if (!editMode && !win.isDestroyed()) attach.lowerToDesktopLayer(getHwnd(win));
+  });
+
   win.webContents.on('render-process-gone', () => {
     try { win.destroy(); } catch (_) {}
     folderWins.delete(widget.id);
@@ -243,50 +255,49 @@ function placeFolder(id) {
   if (!win || win.isDestroyed() || !widget) return;
   const pair = displayPairs.find(p => p.index === (widget.display || 0)) || displayPairs[0];
   if (!pair) return;
+
+  // 対話ウィジェットはトップレベルのままなので、Electron の DIP 座標系で素直に配置できる。
+  // (物理ピクセルで中心位置を決め、その左上を DIP に変換して setBounds に渡す)
   const dims = interDims(widget);
   const sf = pair.display.scaleFactor || 1;
   const pw = Math.round(dims.w * sf), ph = Math.round(dims.h * sf);
   const cx = pair.native.x + Math.round(pair.native.w * widget.x / 100);
   const cy = pair.native.y + Math.round(pair.native.h * widget.y / 100);
-  const rect = {
-    x: Math.min(Math.max(cx - (pw >> 1), pair.native.x), pair.native.x + pair.native.w - pw),
-    y: Math.min(Math.max(cy - (ph >> 1), pair.native.y), pair.native.y + pair.native.h - ph),
-    w: pw, h: ph,
-  };
+  const px = Math.min(Math.max(cx - (pw >> 1), pair.native.x), pair.native.x + pair.native.w - pw);
+  const py = Math.min(Math.max(cy - (ph >> 1), pair.native.y), pair.native.y + pair.native.h - ph);
+
   const hwnd = getHwnd(win);
-  attach.attachAbove(hwnd, rect);
-  try { win.webContents.setZoomFactor(sf); } catch (_) {}
+
+  // Electron は setBounds のサイズを「今ウィンドウが載っているモニタ」の倍率で
+  // 物理ピクセルへ換算する。先に移動して対象モニタへ移してからサイズを決めないと、
+  // 別倍率のモニタ間でサイズがばらつく (これがサイズ不安定の原因だった)。
+  try {
+    const dip = screen.screenToDipPoint({ x: px, y: py });
+    win.setPosition(Math.round(dip.x), Math.round(dip.y));
+  } catch (_) {}
+  win.setSize(dims.w, dims.h);
+  attach.placeOnDesktopLayer(hwnd);
   placedKey.set(id, folderPlaceKey(widget));
 
-  // モニタごとに DPI 換算が異なり、Electron が遅れて自己流のサイズを再適用してくるため、
-  // 「実測 → ずれていれば DIP を逆算補正 → 物理位置を再適用」を一致するまで繰り返し、
-  // 安定してから実測値で角丸リージョンを切る。世代番号で古いループは打ち切る。
+  // 実測が目標の物理サイズと合うまで補正し、確定したサイズで角丸を切る
+  const wantW = pw, wantH = ph;
   const gen = (placeGen.get(id) || 0) + 1;
   placeGen.set(id, gen);
   const settle = (n) => {
     if (placeGen.get(id) !== gen) return;
-    if (editMode || !win || win.isDestroyed() || !attach.isWindowAlive(hwnd)) return;
+    if (editMode || win.isDestroyed() || !attach.isWindowAlive(hwnd)) return;
     const r = attach.getRect(hwnd);
-    if (r.x === rect.x && r.y === rect.y && r.w === rect.w && r.h === rect.h) {
-      attach.setRoundRegion(hwnd, rect.w, rect.h, Math.round(14 * sf));
+    if ((Math.abs(r.w - wantW) > 1 || Math.abs(r.h - wantH) > 1) && n > 0) {
+      const b = win.getBounds();
+      const nw = Math.max(40, Math.round(wantW / ((r.w / b.width) || 1)));
+      const nh = Math.max(30, Math.round(wantH / ((r.h / b.height) || 1)));
+      win.setSize(nw, nh);
+      setTimeout(() => settle(n - 1), 120);
       return;
     }
-    if (r.w !== rect.w || r.h !== rect.h) {
-      const b = win.getBounds();
-      const nw = Math.max(40, Math.round(rect.w / ((r.w / b.width) || 1)));
-      const nh = Math.max(30, Math.round(rect.h / ((r.h / b.height) || 1)));
-      win.setBounds({ width: nw, height: nh });
-    }
-    attach.ensurePlacement(hwnd, rect);
-    if (n > 0) {
-      setTimeout(() => settle(n - 1), 130);
-    } else {
-      // 収束しきらなくても、実測サイズに合わせてリージョンを切れば見た目は崩れない
-      const fin = attach.getRect(hwnd);
-      attach.setRoundRegion(hwnd, fin.w, fin.h, Math.round(14 * sf));
-    }
+    attach.setRoundRegion(hwnd, r.w, r.h, Math.round(14 * sf));
   };
-  setTimeout(() => settle(6), 130);
+  setTimeout(() => settle(4), 140);
 }
 
 function syncFolders() {
@@ -878,7 +889,23 @@ ipcMain.handle('icon:get', async (e, p) => {
 ipcMain.on('folder:launch', (e, id, p) => {
   const w = config.get().widgets.find(x => x.id === id && x.type === 'folder');
   if (!w || !(w.options.items || []).some(it => it.path === p)) return;
-  shell.openPath(p);
+
+  shell.openPath(p).then(err => {
+    if (!err) return;
+    // calc.exe のような UWP スタブは ShellExecute で開けないことがある。
+    // 実行ファイルなら直接起動でフォールバックする
+    if (/\.(exe|bat|cmd)$/i.test(p)) {
+      try {
+        require('child_process')
+          .spawn(p, [], { detached: true, stdio: 'ignore', cwd: path.dirname(p) })
+          .unref();
+        return;
+      } catch (e2) {
+        if (process.env.WW_DEBUG) console.log('[launch] spawn failed:', e2.message);
+      }
+    }
+    if (process.env.WW_DEBUG) console.log('[launch] openPath error:', err);
+  });
 });
 
 ipcMain.handle('folder:state', (e, id) => {
