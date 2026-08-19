@@ -231,8 +231,16 @@ function newWidget(type) {
       };
     case 'nowplaying':
       return {
-        ...base, x: 50, y: 82, size: 22, weight: 400, letterSpacing: 1, shadow: 'soft',
-        options: { showArt: true, showArtist: true, hideWhenStopped: true },
+        ...base, x: 50, y: 82, size: 16, weight: 400, letterSpacing: 0, shadow: 'none',
+        options: {
+          showArt: true, showArtist: true, showControls: true,
+          hideWhenStopped: false, w: 320, h: 96, bgOpacity: 0.55,
+        },
+      };
+    case 'volume':
+      return {
+        ...base, x: 88, y: 92, size: 15, color: '#e6e7ea', shadow: 'none',
+        options: { showDevices: true, w: 260, h: 120, bgOpacity: 0.6 },
       };
     case 'note':
       return {

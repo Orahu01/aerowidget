@@ -217,6 +217,39 @@ function setRoundRegion(hwnd, w, h, radius) {
   } catch (_) { /* best-effort */ }
 }
 
+// ---------------------------------------------------------------- デスクトップアイコンの表示切替
+// アイコンを描いているのは SHELLDLL_DefView。これを隠すとアイコンだけ消える
+// (壁紙とウィジェットはそのまま)。エクスプローラ再起動で必ず元に戻る。
+function findDefView() {
+  const progman = num(FindWindowW('Progman', null));
+  let def = progman ? num(FindWindowExW(progman, 0, 'SHELLDLL_DefView', null)) : 0;
+  if (def) return def;
+  // Win10 型は WorkerW 配下にぶら下がっていることがある
+  const cb = koffi.register((hwnd, _l) => {
+    const d = num(FindWindowExW(num(hwnd), 0, 'SHELLDLL_DefView', null));
+    if (d) { def = d; return false; }
+    return true;
+  }, koffi.pointer(EnumWindowsProc));
+  try {
+    EnumWindows(cb, 0);
+  } finally {
+    koffi.unregister(cb);
+  }
+  return def;
+}
+
+function setDesktopIconsVisible(visible) {
+  const def = findDefView();
+  if (!def) return false;
+  ShowWindow(def, visible ? 5 /* SW_SHOW */ : 0 /* SW_HIDE */);
+  return true;
+}
+
+function areDesktopIconsVisible() {
+  const def = findDefView();
+  return def ? !!IsWindowVisible(def) : true;
+}
+
 // 現在の Windows 壁紙のファイルパス (透過モード用)
 function getSystemWallpaperPath() {
   try {
@@ -256,4 +289,5 @@ module.exports = {
   findTarget, attachAt, placeOnDesktopLayer, lowerToDesktopLayer, detach, ensurePlacement, getRect,
   isAttached, isParentAlive, isWindowAlive,
   setRoundRegion, getSystemWallpaperPath, refreshDesktop,
+  setDesktopIconsVisible, areDesktopIconsVisible,
 };

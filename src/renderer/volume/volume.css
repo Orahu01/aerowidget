@@ -1,0 +1,105 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif;
+}
+
+#card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.7em;
+  padding: 0.8em 1.1em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+}
+
+.vol-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+}
+
+#mute {
+  flex: none;
+  width: 2.1em;
+  height: 2.1em;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+#mute:hover { background: rgba(255, 255, 255, 0.1); }
+#mute:active { transform: scale(0.94); }
+
+.ic {
+  width: 1.25em;
+  height: 1.25em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ic .x { display: none; }
+body.muted #mute { color: #ff8089; }
+body.muted .ic .w1, body.muted .ic .w2 { display: none; }
+body.muted .ic .x { display: block; }
+
+#slider {
+  flex: 1;
+  min-width: 0;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+#slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  background: #e3a94f;
+  border: none;
+  cursor: pointer;
+}
+body.muted #slider::-webkit-slider-thumb { background: #7b7f88; }
+
+#pct {
+  flex: none;
+  width: 2.9em;
+  text-align: right;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.dev-row { display: flex; }
+body.no-dev .dev-row { display: none; }
+
+#device {
+  width: 100%;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.8em;
+  padding: 0.45em 0.6em;
+  outline: none;
+  cursor: pointer;
+}
+#device:focus { border-color: #e3a94f; }
+#device option { background: #16181c; color: #e6e7ea; }

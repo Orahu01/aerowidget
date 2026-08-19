@@ -60,11 +60,11 @@ button { font-family: inherit; color: inherit; }
 }
 
 .brand-mark {
-  width: 9px;
-  height: 9px;
-  border-radius: 2.5px;
-  background: var(--acc);
-  transform: rotate(45deg);
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: block;
+  flex: none;
 }
 
 .brand {
@@ -166,7 +166,7 @@ button { font-family: inherit; color: inherit; }
 }
 #content::-webkit-scrollbar-thumb:hover { background: #383c45; }
 
-.tab { display: none; max-width: 660px; }
+.tab { display: none; max-width: 760px; }
 .tab.active { display: block; }
 
 h1 {
@@ -620,12 +620,27 @@ input[type=checkbox]:checked::after {
 .wc-body { display: none; padding: 0 16px 12px; border-top: 1px solid var(--line); }
 .widget-card.open .wc-body { display: block; }
 
-.wc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
-.wc-grid .row { min-height: 40px; padding: 4px 0; }
+/* 幅が足りないときは自動で 1 列に落とす (2 列固定だと右端が切れる) */
+.wc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
+  gap: 0 26px;
+}
+.wc-grid .row { min-height: 40px; padding: 4px 0; min-width: 0; }
 .wc-grid .row + .row { border-top: none; }
-.wc-grid .row > label:first-child { width: 84px; font-size: 12px; color: var(--dim); }
+.wc-grid .row > label:first-child {
+  width: 84px;
+  min-width: 84px;
+  max-width: 84px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.wc-grid .row > .ctl { min-width: 0; }
 .wc-grid .full { grid-column: 1 / -1; }
 .wc-grid .full .row > label:first-child { width: 84px; }
+/* スライダーは余白に合わせて縮められるようにする */
+.wc-grid input[type=range] { min-width: 60px; }
+.wc-grid select, .wc-grid input[type=text] { min-width: 0; max-width: 100%; }
 
 /* フォルダアイテム / Google Fonts リスト */
 .fitem-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }

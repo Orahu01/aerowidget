@@ -458,19 +458,7 @@ function tickerHtml(o) {
   return rows.join('');
 }
 
-function npWidgetHtml(o) {
-  const m = mediaData;
-  if (!m || !m.title) {
-    return editing ? '<span class="np-idle sub">♪ 再生中のメディアなし</span>' : (o.hideWhenStopped !== false ? '' : '<span class="np-idle sub">♪ ─</span>');
-  }
-  const art = (o.showArt !== false && m.art) ? `<img class="np-art" src="${m.art}" draggable="false">` : '';
-  return `<div class="np${m.playing ? '' : ' np-paused'}">${art}<div class="np-meta">`
-    + `<div class="np-title">${esc(m.title)}</div>`
-    + (o.showArtist !== false && m.artist ? `<div class="sub">${esc(m.artist)}</div>` : '')
-    + '</div></div>';
-}
-
-// メモ / タイマーは別ウィンドウ実体。編集モード用のプレースホルダだけ描く
+// メモ / タイマー / 音量 / 再生中の曲は別ウィンドウ実体。編集モード用のプレースホルダだけ描く
 function interPhHtml(w, label) {
   const o = w.options || {};
   return `<div class="iph"><span class="iph-label">${esc(o.title || label)}</span></div>`;
@@ -492,9 +480,10 @@ function widgetHtml(w) {
     case 'countdown': return countdownHtml(w.options || {});
     case 'rss': return rssHtml(w.options || {});
     case 'ticker': return tickerHtml(w.options || {});
-    case 'nowplaying': return npWidgetHtml(w.options || {});
+    case 'nowplaying': return interPhHtml(w, '再生中の曲');
     case 'note': return interPhHtml(w, 'メモ');
     case 'pomo': return interPhHtml(w, 'ポモドーロ');
+    case 'volume': return interPhHtml(w, '音量');
     default: return '';
   }
 }
@@ -503,7 +492,7 @@ function applyWidgetStyle(el, w) {
   const o = w.options || {};
   el.className = 'widget ' + w.type
     + (w.type === 'folder' ? ' folderph' : '')
-    + (['note', 'pomo'].includes(w.type) ? ' interph' : '')
+    + (['note', 'pomo', 'volume', 'nowplaying'].includes(w.type) ? ' interph' : '')
     + (w.type === 'line' && o.orient === 'v' ? ' vert' : '');
   el.style.cssText = '';
   el.style.left = w.x + '%';
@@ -572,9 +561,10 @@ function applyWidgetStyle(el, w) {
       el.style.padding = '0.7em 0.9em';
     }
     el.style.setProperty('--cal-acc', o.accent || '#e3a94f');
-  } else if (w.type === 'note' || w.type === 'pomo') {
-    el.style.width = (o.w || (w.type === 'note' ? 240 : 210)) + 'px';
-    el.style.height = (o.h || (w.type === 'note' ? 180 : 150)) + 'px';
+  } else if (['note', 'pomo', 'volume', 'nowplaying'].includes(w.type)) {
+    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96] }[w.type];
+    el.style.width = (o.w || defs[0]) + 'px';
+    el.style.height = (o.h || defs[1]) + 'px';
     el.style.background = `rgba(13, 16, 22, ${o.bgOpacity ?? 0.6})`;
     el.style.border = '1px solid rgba(255,255,255,0.12)';
     el.style.borderRadius = '14px';
@@ -764,11 +754,11 @@ window.addEventListener('wheel', (e) => {
     o.w = Math.max(3, Math.min(100, Math.round(((o.w || 18) + (up ? step : -step)) * 10) / 10));
     window.wall.editLive(w.id, { options: { w: o.w } });
     showBadge(`幅 ${o.w}%`, e.clientX, e.clientY);
-  } else if (w.type === 'note' || w.type === 'pomo') {
+  } else if (['note', 'pomo', 'volume', 'nowplaying'].includes(w.type)) {
     const f = up ? 1.05 : 0.95;
-    const defs = w.type === 'note' ? [240, 180] : [210, 150];
-    o.w = Math.round(Math.max(140, Math.min(700, (o.w || defs[0]) * f)));
-    o.h = Math.round(Math.max(100, Math.min(600, (o.h || defs[1]) * f)));
+    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96] }[w.type];
+    o.w = Math.round(Math.max(140, Math.min(800, (o.w || defs[0]) * f)));
+    o.h = Math.round(Math.max(60, Math.min(600, (o.h || defs[1]) * f)));
     window.wall.editLive(w.id, { options: { w: o.w, h: o.h } });
     showBadge(`${o.w} × ${o.h}px`, e.clientX, e.clientY);
   } else if (w.type === 'folder') {
@@ -787,6 +777,18 @@ window.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 $('#edit-done').addEventListener('click', () => window.wall.finishEdit());
+
+// デスクトップアイコンの表示切替 (編集モード中のみ操作できる)
+const iconsBtn = $('#edit-icons');
+function renderIconsBtn(visible) {
+  iconsBtn.textContent = visible ? 'アイコンを隠す' : 'アイコンを表示';
+  iconsBtn.classList.toggle('on', !visible);
+}
+iconsBtn.addEventListener('click', async () => {
+  const now = await window.wall.getIconsVisible();
+  renderIconsBtn(await window.wall.setIconsVisible(!now));
+});
+window.wall.onIconsState((v) => renderIconsBtn(v));
 window.addEventListener('keydown', (e) => {
   if (editing && e.key === 'Escape') window.wall.finishEdit();
 });
@@ -838,6 +840,7 @@ window.wall.onEditMode((v) => {
   } else {
     renderWidgets();
     tick();
+    window.wall.getIconsVisible().then(renderIconsBtn);
   }
 });
 window.wall.onPower(({ paused: p }) => {

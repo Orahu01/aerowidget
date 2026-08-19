@@ -20,6 +20,7 @@ const TYPES = {
   image: { icon: 'i-photo', label: '画像' },
   stats: { icon: 'i-stats', label: 'ハードウェアモニタ' },
   nowplaying: { icon: 'i-music', label: '再生中の曲' },
+  volume: { icon: 'i-volume', label: '音量・出力切替' },
   countdown: { icon: 'i-flag', label: 'カウントダウン' },
   rss: { icon: 'i-rss', label: 'ニュース (RSS)' },
   ticker: { icon: 'i-trend', label: '株価・為替' },
@@ -775,9 +776,43 @@ function typeOptionsUI(w) {
     row.className = 'chk-row';
     row.appendChild(mkCheck('アルバムアート', o.showArt !== false, v => patchWidget(w.id, { options: { showArt: v } })));
     row.appendChild(mkCheck('アーティスト名', o.showArtist !== false, v => patchWidget(w.id, { options: { showArtist: v } })));
-    row.appendChild(mkCheck('停止中は隠す', o.hideWhenStopped !== false, v => patchWidget(w.id, { options: { hideWhenStopped: v } })));
+    row.appendChild(mkCheck('再生ボタン', o.showControls !== false, v => patchWidget(w.id, { options: { showControls: v } })));
+    row.appendChild(mkCheck('停止中は隠す', !!o.hideWhenStopped, v => patchWidget(w.id, { options: { hideWhenStopped: v } })));
     wrap.appendChild(row);
-    wrap.appendChild(noteEl('Spotify・ブラウザの YouTube など、Windows のメディア再生 (SMTC) に対応したアプリの曲名とジャケットを表示します。'));
+    for (const [key, label, min, max, def] of [['w', '幅', 200, 800, 320], ['h', '高さ', 60, 300, 96]]) {
+      const [r, val, show] = mkRange(min, max, 5, o[key] ?? def, v => {
+        show(v + 'px');
+        patchWidget(w.id, { options: { [key]: v } }, { debounce: true });
+      });
+      val.textContent = (o[key] ?? def) + 'px';
+      wrap.appendChild(ctlRow(label, r, val));
+    }
+    {
+      const [r, val, show] = mkRange(0, 100, 5, Math.round((o.bgOpacity ?? 0.55) * 100), v => { show(v + '%'); patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true }); });
+      val.textContent = Math.round((o.bgOpacity ?? 0.55) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+    wrap.appendChild(noteEl('Spotify・ブラウザの YouTube など、Windows のメディア再生 (SMTC) に対応したアプリの曲名・ジャケットを表示し、デスクトップ上で再生 / 一時停止・曲送りができます。'));
+
+  } else if (w.type === 'volume') {
+    const row = document.createElement('div');
+    row.className = 'chk-row';
+    row.appendChild(mkCheck('出力デバイスの切替を表示', o.showDevices !== false, v => patchWidget(w.id, { options: { showDevices: v } })));
+    wrap.appendChild(row);
+    for (const [key, label, min, max, def] of [['w', '幅', 180, 600, 260], ['h', '高さ', 60, 260, 120]]) {
+      const [r, val, show] = mkRange(min, max, 5, o[key] ?? def, v => {
+        show(v + 'px');
+        patchWidget(w.id, { options: { [key]: v } }, { debounce: true });
+      });
+      val.textContent = (o[key] ?? def) + 'px';
+      wrap.appendChild(ctlRow(label, r, val));
+    }
+    {
+      const [r, val, show] = mkRange(0, 100, 5, Math.round((o.bgOpacity ?? 0.6) * 100), v => { show(v + '%'); patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true }); });
+      val.textContent = Math.round((o.bgOpacity ?? 0.6) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+    wrap.appendChild(noteEl('デスクトップ上でスライダー (またはホイール) から音量を変更でき、再生先のスピーカー / ヘッドホンをその場で切り替えられます。'));
 
   } else if (w.type === 'note') {
     wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: メモ / TODO', v => patchWidget(w.id, { options: { title: v } }))));

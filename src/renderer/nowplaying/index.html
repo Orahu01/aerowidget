@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
+  <title>WidgetWall Now Playing</title>
+  <link rel="stylesheet" href="nowplaying.css">
+</head>
+<body>
+  <div id="card">
+    <img id="art" alt="">
+    <div id="meta">
+      <div id="title">再生中のメディアなし</div>
+      <div id="artist"></div>
+    </div>
+    <div id="ctrl">
+      <button id="prev" title="前の曲">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M18.5 5.5v13L9 12z"/><path d="M6 5.5v13"/></svg>
+      </button>
+      <button id="play" title="再生 / 一時停止">
+        <svg class="ic play-i" viewBox="0 0 24 24"><path d="M7.5 4.8v14.4L19 12z"/></svg>
+        <svg class="ic pause-i" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>
+      </button>
+      <button id="next" title="次の曲">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M5.5 5.5v13L15 12z"/><path d="M18 5.5v13"/></svg>
+      </button>
+    </div>
+  </div>
+  <style id="gfonts"></style>
+  <script src="nowplaying.js"></script>
+</body>
+</html>

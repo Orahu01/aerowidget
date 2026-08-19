@@ -396,6 +396,20 @@ body.edit .widget.dragging {
 }
 .edit-hint b { color: #e3a94f; font-weight: 600; }
 
+.edit-sub {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: #e6e7ea;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  font-family: inherit;
+}
+.edit-sub:hover { background: rgba(255, 255, 255, 0.14); }
+.edit-sub.on { border-color: #e3a94f; color: #e3a94f; }
+
 #edit-done {
   border: none;
   border-radius: 7px;

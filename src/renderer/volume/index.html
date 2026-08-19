@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
+  <title>WidgetWall Volume</title>
+  <link rel="stylesheet" href="volume.css">
+</head>
+<body>
+  <div id="card">
+    <div class="vol-row">
+      <button id="mute" title="ミュート切替">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M11 5L6.5 9H3v6h3.5L11 19z"/><path class="w1" d="M15 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M17.8 6.8a7.5 7.5 0 0 1 0 10.4"/><path class="x" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></svg>
+      </button>
+      <input type="range" id="slider" min="0" max="100" step="1" value="0">
+      <span id="pct">--</span>
+    </div>
+    <div class="dev-row" id="dev-row">
+      <select id="device"></select>
+    </div>
+  </div>
+  <style id="gfonts"></style>
+  <script src="volume.js"></script>
+</body>
+</html>

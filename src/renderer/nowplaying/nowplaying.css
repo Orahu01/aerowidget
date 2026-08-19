@@ -1,0 +1,96 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif;
+}
+
+#card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.7em 0.9em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+}
+
+#art {
+  flex: none;
+  /* 文字サイズを大きくしてもジャケットと操作系で幅を食い潰さないよう上限を付ける */
+  width: min(2.6em, 22%);
+  height: min(2.6em, 22%);
+  aspect-ratio: 1;
+  border-radius: 0.4em;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+body.no-art #art, body.idle #art { display: none; }
+
+#meta { flex: 1; min-width: 0; }
+
+#title {
+  font-size: 0.95em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#artist {
+  font-size: 0.76em;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.15em;
+}
+#artist:empty { display: none; }
+
+body.idle #title { opacity: 0.5; }
+body.paused #meta { opacity: 0.6; }
+
+#ctrl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.1em;
+}
+body.no-ctrl #ctrl { display: none; }
+
+#ctrl button {
+  width: 1.75em;
+  height: 1.75em;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+#ctrl button:hover { background: rgba(255, 255, 255, 0.12); }
+#ctrl button:active { transform: scale(0.92); }
+
+#play { width: 2em; height: 2em; }
+
+.ic {
+  width: 0.95em;
+  height: 0.95em;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#play .ic { width: 1.2em; height: 1.2em; }
+.pause-i { fill: none; }
+
+.pause-i { display: none; }
+body.playing .play-i { display: none; }
+body.playing .pause-i { display: block; }

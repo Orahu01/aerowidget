@@ -15,6 +15,7 @@ const heartbeat = require('./heartbeat');
 const media = require('./media');
 const feeds = require('./feeds');
 const updater = require('./updater');
+const audio = require('./audio');
 
 // 壁紙ウィンドウはアイコンの背面 = 常に「隠れている」扱いになるため、
 // Chromium の被覆検知・スロットリングを止めないと描画が停止する
@@ -40,7 +41,7 @@ const pendingLayout = new Map();       // 編集モード中のレイアウト�
 const iconCache = new Map();           // path -> dataURL
 
 // デスクトップ上でクリックできる「小窓型」ウィジェット
-const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo']);
+const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying']);
 const placedKey = new Map();           // widgetId -> 配置キー (無関係な設定変更で再配置しない)
 const placeGen = new Map();            // widgetId -> 世代 (収束ループの多重実行防止)
 
@@ -87,11 +88,15 @@ function folderDims(o) {
   return { cols, rows, w: 20 + cols * cellW, h: 16 + (o.title ? 28 : 0) + rows * cellH };
 }
 
-// 対話ウィジェット (フォルダ / メモ / タイマー) の CSS ピクセル寸法
+// 対話ウィジェット (フォルダ / メモ / タイマー / 音量 / 再生中の曲) の CSS ピクセル寸法
 function interDims(w) {
   const o = w.options || {};
   if (w.type === 'note') return { w: Math.max(140, o.w || 240), h: Math.max(90, o.h || 180) };
   if (w.type === 'pomo') return { w: Math.max(170, o.w || 210), h: Math.max(120, o.h || 150) };
+  if (w.type === 'volume') {
+    return { w: Math.max(180, o.w || 260), h: Math.max(70, o.h || (o.showDevices !== false ? 120 : 78)) };
+  }
+  if (w.type === 'nowplaying') return { w: Math.max(200, o.w || 320), h: Math.max(70, o.h || 96) };
   return folderDims(o);
 }
 
@@ -196,13 +201,15 @@ function rebuildWallWindows() {
 }
 
 // ---------------------------------------------------------------- 対話ウィジェットウィンドウ (フォルダ / メモ / タイマー)
-const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo' };
+const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying' };
 
 function createFolderWindow(widget) {
   const dims = interDims(widget);
   const win = new BrowserWindow({
     width: dims.w, height: dims.h,
-    frame: false, resizable: true, movable: false,
+    // ユーザーが枠をドラッグしてリサイズすると中身と食い違って崩れるため禁止。
+    // (サイズ変更は設定画面か編集モードのホイールから行う)
+    frame: false, resizable: false, movable: false,
     minimizable: false, maximizable: false, closable: false,
     // focusable:false (WS_EX_NOACTIVATE) だと Chromium が入力を処理せず、
     // クリックもキーボードも一切効かなくなる。対話ウィジェットなので true にする。
@@ -242,6 +249,16 @@ function createFolderWindow(widget) {
   });
 }
 
+// resizable:false のままだと setSize が効かないので、変更の瞬間だけ解除する
+function resizeLocked(win, w, h) {
+  try {
+    win.setResizable(true);
+    win.setSize(Math.round(w), Math.round(h));
+  } finally {
+    try { win.setResizable(false); } catch (_) {}
+  }
+}
+
 // 配置キー: これが変わった時だけ再配置する。
 // (以前は設定のどんな変更でも SetParent + 収束ループが走り直し、サイズがふらつく原因だった)
 function folderPlaceKey(w) {
@@ -275,7 +292,7 @@ function placeFolder(id) {
     const dip = screen.screenToDipPoint({ x: px, y: py });
     win.setPosition(Math.round(dip.x), Math.round(dip.y));
   } catch (_) {}
-  win.setSize(dims.w, dims.h);
+  resizeLocked(win, dims.w, dims.h);
   attach.placeOnDesktopLayer(hwnd);
   placedKey.set(id, folderPlaceKey(widget));
 
@@ -291,7 +308,7 @@ function placeFolder(id) {
       const b = win.getBounds();
       const nw = Math.max(40, Math.round(wantW / ((r.w / b.width) || 1)));
       const nh = Math.max(30, Math.round(wantH / ((r.h / b.height) || 1)));
-      win.setSize(nw, nh);
+      resizeLocked(win, nw, nh);
       setTimeout(() => settle(n - 1), 120);
       return;
     }
@@ -317,7 +334,10 @@ function syncFolders() {
     } else {
       const win = folderWins.get(w.id);
       win.webContents.send('fw', w);
-      if (editMode) {
+      // 「停止中は隠す」設定の再生中ウィジェットは、何も鳴っていなければ窓ごと隠す
+      const hideIdle = w.type === 'nowplaying' && (w.options || {}).hideWhenStopped
+        && !((media.getLatest() || {}).title);
+      if (editMode || hideIdle) {
         win.hide();
       } else {
         if (!win.isVisible()) win.showInactive();
@@ -569,6 +589,10 @@ function syncServices() {
   if (needMedia && !process.env.WW_NO_MEDIA) media.start();
   else media.stop();
 
+  // 音量ウィジェットがあるときだけオーディオブリッジを起動
+  if (c.widgets.some(x => x.type === 'volume') && !process.env.WW_NO_AUDIO) audio.start();
+  else audio.stop();
+
   // RSS / 株価フィード (該当ウィジェットの分だけ購読)
   feeds.sync(
     c.widgets.filter(x => x.type === 'rss').map(x => (x.options || {}).url),
@@ -655,9 +679,12 @@ function repairAll() {
 // ---------------------------------------------------------------- 終了
 function quitApp() {
   try {
+    // アイコンを隠したまま終了すると復帰手段がなくなるので必ず戻す
+    attach.setDesktopIconsVisible(true);
     heartbeat.unregister('watchdog');
     fullscreen.stop();
     media.stop();
+    audio.stop();
     for (const win of [...wallWins.values(), ...folderWins.values()]) {
       if (!win.isDestroyed()) {
         try { attach.detach(getHwnd(win)); } catch (_) {}
@@ -715,7 +742,14 @@ function onReady() {
   stats.on('update', (d) => { lastBuiltin = d; if (!lhm.isOnline()) broadcast('hw', mergedHw()); });
   lhm.on('update', () => broadcast('hw', mergedHw()));
   lhm.on('status', (on) => broadcast('lhm-status', on));
-  media.on('update', (d) => broadcast('media', d));
+  media.on('update', (d) => {
+    broadcast('media', d);
+    // 「停止中は隠す」の対象ウィンドウを再生状態に合わせて出し入れする
+    if (!editMode && config.get().widgets.some(w => w.type === 'nowplaying' && (w.options || {}).hideWhenStopped)) {
+      syncFolders();
+    }
+  });
+  audio.on('update', (d) => broadcast('audio', d));
   feeds.on('rss', (d) => broadcast('rss', d));
   feeds.on('ticker', (d) => broadcast('ticker', d));
   updater.on('status', (s) => {
@@ -744,6 +778,7 @@ function onReady() {
 app.on('window-all-closed', () => { /* トレイ常駐のため終了しない */ });
 app.on('before-quit', () => {
   try {
+    attach.setDesktopIconsVisible(true);
     for (const win of [...wallWins.values(), ...folderWins.values()]) {
       if (!win.isDestroyed()) attach.detach(getHwnd(win));
     }
@@ -910,7 +945,21 @@ ipcMain.on('folder:launch', (e, id, p) => {
 
 ipcMain.handle('folder:state', (e, id) => {
   const w = config.get().widgets.find(x => x.id === id);
-  return { widget: w || null, fontsCss: gfonts.cssFor(config.get().settings.googleFonts) };
+  return {
+    widget: w || null,
+    fontsCss: gfonts.cssFor(config.get().settings.googleFonts),
+    audio: audio.getLatest(),
+    media: media.getLatest(),
+  };
+});
+
+// ---- 音量 / 出力デバイス / メディア操作 ----
+ipcMain.on('audio:volume', (e, v) => audio.setVolume(v));
+ipcMain.on('audio:mute', (e, m) => audio.setMute(m));
+ipcMain.on('audio:device', (e, id) => audio.setDevice(id));
+ipcMain.on('audio:refresh', () => audio.refresh());
+ipcMain.on('media:key', (e, which) => {
+  if (['play', 'next', 'prev', 'stop'].includes(which)) audio.sendMediaKey(which);
 });
 
 ipcMain.handle('city:search', (e, q) => weather.searchCity(q));
@@ -951,6 +1000,14 @@ ipcMain.handle('autostart:get', () => getAutostart());
 ipcMain.handle('autostart:set', (e, v) => setAutostart(!!v));
 
 ipcMain.handle('edit:enter', () => enterEditMode());
+
+ipcMain.handle('icons:toggle', (e, visible) => {
+  attach.setDesktopIconsVisible(!!visible);
+  const now = attach.areDesktopIconsVisible();
+  broadcast('icons-state', now);
+  return now;
+});
+ipcMain.handle('icons:get', () => attach.areDesktopIconsVisible());
 ipcMain.on('edit:live', (e, id, partial) => {
   if (!editMode || !id) return;
   const prev = pendingLayout.get(id) || {};

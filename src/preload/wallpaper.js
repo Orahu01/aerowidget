@@ -18,4 +18,7 @@ contextBridge.exposeInMainWorld('wall', {
   onFontsChanged: (cb) => ipcRenderer.on('fonts-changed', () => cb()),
   editLive: (id, partial) => ipcRenderer.send('edit:live', id, partial),
   finishEdit: () => ipcRenderer.send('edit:finish'),
+  getIconsVisible: () => ipcRenderer.invoke('icons:get'),
+  setIconsVisible: (v) => ipcRenderer.invoke('icons:toggle', v),
+  onIconsState: (cb) => ipcRenderer.on('icons-state', (_e, v) => cb(v)),
 });
