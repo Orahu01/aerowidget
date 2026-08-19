@@ -1,6 +1,6 @@
 {
   "name": "widgetwall",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "PoohS",
@@ -34,6 +34,9 @@
       "package.json",
       "!src/renderer/settings/preview.html",
       "!assets/screenshot.png"
+    ],
+    "asarUnpack": [
+      "assets/*.ps1"
     ],
     "win": {
       "target": [

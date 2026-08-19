@@ -24,6 +24,15 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 // 動画壁紙は GPU のハードウェアデコード (NVDEC / QuickSync) を使う
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
 
+// 常駐アプリなので、想定外の例外でエラーダイアログを出して止まるより
+// ログに残して壁紙を表示し続ける方が実害が小さい
+process.on('uncaughtException', (e) => {
+  console.error('uncaught exception:', e && e.stack ? e.stack : e);
+});
+process.on('unhandledRejection', (e) => {
+  console.error('unhandled rejection:', e && e.stack ? e.stack : e);
+});
+
 const IS_AUTOSTART = process.argv.includes('--autostart');
 const ASSETS = path.join(__dirname, '..', '..', 'assets');
 const PRELOAD = (n) => path.join(__dirname, '..', 'preload', n);

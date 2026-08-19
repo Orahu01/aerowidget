@@ -31,8 +31,11 @@ let restartTimer = null;
 let restartDelay = 5000;
 let latest = null; // { volume, muted, current, devices: [{id,name}] }
 
+// asar 内のファイルは PowerShell から実行できないため、
+// パッケージ時は asarUnpack で展開された実体のパスを使う
 function scriptPath() {
-  return path.join(__dirname, '..', '..', 'assets', 'audio.ps1');
+  const p = path.join(__dirname, '..', '..', 'assets', 'audio.ps1');
+  return p.includes('app.asar') ? p.replace('app.asar', 'app.asar.unpacked') : p;
 }
 
 function spawnHelper() {
@@ -46,6 +49,11 @@ function spawnHelper() {
     proc = null;
     return;
   }
+
+  // ヘルパーが死んだ後に書き込むと EPIPE が非同期に飛んでアプリごと落ちるため、
+  // stdin / プロセスのエラーは必ず握りつぶす
+  proc.on('error', (e) => console.error('audio helper error:', e.message));
+  proc.stdin.on('error', () => {});
 
   const rl = readline.createInterface({ input: proc.stdout });
   rl.on('line', (line) => {
@@ -75,9 +83,8 @@ function spawnHelper() {
 }
 
 function send(cmd) {
-  if (proc && proc.stdin.writable) {
-    try { proc.stdin.write(cmd + '\n'); } catch (_) {}
-  }
+  if (!proc || !proc.stdin || proc.stdin.destroyed || !proc.stdin.writable) return;
+  try { proc.stdin.write(cmd + '\n', () => {}); } catch (_) { /* 死んだヘルパーへの書き込みは無視 */ }
 }
 
 function start() {

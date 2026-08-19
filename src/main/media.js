@@ -16,8 +16,11 @@ let restartTimer = null;
 let restartDelay = 5000;
 let latest = null; // { playing, title, artist, app, art (dataURL|null) }
 
+// asar 内のファイルは PowerShell から実行できないため、
+// パッケージ時は asarUnpack で展開された実体のパスを使う
 function scriptPath() {
-  return path.join(__dirname, '..', '..', 'assets', 'smtc.ps1');
+  const p = path.join(__dirname, '..', '..', 'assets', 'smtc.ps1');
+  return p.includes('app.asar') ? p.replace('app.asar', 'app.asar.unpacked') : p;
 }
 
 function spawnHelper() {
@@ -31,6 +34,8 @@ function spawnHelper() {
     proc = null;
     return;
   }
+
+  proc.on('error', (e) => console.error('smtc helper error:', e.message));
 
   const rl = readline.createInterface({ input: proc.stdout });
   rl.on('line', (line) => {
