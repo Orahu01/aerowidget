@@ -4,15 +4,15 @@
 Wallpaper Engine と同じ WorkerW 方式で、時計・日付・天気・ハードウェアモニタなどを
 好きなフォント・サイズ・色・位置で壁紙に直接描画します。
 
-**紹介ページ → [orahu01.github.io/wallpaper](https://orahu01.github.io/wallpaper/)**
-([機能一覧](https://orahu01.github.io/wallpaper/features.html) ・
-[テーマ](https://orahu01.github.io/wallpaper/themes.html) ・
-[導入手順](https://orahu01.github.io/wallpaper/download.html) ・
-[更新履歴](https://orahu01.github.io/wallpaper/changelog.html))
+**紹介ページ → [orahu01.github.io/aerowidget](https://orahu01.github.io/aerowidget/)**
+([機能一覧](https://orahu01.github.io/aerowidget/features.html) ・
+[テーマ](https://orahu01.github.io/aerowidget/themes.html) ・
+[導入手順](https://orahu01.github.io/aerowidget/download.html) ・
+[更新履歴](https://orahu01.github.io/aerowidget/changelog.html))
 
 ## ダウンロード
 
-**[⬇ 最新版をダウンロード (Releases)](https://github.com/Orahu01/wallpaper/releases/latest)**
+**[⬇ 最新版をダウンロード (Releases)](https://github.com/Orahu01/aerowidget/releases/latest)**
 
 | ファイル | こんな人向け |
 |---|---|

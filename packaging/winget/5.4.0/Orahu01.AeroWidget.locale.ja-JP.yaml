@@ -4,11 +4,11 @@ PackageVersion: 5.4.0
 PackageLocale: ja-JP
 Publisher: Orahu01
 PublisherUrl: https://github.com/Orahu01
-PublisherSupportUrl: https://github.com/Orahu01/wallpaper/issues
+PublisherSupportUrl: https://github.com/Orahu01/aerowidget/issues
 PackageName: AeroWidget
-PackageUrl: https://orahu01.github.io/wallpaper/
+PackageUrl: https://orahu01.github.io/aerowidget/
 License: MIT
-LicenseUrl: https://github.com/Orahu01/wallpaper/blob/main/LICENSE
+LicenseUrl: https://github.com/Orahu01/aerowidget/blob/main/LICENSE
 ShortDescription: 時計・天気・PC モニタなどをデスクトップアイコンの背面に自由に配置できる軽量ウィジェット壁紙アプリ
 Description: |-
   AeroWidget は、時計・天気・予定表・ハードウェアモニタ・メモ・再生中の曲などの
@@ -22,6 +22,6 @@ Tags:
 - widget
 - ウィジェット
 - 壁紙
-ReleaseNotesUrl: https://github.com/Orahu01/wallpaper/releases/tag/v5.4.0
+ReleaseNotesUrl: https://github.com/Orahu01/aerowidget/releases/tag/v5.4.0
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
