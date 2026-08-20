@@ -4,6 +4,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, powerMonitor, nativeImage, session, shell, desktopCapturer } = require('electron');
 const path = require('path');
 const config = require('./config');
+const backup = require('./backup');
 const attach = require('./wallpaperAttach');
 const monitors = require('./monitors');
 const weather = require('./weather');
@@ -653,6 +654,9 @@ function syncServices() {
 
   // グローバルホットキー
   hotkeys.sync(c.settings.hotkeys);
+
+  // 先行版を受け取るか (切り替えた直後に効かせる)
+  updater.setAllowPrerelease(c.settings.allowPrerelease);
 
   // 視差効果 (オプトイン時のみ 15Hz でカーソルを配信。heartbeat 集約の例外)
   syncParallax(wallpapersAll.some(w => w && w.parallax));
@@ -1324,11 +1328,56 @@ ipcMain.handle('config:import', async () => {
       return { ok: false, msg: 'WidgetWall の設定ファイルではありません' };
     }
     placedKey.clear();
-    config.replace(parsed);
+    config.replace(parsed, 'インポートの前');
     return { ok: true, msg: 'インポートしました (元の設定はバックアップ済み)' };
   } catch (e) {
     return { ok: false, msg: '読み込みに失敗: ' + e.message };
   }
+});
+
+// ---- 設定のバックアップ ----
+ipcMain.handle('backup:list', () => backup.list());
+
+ipcMain.handle('backup:restore', async (e, file) => {
+  const item = backup.list().find(b => b.file === file);
+  if (!item) return { ok: false, msg: 'バックアップが見つかりません' };
+
+  const when = new Date(item.time).toLocaleString('ja-JP');
+  const r = await dialog.showMessageBox(settingsWin, {
+    type: 'warning',
+    buttons: ['復元する', 'キャンセル'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'バックアップから復元',
+    message: `${when} の状態に戻します`,
+    detail: `バージョン ${item.version || '不明'} 時点の壁紙・ウィジェット配置・設定に置き換えます。
+`
+          + '今の設定も自動でバックアップされるので、戻すこともできます。',
+  });
+  if (r.response !== 0) return { ok: false, msg: 'キャンセルしました' };
+
+  try {
+    const parsed = backup.read(file);
+    placedKey.clear();
+    config.replace(parsed, '復元の前');
+    return { ok: true, msg: `${when} の状態に復元しました` };
+  } catch (err) {
+    return { ok: false, msg: '復元に失敗: ' + err.message };
+  }
+});
+
+ipcMain.handle('backup:remove', (e, file) => {
+  try {
+    backup.remove(file);
+    return { ok: true, list: backup.list() };
+  } catch (err) {
+    return { ok: false, msg: err.message };
+  }
+});
+
+ipcMain.handle('backup:reveal', () => {
+  shell.openPath(backup.dir());
+  return true;
 });
 
 // ---- レイアウトプリセット ----
@@ -1367,6 +1416,7 @@ ipcMain.handle('app:repair', () => repairAll());
 ipcMain.handle('update:get', () => updater.getStatus());
 ipcMain.handle('update:check', () => updater.check());
 ipcMain.on('update:install', () => updater.installNow());
+ipcMain.on('update:download', () => updater.download());
 
 ipcMain.handle('app:uninstall', async () => {
   if (!app.isPackaged) return { ok: false, msg: '開発モードでは使えません' };

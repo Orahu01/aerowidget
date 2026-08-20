@@ -52,6 +52,20 @@ const MAX_CUSTOM_COLORS = 10;
 // ---------------------------------------------------------------- i18n
 // 日本語を正とし、英語は日→英辞書で差し替える。
 const JA_EN = {
+  // v5.2 自動バックアップ / 先行版
+  '自動バックアップ': 'Automatic backup',
+  '保存先を開く': 'Open folder',
+  'アプリのバージョンが変わったときに、設定を自動で退避します (直近 5 世代)。更新のあとで調子が悪くなったときや、前の版に戻したときは、ここから戻せます。':
+    'Whenever the app version changes, your settings are saved aside automatically (last 5 kept). If something goes wrong after an update — or after going back to an older version — you can restore from here.',
+  'まだバックアップはありません。次にバージョンが変わったときに作られます。':
+    'No backups yet. One will be made the next time the version changes.',
+  '復元': 'Restore', '削除': 'Delete',
+  '先行版': 'Prerelease', 'があります': 'is available',
+  '開発版のため不具合が残っている場合があります': 'a development build, bugs may remain',
+  '先行版を受け取る': 'Receive prereleases',
+  '先行版を入れる': 'Install prerelease',
+  '新機能を試せる開発版 (5.3 / 5.5 のようにマイナーが奇数の版) を受け取ります。不具合が残っている可能性があるため、入れる前に必ず確認します。OFF のままなら安定版だけが届きます。':
+    'Receive development builds with new features (odd minor versions such as 5.3 or 5.5). They may still contain bugs, so you are always asked before one is installed. Leave this off to receive stable releases only.',
   'テーマ': 'Themes', '壁紙': 'Wallpaper', 'ウィジェット': 'Widgets', '一般': 'General',
   'レイアウトを編集': 'Edit layout',
   'プリセット': 'Presets', 'カスタム': 'Custom', '画像・動画': 'Image / Video', '効果': 'Effects',
@@ -1595,6 +1609,12 @@ async function renderGeneral() {
   pfs.checked = cfg.settings.pauseOnFullscreen !== false;
   pfs.onchange = () => { touch(); window.api.setSettings({ pauseOnFullscreen: pfs.checked }); };
 
+  const pre = $('#allow-prerelease');
+  if (pre) {
+    pre.checked = !!cfg.settings.allowPrerelease;
+  }
+  renderBackups();
+
   // デスクトップ
   const si = $('#show-icons');
   si.checked = cfg.settings.showDesktopIcons !== false;
@@ -1799,8 +1819,11 @@ $('#btn-import').addEventListener('click', async () => {
 function updateStatusText(s) {
   const t = $('#update-status-text');
   const install = $('#btn-update-install');
+  const get = $('#btn-update-download');
   install.style.display = s.state === 'ready' ? '' : 'none';
+  get.style.display = s.state === 'confirm' ? '' : 'none';
   switch (s.state) {
+    case 'confirm': t.textContent = `${T('先行版')} v${s.version} ${T('があります')} — ${T('開発版のため不具合が残っている場合があります')}`; break;
     case 'checking': t.textContent = '確認中…'; break;
     case 'available': t.textContent = `v${s.version} をダウンロード中…`; break;
     case 'downloading': t.textContent = `v${s.version || ''} をダウンロード中 ${s.message || ''}`; break;
@@ -1817,6 +1840,80 @@ $('#btn-update-check').addEventListener('click', async () => {
   updateStatusText(await window.api.checkUpdate());
 });
 $('#btn-update-install').addEventListener('click', () => window.api.installUpdate());
+$('#btn-update-download').addEventListener('click', () => {
+  window.api.downloadUpdate();
+  $('#btn-update-download').style.display = 'none';
+});
+
+// 先行版を受け取るか
+$('#allow-prerelease').addEventListener('change', async (e) => {
+  touch();
+  await window.api.setSettings({ allowPrerelease: e.target.checked });
+  updateStatusText(await window.api.checkUpdate());
+});
+
+// ---- 自動バックアップ ----
+function backupWhen(ms) {
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function renderBackups() {
+  const list = $('#backup-list');
+  if (!list) return;
+  const items = await window.api.listBackups();
+  list.innerHTML = '';
+  if (!items.length) {
+    const empty = document.createElement('p');
+    empty.className = 'foot-note';
+    empty.textContent = T('まだバックアップはありません。次にバージョンが変わったときに作られます。');
+    list.appendChild(empty);
+    return;
+  }
+  for (const b of items) {
+    const row = document.createElement('div');
+    row.className = 'gf-item';
+
+    const name = document.createElement('span');
+    name.className = 'gf-name';
+    name.textContent = backupWhen(b.time);
+
+    const meta = document.createElement('span');
+    meta.className = 'note';
+    meta.style.padding = '0';
+    meta.textContent = b.reason || (b.version ? `v${b.version}` : '');
+
+    const restore = document.createElement('button');
+    restore.className = 'btn';
+    restore.textContent = T('復元');
+    restore.addEventListener('click', async () => {
+      const r = await window.api.restoreBackup(b.file);
+      $('#backup-status').textContent = r.msg;
+      if (r.ok) {
+        cfg = (await window.api.getConfig()).config;
+        renderWallpaperTab();
+        renderWidgetList();
+        renderGeneral();
+      }
+      renderBackups();
+    });
+
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.textContent = T('削除');
+    del.addEventListener('click', async () => {
+      const r = await window.api.removeBackup(b.file);
+      if (!r.ok) $('#backup-status').textContent = r.msg;
+      renderBackups();
+    });
+
+    row.append(name, meta, restore, del);
+    list.appendChild(row);
+  }
+}
+
+$('#btn-backup-reveal').addEventListener('click', () => window.api.revealBackups());
 window.api.onUpdateStatus((s) => updateStatusText(s));
 
 $('#btn-repair').addEventListener('click', async () => {

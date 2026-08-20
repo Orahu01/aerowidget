@@ -5,8 +5,14 @@ const { app } = require('electron');
 const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
+const backup = require('./backup');
 
 const emitter = new EventEmitter();
+
+// app.getVersion() は起動直後でも読めるが、テストや異常時に備えて包んでおく
+function appVersion() {
+  try { return app.getVersion(); } catch (_) { return ''; }
+}
 
 function defaultWallpaper() {
   return { type: 'preset', value: 'aurora', dim: 12, bright: 0, blur: 0, animate: false };
@@ -15,6 +21,7 @@ function defaultWallpaper() {
 function defaults() {
   return {
     version: 2,
+    appVersion: appVersion(),    // 最後にこの設定を書いたアプリの版 (更新の検知に使う)
     wallpapers: {
       default: defaultWallpaper(),
       byDisplay: {},          // { "1": {type,value,dim,blur,animate} } キーはモニタ index
@@ -43,6 +50,7 @@ function defaults() {
       language: 'auto',            // 'auto' | 'ja' | 'en'
       onboarded: false,            // 初回ウィザードを完了したか
       artAccent: false,            // 再生中の曲の色をアクセントに反映
+      allowPrerelease: false,      // 先行版 (奇数マイナー) を受け取るか
       hotkeys: {
         enabled: false,
         toggleWidgets: 'Ctrl+Alt+W',
@@ -86,10 +94,31 @@ function migrate(parsed) {
   return d;
 }
 
+// 版が変わったときの退避は 1 プロセスにつき 1 回だけ (replace() 経由の再読込で重複させない)
+let versionChecked = false;
+
+// 設定に書き込む前に、版が変わっていれば退避する。
+// ここを通しておけば更新だけでなく「版を下げたとき」も守られる。
+function backupIfVersionChanged(parsed) {
+  if (versionChecked) return;
+  versionChecked = true;
+  try {
+    const now = appVersion();
+    const was = String((parsed && parsed.appVersion) || '');
+    if (was === now) return;
+    // was が空 = appVersion を記録していなかった頃 (v5.1 以前) からの更新
+    backup.create(was ? `${was} から ${now} へ更新` : `${now} へ更新`, was || 'unknown');
+  } catch (e) {
+    console.error('version backup failed:', e.message);   // 退避に失敗しても起動は続ける
+  }
+}
+
 function load() {
   try {
     const raw = fs.readFileSync(filePath(), 'utf8');
-    const parsed = migrate(JSON.parse(raw));
+    const parsedRaw = JSON.parse(raw);
+    backupIfVersionChanged(parsedRaw);
+    const parsed = migrate(parsedRaw);
     const d = defaults();
     cfg = Object.assign(d, parsed);
     cfg.wallpapers = {
@@ -110,6 +139,12 @@ function load() {
     for (const w of cfg.widgets) {
       if (typeof w.display !== 'number') w.display = 0;
       if (!w.options) w.options = {};
+    }
+    delete cfg.backupReason;                    // バックアップ側の目印は持ち歩かない
+    const running = appVersion();
+    if (cfg.appVersion !== running) {
+      cfg.appVersion = running;
+      save();
     }
   } catch (_) {
     cfg = defaults();
@@ -147,13 +182,8 @@ function update(mutator) {
 }
 
 // 設定全体を置き換える (インポート用)。現行設定はバックアップしてから適用する
-function replace(parsed) {
-  try {
-    const fp = filePath();
-    if (fs.existsSync(fp)) {
-      fs.copyFileSync(fp, path.join(path.dirname(fp), `config.backup-${Date.now()}.json`));
-    }
-  } catch (_) { /* バックアップは best-effort */ }
+function replace(parsed, reason = '設定の読み込み前') {
+  backup.create(reason, (cfg && cfg.appVersion) || appVersion());
   cfg = null;
   const tmp = migrate(parsed);
   // load() と同じ正規化を通すため、一旦ファイルに書いて読み直す
@@ -312,4 +342,4 @@ function newWidget(type) {
   }
 }
 
-module.exports = { get, load, update, newWidget, defaults, wallpaperFor, on: (...a) => emitter.on(...a) };
+module.exports = { get, load, update, replace, newWidget, defaults, wallpaperFor, filePath, on: (...a) => emitter.on(...a) };

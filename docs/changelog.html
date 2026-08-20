@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — WidgetWall</title>
-<meta name="description" content="WidgetWall のバージョンごとの変更点。v1.0.0 から最新の v5.0.0 まで。">
+<meta name="description" content="WidgetWall のバージョンごとの変更点。v1.0.0 から最新の v5.2.0 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -32,13 +32,37 @@
     <h1>ここまでの道のり。</h1>
     <p class="lede">
       各版の配布物と詳細は <a href="https://github.com/Orahu01/wallpaper/releases">GitHub の Releases</a> にあります。
-      番号の付け方は、<b>v5</b> のような整数が機能追加、<b>v4.2</b> が小さな追加と修正、<b>v4.2.1</b> が残っていた不具合の修正です。
+      番号の付け方は、頭の数字が大きな節目 (<b>v5</b> → <b>v6</b>)、
+      マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
+      3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.2 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.2.0</div><div class="when">最新</div></div>
+    <div>
+      <h4>自動バックアップ</h4>
+      <ul>
+        <li><b>アプリのバージョンが変わると、設定を自動で退避します</b> (直近 5 世代)。更新のあとだけでなく、<b>前の版に戻したとき</b>も守られます</li>
+        <li>設定 → 一般 → バックアップ から、日時を選んで復元できます。復元の前にも今の設定を退避するので、行き来できます</li>
+      </ul>
+      <h4>先行版</h4>
+      <ul>
+        <li>「先行版を受け取る」を ON にすると、新機能を試せる開発版 (5.3 / 5.5 のようにマイナーが奇数の版) が届きます</li>
+        <li>先行版は<b>確認なしにインストールされません</b>。OFF のままなら安定版だけが届きます</li>
+      </ul>
+      <h4>バグ修正</h4>
+      <ul>
+        <li><b>設定のインポートが必ず失敗していた問題を修正</b> (内部関数が公開されておらず、「読み込みに失敗」となっていました)</li>
+        <li>インポート時のバックアップが際限なく溜まり続けていたのを、直近 5 世代までに整理するようにしました</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5 -->
   <section class="rel">
-    <div class="rail"><div class="v">5.0.0</div><div class="when">最新</div></div>
+    <div class="rail"><div class="v">5.0.0</div><div class="when">機能追加</div></div>
     <div>
       <h4>テーマとセットアップ</h4>
       <ul>
@@ -183,7 +207,7 @@
   </section>
 
   <section class="closer">
-    <h2>最新版は 5.0.0 です。</h2>
+    <h2>最新版は 5.2.0 です。</h2>
     <p>インストーラ版をお使いであれば、設定画面から更新できます。</p>
     <div class="btn-row">
       <a class="btn primary" href="download.html">ダウンロード<span class="arw">→</span></a>

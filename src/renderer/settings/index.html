@@ -368,6 +368,14 @@
             </div>
           </div>
           <p class="foot-note" id="backup-status">壁紙・ウィジェット・レイアウトを 1 つの JSON ファイルに保存し、別の PC へ移行できます。インポート時は現在の設定を自動でバックアップします。</p>
+          <div class="row">
+            <label data-i18n="gen.autoBackup">自動バックアップ</label>
+            <div class="ctl">
+              <button class="btn" id="btn-backup-reveal"><svg class="ic"><use href="#i-folder"/></svg><span data-i18n="gen.openFolder">保存先を開く</span></button>
+            </div>
+          </div>
+          <p class="foot-note" data-i18n="gen.autoBackupNote">アプリのバージョンが変わったときに、設定を自動で退避します (直近 5 世代)。更新のあとで調子が悪くなったときや、前の版に戻したときは、ここから戻せます。</p>
+          <div id="backup-list"></div>
         </div>
 
         <h2>アップデートとメンテナンス</h2>
@@ -377,9 +385,17 @@
             <span class="dim" id="update-status-text">未確認</span>
             <div class="ctl">
               <button class="btn" id="btn-update-check"><svg class="ic"><use href="#i-refresh"/></svg>確認</button>
+              <button class="btn primary" id="btn-update-download" style="display:none" data-i18n="gen.updateGet">先行版を入れる</button>
               <button class="btn primary" id="btn-update-install" style="display:none">再起動して更新</button>
             </div>
           </div>
+          <div class="row">
+            <label data-i18n="gen.prerelease">先行版を受け取る</label>
+            <div class="ctl">
+              <label class="switch"><input type="checkbox" id="allow-prerelease"><span class="knob"></span></label>
+            </div>
+          </div>
+          <p class="foot-note" data-i18n="gen.prereleaseNote">新機能を試せる開発版 (5.3 / 5.5 のようにマイナーが奇数の版) を受け取ります。不具合が残っている可能性があるため、入れる前に必ず確認します。OFF のままなら安定版だけが届きます。</p>
           <div class="row">
             <label>表示がおかしいとき</label>
             <div class="ctl">

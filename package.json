@@ -1,6 +1,6 @@
 {
   "name": "widgetwall",
-  "version": "5.0.0",
+  "version": "5.2.0",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "PoohS",
