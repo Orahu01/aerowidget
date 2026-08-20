@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.2.0 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.5.0 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,42 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.5 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.5.0</div><div class="when">先行版</div></div>
+    <div>
+      <h4>シーン — 状況でレイアウトが切り替わる</h4>
+      <ul>
+        <li><b>ゲームが前面のときはゲーム用、仕事の時間帯は仕事用</b>——のように、レイアウトプリセットを状況で自動的に切り替えます</li>
+        <li>きっかけは 4 種類: <b>アプリが前面</b> / <b>フルスクリーン中</b> / <b>時間帯 (曜日つき)</b> / <b>バッテリー駆動中</b>。ルールは上から順に評価され、最初に当てはまったものが勝ちます</li>
+        <li>シーンはレイアウトを「指す」だけで、構成そのものは持ちません。切り替えの直前、未保存の配置は<b>「シーン切替前 (自動)」レイアウトに退避</b>されるので、作業が消えることはありません</li>
+        <li>「前面のアプリを取得」ボタンで、exe 名を調べなくても対象アプリをクリックするだけで登録できます</li>
+        <li>レイアウト編集中はシーンを止めます。編集を終えた直後に勝手に切り替えることもしません</li>
+      </ul>
+      <h4>バグ修正</h4>
+      <ul>
+        <li>設定ファイルに無い項目の既定値が読み込み時に失われることがある問題を修正 (更新で追加された新しい設定が効かなくなる時限バグでした)</li>
+      </ul>
+      <p class="body" style="margin-top:14px">
+        これは先行版です。設定 → 一般 →「先行版を受け取る」を ON にした方にだけ届きます。
+      </p>
+    </div>
+  </section>
+
+  <!-- v5.4 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.4.0</div><div class="when">安定版</div></div>
+    <div>
+      <h4>WidgetWall から AeroWidget へ改名</h4>
+      <ul>
+        <li>同名のアプリが Mac App Store に存在していたため、名前を変えました</li>
+        <li><b>設定は自動で引き継がれます。</b>初回起動時に旧フォルダから設定・フォント・オンライン壁紙を取り込みます (旧フォルダは残るので、手で戻すこともできます)</li>
+        <li>アイコンを一新 — 三角の A と逆三角の W を並べた、翼にも読めるモノグラム</li>
+        <li>更新すると別アプリとして入るため、旧「WidgetWall」は「アプリと機能」から手動でアンインストールしてください</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.3 -->
@@ -228,7 +264,7 @@
   </section>
 
   <section class="closer">
-    <h2>最新の安定版は 5.2.0 です。</h2>
+    <h2>最新の安定版は 5.4.0 です。</h2>
     <p>インストーラ版をお使いであれば、設定画面から更新できます。</p>
     <div class="btn-row">
       <a class="btn primary" href="download.html">ダウンロード<span class="arw">→</span></a>

@@ -77,6 +77,17 @@ function defaults() {
         weekly: {},                // { "0".."6": スナップショット } 日曜=0
       },
       layouts: [],                 // レイアウトプリセット [{name, wallpapers, widgets}]
+      // シーン: 文脈でレイアウトを自動切替する。シーンは構成を持たず、
+      // 既存のレイアウトプリセットを指すだけ (万一の暴走でも配置は無傷)。
+      scenes: {
+        enabled: false,
+        defaultLayout: '',         // どのルールにも当てはまらない通常時のレイアウト名
+        rules: [],                 // [{id, name, enabled, trigger, layout}]
+                                   //  trigger: {type:'app', apps:[exe名...]}
+                                   //         | {type:'fullscreen'}
+                                   //         | {type:'time', days:[0..6], from:'HH:MM', to:'HH:MM'}
+                                   //         | {type:'battery'}  (バッテリー駆動中)
+      },
     },
   };
 }
@@ -134,12 +145,20 @@ function load() {
       default: Object.assign(defaultWallpaper(), (parsed.wallpapers || {}).default || {}),
       byDisplay: (parsed.wallpapers || {}).byDisplay || {},
     };
-    cfg.settings = Object.assign(d.settings, parsed.settings || {});
+    // d は直前の Object.assign(d, parsed) で settings が parsed のものに
+    // 差し替わっている (参照ごと)。そのまま使うと「自分と自分のマージ」になり、
+    // ファイルに無いキーの既定値が全部消える。まっさらな既定値から合成し直す。
+    cfg.settings = Object.assign(defaults().settings, parsed.settings || {});
     cfg.settings.schedule = Object.assign(
       { enabled: false, mode: 'daynight', dayStart: '07:00', nightStart: '19:00', day: null, night: null, weekly: {} },
       (parsed.settings || {}).schedule || {},
     );
     if (!Array.isArray(cfg.settings.layouts)) cfg.settings.layouts = [];
+    cfg.settings.scenes = Object.assign(
+      { enabled: false, defaultLayout: '', rules: [] },
+      (parsed.settings || {}).scenes || {},
+    );
+    if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];
     cfg.settings.hotkeys = Object.assign(
       { enabled: false, overlay: 'Ctrl+Alt+A', toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
       (parsed.settings || {}).hotkeys || {},

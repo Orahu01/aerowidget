@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('api', {
   installUpdate: () => ipcRenderer.send('update:install'),
   downloadUpdate: () => ipcRenderer.send('update:download'),
   failedHotkeys: () => ipcRenderer.invoke('hotkeys:failed'),
+  captureForegroundApp: () => ipcRenderer.invoke('scene:foreground'),
   listBackups: () => ipcRenderer.invoke('backup:list'),
   restoreBackup: (file) => ipcRenderer.invoke('backup:restore', file),
   removeBackup: (file) => ipcRenderer.invoke('backup:remove', file),

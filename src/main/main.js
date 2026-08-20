@@ -20,6 +20,7 @@ const feeds = require('./feeds');
 const updater = require('./updater');
 const audio = require('./audio');
 const hotkeys = require('./hotkeys');
+const scenes = require('./scenes');
 const sysinfo = require('./sysinfo');
 const ics = require('./ics');
 const onlinewall = require('./onlinewall');
@@ -515,6 +516,7 @@ function startWatchdog() {
 function enterEditMode() {
   if (editMode || wallWins.size === 0) return;
   editMode = true;
+  scenes.setPaused(true);
   pendingLayout.clear();
   for (const win of folderWins.values()) { try { win.hide(); } catch (_) {} }
   for (const [idx, win] of wallWins) {
@@ -536,6 +538,7 @@ function enterEditMode() {
 function exitEditMode() {
   if (!editMode) return;
   editMode = false;
+  scenes.setPaused(false);
   // 集めたレイアウト変更を反映
   if (pendingLayout.size) {
     config.update(c => {
@@ -766,6 +769,9 @@ function syncServices() {
   // 先行版を受け取るか (切り替えた直後に効かせる)
   updater.setAllowPrerelease(c.settings.allowPrerelease);
 
+  // シーン (文脈でレイアウトを自動切替)
+  scenes.sync(c.settings.scenes);
+
   // 視差効果 (オプトイン時のみ 15Hz でカーソルを配信。heartbeat 集約の例外)
   syncParallax(wallpapersAll.some(w => w && w.parallax));
 
@@ -868,6 +874,37 @@ function cycleLayout() {
   const layouts = config.get().settings.layouts || [];
   if (!layouts.length) return;
   applyLayout((lastLayoutIdx + 1) % layouts.length);
+}
+
+const SCENE_BACKUP_NAME = 'シーン切替前 (自動)';
+
+// シーンが指すレイアウトを名前で適用する。
+// いまの配置がどの保存済みレイアウトとも一致しない (= 未保存の作業がある) ときは、
+// 先に 1 枠だけの自動退避に逃がしてから切り替える。自動でユーザーの配置を
+// 書き換える機能なので、ここを省くわけにはいかない。
+function applySceneLayout(name) {
+  const c = config.get();
+  const layouts = c.settings.layouts || [];
+  if (!layouts.some(l => l.name === name)) return false;
+
+  const cur = JSON.stringify({ w: c.wallpapers, g: c.widgets });
+  const isSaved = layouts.some(l => JSON.stringify({ w: l.wallpapers, g: l.widgets }) === cur);
+  if (!isSaved) {
+    config.update(cfg => {
+      cfg.settings.layouts = [
+        ...(cfg.settings.layouts || []).filter(l => l.name !== SCENE_BACKUP_NAME),
+        {
+          name: SCENE_BACKUP_NAME,
+          wallpapers: JSON.parse(JSON.stringify(cfg.wallpapers)),
+          widgets: JSON.parse(JSON.stringify(cfg.widgets)),
+        },
+      ];
+    });
+  }
+  const idx = (config.get().settings.layouts || []).findIndex(l => l.name === name);
+  if (idx < 0) return false;
+  applyLayout(idx);
+  return true;
 }
 
 const AUTO_BACKUP_NAME = '適用前の構成 (自動)';
@@ -1036,10 +1073,18 @@ function onReady() {
     if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('update-status', s);
   });
   fullscreen.on('change', (index, paused) => {
+    scenes.setFullscreen(index, paused);
     if (editMode) return;
     const win = wallWins.get(index);
     if (win && !win.isDestroyed()) win.webContents.send('power', { paused });
   });
+  fullscreen.on('foreground', (exe) => scenes.setForeground(exe));
+
+  // シーンエンジン起動。バッテリー状態も最初に読んでおく
+  scenes.init((name) => applySceneLayout(name));
+  try { scenes.setBattery(powerMonitor.isOnBatteryPower()); } catch (_) { /* デスクトップ機 */ }
+  powerMonitor.on('on-battery', () => scenes.setBattery(true));
+  powerMonitor.on('on-ac', () => scenes.setBattery(false));
 
   // ---- 開発用セルフテストフック ----
   if (process.env.WW_TEST_EDIT) {
@@ -1535,6 +1580,18 @@ ipcMain.on('overlay:close', () => hideOverlay());
 
 // 他のアプリと衝突して登録できなかったホットキー
 ipcMain.handle('hotkeys:failed', () => hotkeys.failed());
+
+// シーン設定 UI: 「このボタンを押してから対象のアプリをクリック」方式。
+// ボタンを押した瞬間は設定画面自身が前面なので、他のアプリが前面に来るまで
+// 最大 6 秒待って、最初に取れた exe 名を返す。
+ipcMain.handle('scene:foreground', async () => {
+  for (let i = 0; i < 20; i++) {
+    const exe = fullscreen.currentForegroundExe();
+    if (exe) return exe;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return '';
+});
 
 ipcMain.handle('app:uninstall', async () => {
   if (!app.isPackaged) return { ok: false, msg: '開発モードでは使えません' };

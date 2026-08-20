@@ -60,6 +60,25 @@ const JA_EN = {
   'まだバックアップはありません。次にバージョンが変わったときに作られます。':
     'No backups yet. One will be made the next time the version changes.',
   '復元': 'Restore', '削除': 'Delete',
+  // v5.5 シーン
+  'シーン (状況で自動切り替え)': 'Scenes (auto-switch by context)',
+  '状況に合わせてレイアウトを自動で切り替える': 'Switch layouts automatically to match what you are doing',
+  'ゲームが前面のときはゲーム用、仕事の時間帯は仕事用——のように、上のレイアウトプリセットを状況で切り替えます。ルールは上から順に評価され、最初に当てはまったものが使われます。シーンが切り替える直前、未保存の配置は「シーン切替前 (自動)」レイアウトに退避されるので、作業が消えることはありません。':
+    'Game layout while a game is focused, work layout during work hours - scenes switch between the layout presets above based on context. Rules are checked top to bottom and the first match wins. Right before a scene switches, any unsaved arrangement is saved aside as the "Before scene switch (auto)" layout, so nothing is ever lost.',
+  '通常時 (どれにも当てはまらないとき)': 'Normally (when nothing matches)',
+  'ルールを追加': 'Add rule',
+  'アプリが前面のとき': 'When an app is in front',
+  'フルスクリーン中': 'While fullscreen',
+  '時間帯': 'Time of day',
+  'バッテリー駆動中': 'On battery power',
+  '(レイアウトを選ぶ)': '(choose a layout)',
+  'ルール名 (例: ゲーム中)': 'Rule name (e.g. Gaming)',
+  '優先度を上げる (上のルールが勝ちます)': 'Raise priority (upper rules win)',
+  '前面のアプリを取得': 'Grab the app in front',
+  '対象のアプリをクリックしてください…': 'Click the target app window...',
+  'アプリを取得できませんでした (ボタンを押してから 6 秒以内に対象のウィンドウをクリックしてください)':
+    'Could not detect the app (click the target window within 6 seconds of pressing the button)',
+  '→ このレイアウトへ': 'switch to this layout:',
   '赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。':
     'The keys marked in red could not be registered because another app already uses them. Please choose different keys.',
   // v5.3 呼び出せるダッシュボード
@@ -1698,7 +1717,7 @@ async function renderGeneral() {
   ovBlur.onchange = () => pushOverlay({ closeOnBlur: ovBlur.checked });
 
   renderSchedule();
-  renderLayouts();
+  renderLayouts();   // 中で renderScenes() も呼ばれる
   updateStatusText(await window.api.getUpdateStatus());
 
   const sel = $('#weather-interval');
@@ -1858,6 +1877,218 @@ function renderLayouts() {
     }));
     list.appendChild(row);
   }
+  renderScenes();   // シーンのレイアウト選択肢も追従させる
+}
+
+// ---- シーン (状況でレイアウトを自動切替) ----
+const SCN_TRIGGERS = [
+  ['app', 'アプリが前面のとき'],
+  ['fullscreen', 'フルスクリーン中'],
+  ['time', '時間帯'],
+  ['battery', 'バッテリー駆動中'],
+];
+
+function scenesCfg() {
+  if (!cfg.settings.scenes) cfg.settings.scenes = { enabled: false, defaultLayout: '', rules: [] };
+  if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];
+  return cfg.settings.scenes;
+}
+
+function pushScenes() {
+  touch();
+  window.api.setSettings({ scenes: JSON.parse(JSON.stringify(scenesCfg())) });
+}
+
+function scnLayoutSelect(value, onChange) {
+  const sel = document.createElement('select');
+  const layouts = cfg.settings.layouts || [];
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = T('(レイアウトを選ぶ)');
+  sel.appendChild(empty);
+  for (const l of layouts) {
+    const o = document.createElement('option');
+    o.value = l.name;
+    o.textContent = l.name;
+    sel.appendChild(o);
+  }
+  sel.value = layouts.some(l => l.name === value) ? value : '';
+  sel.onchange = () => onChange(sel.value);
+  return sel;
+}
+
+function renderScenes() {
+  const sc = scenesCfg();
+  const on = $('#scn-on');
+  if (!on) return;
+  on.checked = !!sc.enabled;
+  on.onchange = () => { sc.enabled = on.checked; pushScenes(); };
+
+  // 通常時レイアウト (select を作り直して id を引き継ぐ)
+  const oldSel = $('#scn-default');
+  const defSel = scnLayoutSelect(sc.defaultLayout, (v) => { sc.defaultLayout = v; pushScenes(); });
+  defSel.id = 'scn-default';
+  defSel.style.minWidth = '220px';
+  oldSel.replaceWith(defSel);
+
+  const list = $('#scn-rules');
+  list.innerHTML = '';
+  sc.rules.forEach((rule, i) => list.appendChild(scnRuleCard(rule, i)));
+
+  $('#scn-add').onclick = () => {
+    sc.rules.push({
+      id: 'r' + Date.now().toString(36),
+      name: '', enabled: true,
+      trigger: { type: 'app', apps: [] },
+      layout: '',
+    });
+    pushScenes();
+    renderScenes();
+  };
+}
+
+function scnRuleCard(rule, i) {
+  const sc = scenesCfg();
+  const card = document.createElement('div');
+  card.className = 'scn-rule';
+
+  // 1 行目: 有効 / 名前 / トリガー種別 / 優先度 / 削除
+  const head = document.createElement('div');
+  head.className = 'scn-row';
+
+  const en = document.createElement('label');
+  en.className = 'switch';
+  en.innerHTML = '<input type="checkbox"><span class="knob"></span>';
+  const enInput = en.querySelector('input');
+  enInput.checked = rule.enabled !== false;
+  enInput.onchange = () => { rule.enabled = enInput.checked; pushScenes(); };
+
+  const name = document.createElement('input');
+  name.type = 'text';
+  name.placeholder = T('ルール名 (例: ゲーム中)');
+  name.value = rule.name || '';
+  name.style.width = '150px';
+  name.onchange = () => { rule.name = name.value.trim(); pushScenes(); };
+
+  const trig = document.createElement('select');
+  for (const pair of SCN_TRIGGERS) {
+    const o = document.createElement('option');
+    o.value = pair[0];
+    o.textContent = T(pair[1]);
+    trig.appendChild(o);
+  }
+  trig.value = (rule.trigger && rule.trigger.type) || 'app';
+  trig.onchange = () => {
+    const t = trig.value;
+    rule.trigger = t === 'app' ? { type: 'app', apps: [] }
+      : t === 'time' ? { type: 'time', days: [1, 2, 3, 4, 5], from: '09:00', to: '18:00' }
+      : { type: t };
+    pushScenes();
+    renderScenes();
+  };
+
+  const up = document.createElement('button');
+  up.className = 'btn';
+  up.textContent = String.fromCharCode(0x2191);
+  up.title = T('優先度を上げる (上のルールが勝ちます)');
+  up.disabled = i === 0;
+  up.onclick = () => {
+    sc.rules.splice(i - 1, 0, sc.rules.splice(i, 1)[0]);
+    pushScenes();
+    renderScenes();
+  };
+
+  const del = document.createElement('button');
+  del.className = 'btn';
+  del.textContent = String.fromCharCode(0x2715);
+  del.title = T('削除');
+  del.onclick = () => { sc.rules.splice(i, 1); pushScenes(); renderScenes(); };
+
+  head.append(en, name, trig, up, del);
+  card.appendChild(head);
+
+  // 2 行目: トリガーごとの詳細
+  const t = rule.trigger || {};
+  if (t.type === 'app') {
+    const row = document.createElement('div');
+    row.className = 'scn-row';
+    const apps = document.createElement('input');
+    apps.type = 'text';
+    apps.placeholder = 'game.exe, photoshop.exe';
+    apps.value = (t.apps || []).join(', ');
+    apps.style.flex = '1';
+    apps.onchange = () => {
+      t.apps = apps.value.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+      pushScenes();
+    };
+    const pick = document.createElement('button');
+    pick.className = 'btn';
+    pick.textContent = T('前面のアプリを取得');
+    pick.onclick = async () => {
+      pick.disabled = true;
+      const old = pick.textContent;
+      pick.textContent = T('対象のアプリをクリックしてください…');
+      const exe = await window.api.captureForegroundApp();
+      pick.textContent = old;
+      pick.disabled = false;
+      if (!exe) {
+        $('#scn-status').textContent = T('アプリを取得できませんでした (ボタンを押してから 6 秒以内に対象のウィンドウをクリックしてください)');
+        return;
+      }
+      $('#scn-status').textContent = '';
+      const cur = new Set(t.apps || []);
+      cur.add(exe);
+      t.apps = [...cur];
+      pushScenes();
+      renderScenes();
+    };
+    row.append(apps, pick);
+    card.appendChild(row);
+  } else if (t.type === 'time') {
+    const row = document.createElement('div');
+    row.className = 'scn-row';
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    WEEK_LABELS.forEach((lb, d) => {
+      const days = Array.isArray(t.days) ? t.days : [];
+      const c = document.createElement('button');
+      c.className = 'chip' + (days.includes(d) ? ' active' : '');
+      c.textContent = lb;
+      c.onclick = () => {
+        const set = new Set(Array.isArray(t.days) ? t.days : []);
+        if (set.has(d)) set.delete(d); else set.add(d);
+        t.days = [...set].sort();
+        pushScenes();
+        renderScenes();
+      };
+      chips.appendChild(c);
+    });
+    const from = document.createElement('input');
+    from.type = 'time';
+    from.value = t.from || '09:00';
+    from.onchange = () => { t.from = from.value; pushScenes(); };
+    const dash = document.createElement('span');
+    dash.className = 'dim';
+    dash.textContent = String.fromCharCode(0x2013);
+    const to = document.createElement('input');
+    to.type = 'time';
+    to.value = t.to || '18:00';
+    to.onchange = () => { t.to = to.value; pushScenes(); };
+    row.append(chips, from, dash, to);
+    card.appendChild(row);
+  }
+
+  // 3 行目: 切替先レイアウト
+  const dest = document.createElement('div');
+  dest.className = 'scn-row';
+  const arrow = document.createElement('span');
+  arrow.className = 'dim';
+  arrow.textContent = T('→ このレイアウトへ');
+  const sel = scnLayoutSelect(rule.layout, (v) => { rule.layout = v; pushScenes(); });
+  dest.append(arrow, sel);
+  card.appendChild(dest);
+
+  return card;
 }
 
 $('#layout-save').addEventListener('click', async () => {
