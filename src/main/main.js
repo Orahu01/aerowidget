@@ -61,7 +61,7 @@ const pendingLayout = new Map();       // 編集モード中のレイアウト�
 const iconCache = new Map();           // path -> dataURL
 
 // デスクトップ上でクリックできる「小窓型」ウィジェット
-const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying', 'todo']);
+const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying', 'todo', 'switcher']);
 let widgetsHidden = false;             // ホットキーによる全ウィジェット非表示
 const placedKey = new Map();           // widgetId -> 配置キー (無関係な設定変更で再配置しない)
 const placeGen = new Map();            // widgetId -> 世代 (収束ループの多重実行防止)
@@ -130,6 +130,11 @@ function interDims(w) {
   }
   if (w.type === 'nowplaying') return { w: Math.max(200, o.w || 320), h: Math.max(70, o.h || 96) };
   if (w.type === 'todo') return { w: Math.max(170, o.w || 250), h: Math.max(120, o.h || 220) };
+  if (w.type === 'switcher') {
+    return o.vertical
+      ? { w: Math.max(110, o.w || 150), h: Math.max(80, o.h || 160) }
+      : { w: Math.max(140, o.w || 300), h: Math.max(34, o.h || 46) };
+  }
   return folderDims(o);
 }
 
@@ -333,7 +338,7 @@ function rebuildWallWindows() {
 }
 
 // ---------------------------------------------------------------- 対話ウィジェットウィンドウ (フォルダ / メモ / タイマー)
-const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying', todo: 'todo' };
+const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying', todo: 'todo', switcher: 'switcher' };
 
 function createFolderWindow(widget) {
   const dims = interDims(widget);
@@ -360,6 +365,11 @@ function createFolderWindow(widget) {
     },
   });
   folderWins.set(widget.id, win);
+  if (process.env.WW_DEBUG) {
+    win.webContents.on('console-message', (e, level, message, line, sourceId) => {
+      console.log(`[${widget.type}:${level}] ${message} (${String(sourceId).split(/[\\/]/).pop()}:${line})`);
+    });
+  }
   const dir = INTER_RENDERER[widget.type] || 'folder';
   win.loadFile(RENDERER(path.join(dir, 'index.html')), { query: { wid: widget.id } });
   win.once('ready-to-show', () => {
@@ -1646,6 +1656,24 @@ function onDisplayChanged() {
     if (process.env.WW_DEBUG) console.log('[icons] 解像度変更 -> "' + target + '" へ自動復元');
   }, 4000);
 }
+
+// 切り替えボタンウィジェット: レイアウト名で切り替える
+ipcMain.handle('switcher:layouts', () =>
+  (config.get().settings.layouts || []).map(l => l.name));
+
+ipcMain.handle('switcher:current', () => {
+  const c = config.get();
+  const cur = JSON.stringify({ w: c.wallpapers, g: c.widgets });
+  const hit = (c.settings.layouts || []).find(l => JSON.stringify({ w: l.wallpapers, g: l.widgets }) === cur);
+  return hit ? hit.name : '';
+});
+
+ipcMain.handle('switcher:apply', (e, name) => {
+  const idx = (config.get().settings.layouts || []).findIndex(l => l.name === name);
+  if (idx < 0) return false;
+  applyLayout(idx);
+  return true;
+});
 
 ipcMain.handle('scene:foreground', async () => {
   for (let i = 0; i < 20; i++) {

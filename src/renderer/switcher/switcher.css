@@ -1,0 +1,56 @@
+/* 切り替えボタン: デスクトップ上からレイアウトを切り替える小さなバー */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: transparent;
+  overflow: hidden;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+#card {
+  width: 100%; height: 100%;
+  border-radius: 10px;
+  background: rgba(14, 17, 22, var(--bg, .55));
+  border: 1px solid rgba(255, 255, 255, .10);
+  display: flex; align-items: center;
+  padding: 5px;
+}
+
+#buttons {
+  display: flex; gap: 4px;
+  width: 100%; height: 100%;
+  align-items: stretch;
+}
+body.vertical #buttons { flex-direction: column; }
+
+button {
+  flex: 1;
+  min-width: 0;                 /* 長い名前でボタンが押し出されないように */
+  border: 0; border-radius: 7px;
+  background: transparent;
+  color: var(--fg, #dfe2e8);
+  font-family: inherit; font-size: inherit; font-weight: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+button:hover { background: rgba(255, 255, 255, .09); }
+
+/* いま当たっているレイアウト */
+button.active {
+  background: var(--accent, #e3a94f);
+  color: #1b1408;
+}
+button.active:hover { background: var(--accent, #e3a94f); }
+
+#empty {
+  width: 100%; text-align: center;
+  color: rgba(255, 255, 255, .45);
+  font-size: .92em;
+  padding: 0 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

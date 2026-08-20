@@ -26,6 +26,7 @@ const TYPES = {
   ticker: { icon: 'i-trend', label: '株価・為替' },
   note: { icon: 'i-note', label: 'メモ (書き込める付箋)' },
   todo: { icon: 'i-todo', label: 'ToDo リスト' },
+  switcher: { icon: 'i-layers', label: '切り替えボタン' },
   pomo: { icon: 'i-timer', label: 'ポモドーロタイマー' },
   forecast: { icon: 'i-weather', label: '天気予報 (時間別・週間)' },
   ics: { icon: 'i-calcheck', label: '予定表 (カレンダー購読)' },
@@ -79,6 +80,14 @@ const JA_EN = {
   'アプリを取得できませんでした (ボタンを押してから 6 秒以内に対象のウィンドウをクリックしてください)':
     'Could not detect the app (click the target window within 6 seconds of pressing the button)',
   '→ このレイアウトへ': 'switch to this layout:',
+  // v5.9 切り替えボタン
+  '切り替えボタン': 'Layout switcher',
+  '並べるレイアウト': 'Layouts to show',
+  '空欄 = 保存済みすべて / 例: 通常, 仕事用, ゲーム用': 'Blank = all saved / e.g. Normal, Work, Gaming',
+  '並び': 'Direction', '縦に並べる': 'Stack vertically',
+  'デスクトップ上のボタンでレイアウトを切り替えられます。いま当たっているレイアウトのボタンが光ります。シーンが「状況で自動」なら、こちらは「手で今すぐ」です。':
+    'Switch layouts from a button bar on the desktop. The active layout lights up. Where scenes switch automatically by context, this switches on demand.',
+  '先にレイアウトを保存してください': 'Save a layout preset first',
   // v5.7 デスクトップアイコン
   'デスクトップアイコンの配置': 'Desktop icon layout',
   'アイコンの並びを保存しておき、解像度の変更やモニタの抜き差しで散らかったときに元へ戻せます。保存は読み取るだけで、配置を変更するのは「復元」を押したときだけ。復元の直前には今の並びを「復元前 (自動)」として退避するので、戻しすぎても元に戻せます。':
@@ -332,7 +341,7 @@ function renderMiniPreview(el, wallpapers, widgets, displayIndex = 0) {
     d.className = 'pv-w';
     d.style.left = w.x + '%';
     d.style.top = w.y + '%';
-    if (['note', 'pomo', 'volume', 'nowplaying', 'todo', 'folder'].includes(w.type)) {
+    if (['note', 'pomo', 'volume', 'nowplaying', 'todo', 'folder', 'switcher'].includes(w.type)) {
       d.classList.add('pv-card');
       const cw = (o.w || 240) * scale;
       const chh = (o.h || 170) * scale;
@@ -1252,6 +1261,23 @@ function typeOptionsUI(w) {
     wrap.appendChild(wRow);
     wrap.appendChild(noteEl('タイムゾーン名の例: Asia/Tokyo ・ America/New_York ・ America/Los_Angeles ・ Europe/London ・ Europe/Paris ・ Australia/Sydney'));
 
+  } else if (w.type === 'switcher') {
+    wrap.appendChild(ctlRow('並べるレイアウト', mkText((o.items || []).join(', '),
+      '空欄 = 保存済みすべて / 例: 通常, 仕事用, ゲーム用',
+      v => patchWidget(w.id, { options: { items: v.split(',').map(x => x.trim()).filter(Boolean) } }))));
+    wrap.appendChild(ctlRow('並び', mkCheck('縦に並べる', !!o.vertical,
+      v => patchWidget(w.id, { options: { vertical: v } }))));
+    for (const [key, label, min, max, def] of [['w', '幅', 110, 700, 300], ['h', '高さ', 34, 400, 46]]) {
+      const [r, val, show] = mkRange(min, max, 2, o[key] ?? def, v => { show(v + 'px'); patchWidget(w.id, { options: { [key]: v } }, { debounce: true }); });
+      val.textContent = (o[key] ?? def) + 'px';
+      wrap.appendChild(ctlRow(label, r, val));
+    }
+    {
+      const [r, val, show] = mkRange(0, 100, 5, Math.round((o.bgOpacity ?? 0.55) * 100), v => { show(v + '%'); patchWidget(w.id, { options: { bgOpacity: v / 100 } }, { debounce: true }); });
+      val.textContent = Math.round((o.bgOpacity ?? 0.55) * 100) + '%';
+      wrap.appendChild(ctlRow('背景の濃さ', r, val));
+    }
+    wrap.appendChild(noteEl('デスクトップ上のボタンでレイアウトを切り替えられます。いま当たっているレイアウトのボタンが光ります。シーンが「状況で自動」なら、こちらは「手で今すぐ」です。'));
   } else if (w.type === 'todo') {
     wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: ToDo / 買い物リスト', v => patchWidget(w.id, { options: { title: v } }))));
     for (const [key, label, min, max, def] of [['w', '幅', 170, 600, 250], ['h', '高さ', 120, 600, 220]]) {

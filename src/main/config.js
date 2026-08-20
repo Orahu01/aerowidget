@@ -349,6 +349,14 @@ function newWidget(type) {
         ...base, x: 14, y: 30, size: 20, weight: 300, letterSpacing: 2, shadow: 'soft',
         options: { zones: '東京=Asia/Tokyo\nニューヨーク=America/New_York\nロンドン=Europe/London', showDate: false, hour12: false },
       };
+    case 'switcher':
+      return {
+        ...base, x: 50, y: 92, size: 13, weight: 500, letterSpacing: 1, shadow: 'none',
+        options: {
+          // 並べるレイアウト名 (空なら保存済みレイアウトを全部)
+          items: [], w: 300, h: 46, bgOpacity: 0.55, vertical: false,
+        },
+      };
     case 'todo':
       return {
         ...base, x: 82, y: 60, size: 14, color: '#e6e7ea', shadow: 'none',

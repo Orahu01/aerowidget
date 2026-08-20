@@ -28,5 +28,8 @@ contextBridge.exposeInMainWorld('fw', {
   mediaKey: (which) => ipcRenderer.send('media:key', which),
 
   // ポモドーロのホットキー操作
+  listLayouts: () => ipcRenderer.invoke('switcher:layouts'),
+  currentLayout: () => ipcRenderer.invoke('switcher:current'),
+  applyLayout: (name) => ipcRenderer.invoke('switcher:apply', name),
   onPomoToggle: (cb) => ipcRenderer.on('pomo-toggle', () => cb()),
 });
