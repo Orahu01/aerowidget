@@ -14,6 +14,6 @@ UpgradeBehavior: install
 Installers:
 - Architecture: x64
   InstallerUrl: https://github.com/Orahu01/aerowidget/releases/download/v5.4.0/AeroWidget-Setup-5.4.0.exe
-  InstallerSha256: F117AFBF0BBF8283B7DACD95B39ADA3B82D209FBDF2C6CFB6CD31DBEBBB33852
+  InstallerSha256: EEF6ED34D7A0E8AB871C7E0573A128C05EC2A23DD825DC987267076AEE5A4205
 ManifestType: installer
 ManifestVersion: 1.6.0
