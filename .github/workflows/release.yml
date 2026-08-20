@@ -1,0 +1,135 @@
+name: Release
+
+# v5.1.0 のようなバージョンタグを push すると、Windows 版をビルドして
+# 同名の GitHub Release にアセットとして添付する。
+# 手動実行 (workflow_dispatch) の場合は Release を作らず、成果物を
+# Actions の artifact として残すだけの試し焼きになる。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # electron 本体のダウンロード (約 100MB) を再利用する
+      - name: Cache Electron download
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      # タグと package.json の version がずれていると、成果物の名前が
+      # タグと食い違い、electron-updater の更新もつながらなくなる。
+      # 先に落として気づけるようにする。
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($tag -ne "v$version") {
+            Write-Host "::error::タグ $tag に対して package.json の version は $version です。'v$version' のタグを打つか、package.json を $($tag.TrimStart('v')) に更新してください。"
+            exit 1
+          }
+          Write-Host "tag $tag == package.json $version"
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: npx electron-builder --win --publish never
+
+      - name: List build output
+        shell: pwsh
+        run: Get-ChildItem dist -File | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
+
+      # 配布物が揃っているかを Release を作る前に確かめる。latest.yml と
+      # .blockmap はアプリ内の自動アップデートが参照するので欠かせない。
+      - name: Verify build output
+        shell: pwsh
+        run: |
+          foreach ($required in @('WidgetWall-Setup-*.exe', 'WidgetWall-Portable-*.exe', 'latest.yml')) {
+            if (-not (Get-ChildItem "dist\$required" -File -ErrorAction SilentlyContinue)) {
+              Write-Host "::error::$required がビルドされていません"
+              exit 1
+            }
+          }
+          Write-Host 'ok'
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # gh が非ゼロで終わっても例外にせず、終了コードで分岐したいため
+          $PSNativeCommandUseErrorActionPreference = $false
+
+          $tag = '${{ github.ref_name }}'
+          $patterns = @(
+            'WidgetWall-Setup-*.exe',
+            'WidgetWall-Setup-*.exe.blockmap',
+            'WidgetWall-Portable-*.exe',
+            'latest.yml'
+          )
+          $assets = $patterns |
+            ForEach-Object { Get-ChildItem "dist\$_" -File -ErrorAction SilentlyContinue } |
+            Select-Object -ExpandProperty FullName -Unique
+          $assets | ForEach-Object { Write-Host "  添付: $(Split-Path $_ -Leaf)" }
+
+          # 版の付け方: マイナーが奇数なら先行版 (5.3 / 5.5)、偶数なら安定版 (5.2 / 6.0)。
+          # electron-updater は GitHub の prerelease 印を見て安定版ユーザーへの配信を止めるので、
+          # 印の付け忘れが事故に直結する。人間の記憶ではなく版番号から機械的に決める。
+          $minor = [int]($tag -replace '^v\d+\.(\d+)\..*$', '$1')
+          $pre = ($minor % 2) -eq 1
+          Write-Host "$tag -> $(if ($pre) { '先行版 (prerelease)' } else { '安定版' })"
+
+          # 途中で失敗して再実行した場合に備え、Release が既にあれば貼り直す
+          gh release view $tag 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag は既にあるのでアセットを差し替えます"
+            gh release upload $tag @assets --clobber
+          } else {
+            Write-Host "Release $tag を作成します"
+            $flags = @('--title', $tag, '--generate-notes', '--verify-tag')
+            if ($pre) { $flags += '--prerelease' }
+            gh release create $tag @assets @flags
+          }
+          if ($LASTEXITCODE -ne 0) { throw "gh release に失敗しました (exit $LASTEXITCODE)" }
+
+      # 手動実行のときは Release を作らず、動作確認用に成果物だけ残す
+      - name: Upload artifacts (manual run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: WidgetWall-windows
+          path: |
+            dist/WidgetWall-Setup-*.exe
+            dist/WidgetWall-Portable-*.exe
+            dist/latest.yml
+          if-no-files-found: error
+          retention-days: 14
