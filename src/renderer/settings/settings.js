@@ -79,6 +79,21 @@ const JA_EN = {
   'アプリを取得できませんでした (ボタンを押してから 6 秒以内に対象のウィンドウをクリックしてください)':
     'Could not detect the app (click the target window within 6 seconds of pressing the button)',
   '→ このレイアウトへ': 'switch to this layout:',
+  // v5.7 デスクトップアイコン
+  'デスクトップアイコンの配置': 'Desktop icon layout',
+  'アイコンの並びを保存しておき、解像度の変更やモニタの抜き差しで散らかったときに元へ戻せます。保存は読み取るだけで、配置を変更するのは「復元」を押したときだけ。復元の直前には今の並びを「復元前 (自動)」として退避するので、戻しすぎても元に戻せます。':
+    'Save your icon arrangement and put it back when a resolution change or unplugged monitor scatters it. Saving only reads; the arrangement changes only when you press Restore. Right before a restore the current arrangement is stashed as "Before restore (auto)", so you can undo an unwanted restore too.',
+  '今の配置を保存': 'Save current arrangement',
+  '解像度が変わったら自動で戻す': 'Restore automatically when resolution changes',
+  '既定はオフです。オンにすると、モニタ構成が変わったときに選んだ配置へ自動で戻します (このときも直前に自動退避します)。':
+    'Off by default. When on, the chosen arrangement is restored automatically whenever the monitor setup changes (this too stashes a backup first).',
+  '現在のアイコン: ': 'Current icons: ',
+  ' 個': '',
+  'デスクトップアイコンにアクセスできません': 'Cannot access desktop icons',
+  '保存しました (': 'Saved (',
+  '復元しました (': 'Restored (',
+  ' / 見つからず飛ばした: ': ' / skipped (not found): ',
+  '(なし = オフ)': '(none = off)',
   '赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。':
     'The keys marked in red could not be registered because another app already uses them. Please choose different keys.',
   // v5.3 呼び出せるダッシュボード
@@ -1878,6 +1893,7 @@ function renderLayouts() {
     list.appendChild(row);
   }
   renderScenes();   // シーンのレイアウト選択肢も追従させる
+  renderIconLayouts();
 }
 
 // ---- シーン (状況でレイアウトを自動切替) ----
@@ -2089,6 +2105,84 @@ function scnRuleCard(rule, i) {
   card.appendChild(dest);
 
   return card;
+}
+
+// ---- デスクトップアイコンの保存 / 復元 ----
+async function renderIconLayouts() {
+  const wrap = $('#ic-list');
+  if (!wrap) return;
+
+  const avail = await window.api.iconsAvailable();
+  const cnt = $('#ic-count');
+  if (avail) {
+    const n = await window.api.iconsCurrent();
+    cnt.textContent = T('現在のアイコン: ') + n + T(' 個');
+  } else {
+    cnt.textContent = T('デスクトップアイコンにアクセスできません');
+  }
+
+  $('#ic-save').onclick = async () => {
+    const r = await window.api.saveIcons($('#ic-name').value.trim());
+    $('#ic-status').textContent = r.ok ? T('保存しました (') + r.count + T(' 個)') : r.msg;
+    if (r.ok) { $('#ic-name').value = ''; renderIconLayouts(); }
+  };
+
+  const snaps = await window.api.iconSnapshots();
+  wrap.innerHTML = '';
+  for (const snap of snaps) {
+    const row = document.createElement('div');
+    row.className = 'gf-item';
+    const name = document.createElement('span');
+    name.className = 'gf-name';
+    name.textContent = snap.name;
+    const meta = document.createElement('span');
+    meta.className = 'note';
+    meta.style.padding = '0';
+    meta.textContent = snap.count + T(' 個') + ' ・ ' + new Date(snap.savedAt).toLocaleString('ja-JP');
+
+    const restore = document.createElement('button');
+    restore.className = 'btn';
+    restore.textContent = T('復元');
+    restore.onclick = async () => {
+      const r = await window.api.restoreIcons(snap.name);
+      if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+      let msg = T('復元しました (') + r.moved + T(' 個)');
+      if (r.skipped) msg += T(' / 見つからず飛ばした: ') + r.skipped + T(' 個');
+      $('#ic-status').textContent = msg;
+      renderIconLayouts();
+    };
+
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.textContent = T('削除');
+    del.onclick = async () => {
+      await window.api.removeIconSnapshot(snap.name);
+      renderIconLayouts();
+    };
+
+    row.append(name, meta, restore, del);
+    wrap.appendChild(row);
+  }
+
+  // 自動復元の選択 (「(なし)」= オフ)
+  const auto = $('#ic-auto');
+  auto.innerHTML = '';
+  const off = document.createElement('option');
+  off.value = '';
+  off.textContent = T('(なし = オフ)');
+  auto.appendChild(off);
+  for (const snap of snaps) {
+    const o = document.createElement('option');
+    o.value = snap.name;
+    o.textContent = snap.name;
+    auto.appendChild(o);
+  }
+  auto.value = cfg.settings.iconAutoRestore || '';
+  auto.onchange = () => {
+    touch();
+    cfg.settings.iconAutoRestore = auto.value;
+    window.api.setSettings({ iconAutoRestore: auto.value });
+  };
 }
 
 $('#layout-save').addEventListener('click', async () => {

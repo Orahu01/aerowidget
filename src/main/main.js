@@ -21,6 +21,7 @@ const updater = require('./updater');
 const audio = require('./audio');
 const hotkeys = require('./hotkeys');
 const scenes = require('./scenes');
+const icons = require('./icons');
 const sysinfo = require('./sysinfo');
 const ics = require('./ics');
 const onlinewall = require('./onlinewall');
@@ -1086,6 +1087,11 @@ function onReady() {
   powerMonitor.on('on-battery', () => scenes.setBattery(true));
   powerMonitor.on('on-ac', () => scenes.setBattery(false));
 
+  // アイコン自動復元 (オプトイン): モニタ構成が変わったとき
+  screen.on('display-metrics-changed', onDisplayChanged);
+  screen.on('display-added', onDisplayChanged);
+  screen.on('display-removed', onDisplayChanged);
+
   // ---- 開発用セルフテストフック ----
   if (process.env.WW_TEST_EDIT) {
     setTimeout(() => enterEditMode(), 4000);
@@ -1584,6 +1590,63 @@ ipcMain.handle('hotkeys:failed', () => hotkeys.failed());
 // シーン設定 UI: 「このボタンを押してから対象のアプリをクリック」方式。
 // ボタンを押した瞬間は設定画面自身が前面なので、他のアプリが前面に来るまで
 // 最大 6 秒待って、最初に取れた exe 名を返す。
+// ---- デスクトップアイコンの保存 / 復元 ----
+const ICON_BACKUP_NAME = '復元前 (自動)';
+
+// 現在のアイコン配置を name つきスナップとして settings.iconLayouts に積む。
+// 読むだけ。書き込みは一切しない。同名は上書き、最大 21 枠 (自動退避 1 + 通常 20)。
+function saveIconSnapshot(name) {
+  const now = icons.list();
+  if (!now || !now.length) return { ok: false, msg: 'デスクトップアイコンを読み取れませんでした' };
+  const clean = String(name || '').slice(0, 40) || `アイコン配置 ${new Date().toLocaleString('ja-JP')}`;
+  config.update(cfg => {
+    const keep = (cfg.settings.iconLayouts || []).filter(l => l.name !== clean);
+    cfg.settings.iconLayouts = [...keep, { name: clean, savedAt: Date.now(), icons: now }].slice(-21);
+  });
+  return { ok: true, count: now.length, name: clean };
+}
+
+ipcMain.handle('icons:available', () => icons.available());
+ipcMain.handle('icons:current', () => (icons.list() || []).length);
+ipcMain.handle('icons:snapshots', () =>
+  (config.get().settings.iconLayouts || []).map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length })));
+
+ipcMain.handle('icons:save', (e, name) => saveIconSnapshot(name));
+
+ipcMain.handle('icons:restore', (e, name) => {
+  const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
+  if (!snap) return { ok: false, msg: 'その配置が見つかりません' };
+  // 書き込む前に、今の配置を必ず退避する
+  saveIconSnapshot(ICON_BACKUP_NAME);
+  const r = icons.apply(snap.icons);
+  if (!r) return { ok: false, msg: 'アイコンを復元できませんでした (デスクトップにアクセスできません)' };
+  return { ok: true, moved: r.moved, skipped: r.skipped, total: r.total };
+});
+
+ipcMain.handle('icons:remove', (e, name) => {
+  config.update(cfg => {
+    cfg.settings.iconLayouts = (cfg.settings.iconLayouts || []).filter(l => l.name !== name);
+  });
+  return (config.get().settings.iconLayouts || []).map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length }));
+});
+
+// 解像度・モニタ構成が変わったとき、設定でオプトインしていれば自動復元する。
+// 既定はオフ。オンでも、書き込む前に必ず退避する。
+let iconRestoreTimer = null;
+function onDisplayChanged() {
+  const target = config.get().settings.iconAutoRestore;
+  if (!target) return;   // 既定オフ
+  clearTimeout(iconRestoreTimer);
+  // 構成変更が落ち着くまで少し待つ (連続イベントの最後の1回だけ効かせる)
+  iconRestoreTimer = setTimeout(() => {
+    const snap = (config.get().settings.iconLayouts || []).find(l => l.name === target);
+    if (!snap) return;
+    saveIconSnapshot(ICON_BACKUP_NAME);
+    icons.apply(snap.icons);
+    if (process.env.WW_DEBUG) console.log('[icons] 解像度変更 -> "' + target + '" へ自動復元');
+  }, 4000);
+}
+
 ipcMain.handle('scene:foreground', async () => {
   for (let i = 0; i < 20; i++) {
     const exe = fullscreen.currentForegroundExe();

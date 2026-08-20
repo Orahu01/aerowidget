@@ -88,6 +88,10 @@ function defaults() {
                                    //         | {type:'time', days:[0..6], from:'HH:MM', to:'HH:MM'}
                                    //         | {type:'battery'}  (バッテリー駆動中)
       },
+      // デスクトップアイコンの配置の保存 / 復元。
+      // 保存は読むだけ。復元だけが書き込みで、押したときのみ動く。
+      iconLayouts: [],             // [{name, savedAt, icons:[{name,x,y}]}]
+      iconAutoRestore: '',         // 解像度変更で自動復元するスナップ名 ('' = オフ・既定)
     },
   };
 }
@@ -159,6 +163,7 @@ function load() {
       (parsed.settings || {}).scenes || {},
     );
     if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];
+    if (!Array.isArray(cfg.settings.iconLayouts)) cfg.settings.iconLayouts = [];
     cfg.settings.hotkeys = Object.assign(
       { enabled: false, overlay: 'Ctrl+Alt+A', toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
       (parsed.settings || {}).hotkeys || {},

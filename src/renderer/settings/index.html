@@ -377,6 +377,25 @@
           <p class="foot-note" id="scn-status"></p>
         </div>
 
+        <h2 data-i18n="ic.title">デスクトップアイコンの配置</h2>
+        <div class="group">
+          <p class="foot-note" data-i18n="ic.note">アイコンの並びを保存しておき、解像度の変更やモニタの抜き差しで散らかったときに元へ戻せます。保存は<b>読み取るだけ</b>で、配置を変更するのは「復元」を押したときだけ。復元の直前には今の並びを「復元前 (自動)」として退避するので、戻しすぎても元に戻せます。</p>
+          <div class="row">
+            <label><span id="ic-count" class="dim"></span></label>
+            <div class="ctl gf-ctl">
+              <input type="text" id="ic-name" placeholder="例: 通常 / ゲーム後">
+              <button class="btn" id="ic-save"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="ic.save">今の配置を保存</span></button>
+            </div>
+          </div>
+          <div id="ic-list"></div>
+          <div class="row">
+            <label data-i18n="ic.auto">解像度が変わったら自動で戻す</label>
+            <div class="ctl"><select id="ic-auto" style="min-width:220px"></select></div>
+          </div>
+          <p class="foot-note" data-i18n="ic.autoNote">既定はオフです。オンにすると、モニタ構成が変わったときに選んだ配置へ自動で戻します (このときも直前に自動退避します)。</p>
+          <p class="foot-note" id="ic-status"></p>
+        </div>
+
         <h2>天気</h2>
         <div class="group">
           <div class="row">
