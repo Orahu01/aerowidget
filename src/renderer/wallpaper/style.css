@@ -527,3 +527,39 @@ body.edit .widget.dragging {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- 呼び出せるダッシュボード (オーバーレイ) ---- */
+/* 壁紙レンダラを使い回すので、暗幕とヒントだけを足す。
+   背後のウィンドウをキャプチャしないので軽く、透過の相性問題も踏まない。 */
+#scrim {
+  position: fixed; inset: 0; z-index: 1;
+  background: #05070c;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease-out;
+}
+#overlay-hint { display: none; }
+
+body.overlay #scrim { opacity: var(--scrim, .55); }
+body.overlay #widgets { z-index: 2; }
+body.overlay #overlay-hint {
+  display: flex; align-items: center; gap: 8px;
+  position: fixed; right: 22px; bottom: 18px; z-index: 3;
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', sans-serif;
+  font-size: 12.5px; letter-spacing: .04em;
+  color: rgba(255, 255, 255, .45);
+  opacity: 0; animation: hint-in .25s .35s ease-out forwards;
+}
+#overlay-hint kbd {
+  font-family: Consolas, monospace; font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, .22); border-radius: 4px;
+  padding: 1.5px 6px; color: rgba(255, 255, 255, .6);
+}
+@keyframes hint-in { to { opacity: 1; } }
+
+/* 呼び出したときに、ふっと浮かび上がる */
+body.overlay #widgets { animation: overlay-in .18s ease-out; }
+@keyframes overlay-in {
+  from { opacity: 0; transform: scale(.985); }
+  to   { opacity: 1; transform: none; }
+}

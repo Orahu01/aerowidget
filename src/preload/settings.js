@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('api', {
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.send('update:install'),
   downloadUpdate: () => ipcRenderer.send('update:download'),
+  failedHotkeys: () => ipcRenderer.invoke('hotkeys:failed'),
   listBackups: () => ipcRenderer.invoke('backup:list'),
   restoreBackup: (file) => ipcRenderer.invoke('backup:restore', file),
   removeBackup: (file) => ipcRenderer.invoke('backup:remove', file),

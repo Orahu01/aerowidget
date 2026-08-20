@@ -247,11 +247,38 @@
               <label class="switch"><input type="checkbox" id="hk-on"><span class="knob"></span></label>
             </div>
           </div>
+          <div class="row"><label data-i18n="gen.hkOverlay">ダッシュボードを呼び出す</label><div class="ctl"><input type="text" id="hk-overlay" style="width:150px"></div></div>
           <div class="row"><label data-i18n="gen.hkWidgets">ウィジェットの表示切替</label><div class="ctl"><input type="text" id="hk-toggleWidgets" style="width:150px"></div></div>
           <div class="row"><label data-i18n="gen.hkIcons">アイコンの表示切替</label><div class="ctl"><input type="text" id="hk-toggleIcons" style="width:150px"></div></div>
           <div class="row"><label data-i18n="gen.hkLayout">レイアウト切替 (次へ)</label><div class="ctl"><input type="text" id="hk-nextLayout" style="width:150px"></div></div>
           <div class="row"><label data-i18n="gen.hkPomo">ポモドーロ開始 / 停止</label><div class="ctl"><input type="text" id="hk-pomoToggle" style="width:150px"></div></div>
+          <p class="foot-note" id="hk-failed-note" style="display:none;color:#ff8b8b"></p>
           <p class="foot-note" data-i18n="gen.hkNote">例: Ctrl+Alt+W ・ Ctrl+Shift+F1 など。他のアプリと重複するキーは登録できません。</p>
+        </div>
+
+        <h2 data-i18n="gen.dashboard">呼び出せるダッシュボード</h2>
+        <div class="group">
+          <p class="foot-note" data-i18n="gen.dashboardNote">ホットキーを押すと、いまの配置がそのまま最前面に浮かび上がります。作業中でウィンドウに隠れていても、ひと目で確認できます。もう一度押すか Esc、または余白のクリックで閉じます。</p>
+          <div class="row">
+            <label data-i18n="gen.dashDim">背景の暗さ</label>
+            <div class="ctl">
+              <input type="range" id="ov-dim" min="0" max="95" step="5">
+              <span class="val" id="ov-dim-val"></span>
+            </div>
+          </div>
+          <div class="row">
+            <label data-i18n="gen.dashIcons">表示中はデスクトップアイコンを隠す</label>
+            <div class="ctl"><label class="switch"><input type="checkbox" id="ov-icons"><span class="knob"></span></label></div>
+          </div>
+          <div class="row">
+            <label data-i18n="gen.dashAll">すべてのモニタに出す</label>
+            <div class="ctl"><label class="switch"><input type="checkbox" id="ov-all"><span class="knob"></span></label></div>
+          </div>
+          <p class="foot-note" data-i18n="gen.dashAllNote">OFF のときは、マウスカーソルのあるモニタにだけ表示します。</p>
+          <div class="row">
+            <label data-i18n="gen.dashBlur">他をクリックしたら閉じる</label>
+            <div class="ctl"><label class="switch"><input type="checkbox" id="ov-blur"><span class="knob"></span></label></div>
+          </div>
         </div>
 
         <h2 data-i18n="gen.power">起動と電力</h2>

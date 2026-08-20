@@ -4,6 +4,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('wall', {
+  closeOverlay: () => ipcRenderer.send('overlay:close'),
   requestState: () => ipcRenderer.invoke('state:request'),
   getFontsCss: () => ipcRenderer.invoke('fonts:css'),
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),

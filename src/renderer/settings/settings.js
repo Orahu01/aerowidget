@@ -60,6 +60,18 @@ const JA_EN = {
   'まだバックアップはありません。次にバージョンが変わったときに作られます。':
     'No backups yet. One will be made the next time the version changes.',
   '復元': 'Restore', '削除': 'Delete',
+  '赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。':
+    'The keys marked in red could not be registered because another app already uses them. Please choose different keys.',
+  // v5.3 呼び出せるダッシュボード
+  '呼び出せるダッシュボード': 'Summonable dashboard',
+  'ダッシュボードを呼び出す': 'Summon the dashboard',
+  'ホットキーを押すと、いまの配置がそのまま最前面に浮かび上がります。作業中でウィンドウに隠れていても、ひと目で確認できます。もう一度押すか Esc、または余白のクリックで閉じます。':
+    'Press the hotkey and your current layout rises to the front, exactly as arranged. You can check it at a glance even while windows cover the desktop. Press again, hit Esc, or click empty space to dismiss.',
+  '背景の暗さ': 'Backdrop dimming',
+  '表示中はデスクトップアイコンを隠す': 'Hide desktop icons while shown',
+  'すべてのモニタに出す': 'Show on every monitor',
+  'OFF のときは、マウスカーソルのあるモニタにだけ表示します。': 'When off, it appears only on the monitor under the pointer.',
+  '他をクリックしたら閉じる': 'Dismiss when it loses focus',
   '先行版': 'Prerelease', 'があります': 'is available',
   '開発版のため不具合が残っている場合があります': 'a development build, bugs may remain',
   '先行版を受け取る': 'Receive prereleases',
@@ -1639,11 +1651,41 @@ async function renderGeneral() {
   const hk = cfg.settings.hotkeys || {};
   $('#hk-on').checked = !!hk.enabled;
   $('#hk-on').onchange = (e) => pushHotkeys({ enabled: e.target.checked });
-  for (const name of ['toggleWidgets', 'toggleIcons', 'nextLayout', 'pomoToggle']) {
+  for (const name of ['overlay', 'toggleWidgets', 'toggleIcons', 'nextLayout', 'pomoToggle']) {
     const inp = $('#hk-' + name);
     if (document.activeElement !== inp) inp.value = hk[name] || '';
-    inp.onchange = () => pushHotkeys({ [name]: inp.value.trim() });
+    inp.onchange = async () => {
+      pushHotkeys({ [name]: inp.value.trim() });
+      // 登録は main 側で行われるので、少し待ってから結果を見る
+      setTimeout(markFailedHotkeys, 250);
+    };
   }
+  markFailedHotkeys();
+
+  // 呼び出せるダッシュボード
+  const ov = cfg.settings.overlay || {};
+  const pushOverlay = (patch) => {
+    touch();
+    cfg.settings.overlay = Object.assign(
+      { dim: 55, hideIcons: true, allDisplays: false, closeOnBlur: true },
+      cfg.settings.overlay || {}, patch,
+    );
+    window.api.setSettings({ overlay: cfg.settings.overlay });
+  };
+  const ovDim = $('#ov-dim');
+  ovDim.value = String(ov.dim != null ? ov.dim : 55);
+  $('#ov-dim-val').textContent = ovDim.value + '%';
+  ovDim.oninput = () => { $('#ov-dim-val').textContent = ovDim.value + '%'; };
+  ovDim.onchange = () => pushOverlay({ dim: +ovDim.value });
+  const ovIcons = $('#ov-icons');
+  ovIcons.checked = ov.hideIcons !== false;
+  ovIcons.onchange = () => pushOverlay({ hideIcons: ovIcons.checked });
+  const ovAll = $('#ov-all');
+  ovAll.checked = !!ov.allDisplays;
+  ovAll.onchange = () => pushOverlay({ allDisplays: ovAll.checked });
+  const ovBlur = $('#ov-blur');
+  ovBlur.checked = ov.closeOnBlur !== false;
+  ovBlur.onchange = () => pushOverlay({ closeOnBlur: ovBlur.checked });
 
   renderSchedule();
   renderLayouts();
@@ -1663,10 +1705,27 @@ async function renderGeneral() {
   $('#version').textContent = 'v' + await window.api.getVersion();
 }
 
+// 他のアプリに取られているキーは、黙って効かないままだと理由が分からない。
+// 入力欄を赤くして、その場で伝える。
+async function markFailedHotkeys() {
+  let failed = [];
+  try { failed = await window.api.failedHotkeys(); } catch (_) { return; }
+  const note = $('#hk-failed-note');
+  for (const name of ['overlay', 'toggleWidgets', 'toggleIcons', 'nextLayout', 'pomoToggle']) {
+    const inp = $('#hk-' + name);
+    if (!inp) continue;
+    inp.classList.toggle('bad', failed.includes(name));
+  }
+  if (note) {
+    note.style.display = failed.length ? '' : 'none';
+    note.textContent = T('赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。');
+  }
+}
+
 function pushHotkeys(patch) {
   touch();
   const hk = Object.assign(
-    { enabled: false, toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
+    { enabled: false, overlay: 'Ctrl+Alt+A', toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
     cfg.settings.hotkeys || {},
     patch,
   );

@@ -47,6 +47,7 @@ const RENDERER = (n) => path.join(__dirname, '..', 'renderer', n);
 let displayPairs = [];                 // [{index, display, native}]
 const wallWins = new Map();            // displayIndex -> BrowserWindow
 const folderWins = new Map();          // widgetId -> BrowserWindow (フォルダ/メモ/タイマーの対話ウィジェット)
+const overlayWins = new Map();         // モニタ index -> BrowserWindow (呼び出せるダッシュボード)
 let settingsWin = null;
 let tray = null;
 let editMode = false;
@@ -75,7 +76,8 @@ function getHwnd(win) {
 }
 
 function allWindows() {
-  return [...wallWins.values(), ...folderWins.values(), settingsWin].filter(w => w && !w.isDestroyed());
+  return [...wallWins.values(), ...overlayWins.values(), ...folderWins.values(), settingsWin]
+    .filter(w => w && !w.isDestroyed());
 }
 
 function broadcast(channel, payload) {
@@ -123,6 +125,105 @@ function interDims(w) {
 }
 
 // ---------------------------------------------------------------- 壁紙ウィンドウ (モニタごと)
+// ---- 呼び出せるダッシュボード (オーバーレイ) ----
+//
+// 壁紙は作業中どうしても隠れてしまうので、同じ配置を最前面に呼び出せるようにする。
+// 背後をキャプチャしてぼかすのではなく、壁紙レンダラーをそのまま読み込んで
+// 暗幕を重ねる。実装が軽く、Windows の透過ウィンドウの相性問題も踏まない。
+
+function overlayVisible() {
+  for (const w of overlayWins.values()) if (w && !w.isDestroyed()) return true;
+  return false;
+}
+
+function createOverlayWindow(pair) {
+  const b = pair.display.bounds;
+  const win = new BrowserWindow({
+    x: b.x, y: b.y, width: b.width, height: b.height,
+    frame: false, resizable: false, movable: false,
+    minimizable: false, maximizable: false, fullscreenable: false,
+    skipTaskbar: true, show: false, hasShadow: false,
+    roundedCorners: false, thickFrame: false,
+    backgroundColor: '#000000',
+    icon: path.join(ASSETS, 'icon.png'),
+    webPreferences: {
+      preload: PRELOAD('wallpaper.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  overlayWins.set(pair.index, win);
+
+  // ゲームのフルスクリーンより上に出したいので screen-saver 相当に置く
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setVisibleOnAllWorkspaces(true);
+
+  win.loadFile(RENDERER(path.join('wallpaper', 'index.html')),
+    { query: { display: String(pair.index), overlay: '1' } });
+
+  win.once('ready-to-show', () => {
+    if (win.isDestroyed()) return;
+    // 混在 DPI で作成時サイズがずれることがあるため、出す直前に貼り直す
+    win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+    win.show();
+    win.focus();
+    if (process.env.WW_DEBUG) console.log('[overlay] shown display=' + pair.index, JSON.stringify(win.getBounds()));
+  });
+  win.on('closed', () => { if (process.env.WW_DEBUG) console.log('[overlay] closed display=' + pair.index); });
+
+  // カーソルのあるモニタが前面でないと、Windows のフォアグラウンド制限で
+  // focus() が通らず、開いた直後に blur が飛んでくる。そのまま閉じると
+  // 「別モニタでは一瞬で消える」ことになるので、一度でも焦点を得るまで待つ。
+  let everFocused = false;
+  win.on('focus', () => { everFocused = true; });
+  win.on('blur', () => {
+    const on = (config.get().settings.overlay || {}).closeOnBlur !== false;
+    if (process.env.WW_DEBUG) console.log('[overlay] blur closeOnBlur=' + on + ' everFocused=' + everFocused);
+    if (on && everFocused) hideOverlay();
+  });
+
+  win.webContents.on('render-process-gone', () => hideOverlay());
+  return win;
+}
+
+function showOverlay() {
+  if (overlayVisible()) return;
+  const pairs = displayPairs.length ? displayPairs : monitors.pair(screen);
+  if (!pairs.length) return;
+
+  const o = config.get().settings.overlay || {};
+  let targets = pairs;
+  if (!o.allDisplays) {
+    const pt = screen.getCursorScreenPoint();
+    const d = screen.getDisplayNearestPoint(pt);
+    const hit = pairs.find(p => p.display.id === d.id);
+    targets = hit ? [hit] : [pairs[0]];
+  }
+
+  if (process.env.WW_DEBUG) console.log('[overlay] show targets=' + targets.map(t => t.index).join(','));
+  if (o.hideIcons !== false) attach.setDesktopIconsVisible(false);
+  for (const pair of targets) createOverlayWindow(pair);
+}
+
+function hideOverlay() {
+  if (!overlayWins.size) return;
+  if (process.env.WW_DEBUG) console.log('[overlay] hide');
+  for (const [i, win] of [...overlayWins]) {
+    overlayWins.delete(i);
+    try { if (!win.isDestroyed()) win.destroy(); } catch (_) { /* 破棄済み */ }
+  }
+  // アイコンは「普段の設定」に戻す (編集モードの一時切替と同じ考え方)
+  if (!editMode) {
+    const show = config.get().settings.showDesktopIcons !== false;
+    attach.setDesktopIconsVisible(show);
+  }
+}
+
+function toggleOverlay() {
+  if (overlayVisible()) hideOverlay(); else showOverlay();
+}
+
 function createWallWindow(pair) {
   const b = pair.display.bounds;
   const win = new BrowserWindow({
@@ -861,6 +962,7 @@ function onReady() {
 
   // ホットキーのアクションを配線 (登録自体は syncServices が設定に従って行う)
   hotkeys.setActions({
+    overlay: () => toggleOverlay(),
     toggleWidgets: () => toggleWidgetsVisible(),
     toggleIcons: () => config.update(c => { c.settings.showDesktopIcons = !(c.settings.showDesktopIcons !== false); }),
     nextLayout: () => cycleLayout(),
@@ -936,6 +1038,9 @@ function onReady() {
   if (process.env.WW_TEST_EDIT) {
     setTimeout(() => enterEditMode(), 4000);
     setTimeout(() => exitEditMode(), 7500);
+  }
+  if (process.env.WW_TEST_OVERLAY) {
+    setTimeout(() => toggleOverlay(), 3500);
   }
   if (process.env.WW_TEST_THEME) {
     setTimeout(() => applyTheme(process.env.WW_TEST_THEME), 4000);
@@ -1417,6 +1522,12 @@ ipcMain.handle('update:get', () => updater.getStatus());
 ipcMain.handle('update:check', () => updater.check());
 ipcMain.on('update:install', () => updater.installNow());
 ipcMain.on('update:download', () => updater.download());
+
+// オーバーレイ: Esc / 余白クリックで閉じる
+ipcMain.on('overlay:close', () => hideOverlay());
+
+// 他のアプリと衝突して登録できなかったホットキー
+ipcMain.handle('hotkeys:failed', () => hotkeys.failed());
 
 ipcMain.handle('app:uninstall', async () => {
   if (!app.isPackaged) return { ok: false, msg: '開発モードでは使えません' };

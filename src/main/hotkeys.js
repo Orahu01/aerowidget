@@ -6,6 +6,7 @@ const { globalShortcut } = require('electron');
 // name -> コールバック。main.js が登録する
 let actions = {};
 let lastKey = '';
+let lastResults = {};   // name -> 登録できたか
 
 function setActions(map) {
   actions = map || {};
@@ -19,9 +20,10 @@ function sync(hotkeys) {
   lastKey = key;
 
   globalShortcut.unregisterAll();
+  lastResults = {};
   if (!hk.enabled) return;
 
-  const results = {};
+  const results = lastResults;
   for (const [name, accel] of Object.entries(hk)) {
     if (name === 'enabled' || !accel || !actions[name]) continue;
     try {
@@ -30,6 +32,10 @@ function sync(hotkeys) {
       results[name] = false;
     }
   }
+  if (process.env.WW_DEBUG) {
+    const failed = Object.entries(results).filter(([, ok]) => !ok).map(([n]) => n);
+    console.log('[hotkeys] registered=', Object.keys(results).join(','), failed.length ? ' FAILED=' + failed.join(',') : '');
+  }
   return results;
 }
 
@@ -37,4 +43,9 @@ function dispose() {
   try { globalShortcut.unregisterAll(); } catch (_) {}
 }
 
-module.exports = { setActions, sync, dispose };
+// 他のアプリに取られていたキー。設定画面で理由を出すために使う
+function failed() {
+  return Object.entries(lastResults).filter(([, ok]) => !ok).map(([name]) => name);
+}
+
+module.exports = { setActions, sync, dispose, failed };

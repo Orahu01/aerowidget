@@ -53,10 +53,19 @@ function defaults() {
       allowPrerelease: false,      // 先行版 (奇数マイナー) を受け取るか
       hotkeys: {
         enabled: false,
+        overlay: 'Ctrl+Alt+A',   // 呼び出せるダッシュボード
         toggleWidgets: 'Ctrl+Alt+W',
         toggleIcons: 'Ctrl+Alt+D',
         nextLayout: 'Ctrl+Alt+L',
         pomoToggle: 'Ctrl+Alt+P',
+      },
+      // 呼び出せるダッシュボード。壁紙は作業中は見えないので、
+      // 同じ配置を最前面に呼び出せるようにする。
+      overlay: {
+        dim: 55,             // 壁紙をどれだけ暗くするか (%)
+        hideIcons: true,     // 表示中はデスクトップアイコンを隠す
+        allDisplays: false,  // false = カーソルのあるモニタだけ
+        closeOnBlur: true,   // 他をクリックしたら閉じる
       },
       schedule: {                  // 時間帯・曜日による壁紙の自動切替
         enabled: false,
@@ -132,8 +141,12 @@ function load() {
     );
     if (!Array.isArray(cfg.settings.layouts)) cfg.settings.layouts = [];
     cfg.settings.hotkeys = Object.assign(
-      { enabled: false, toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
+      { enabled: false, overlay: 'Ctrl+Alt+A', toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
       (parsed.settings || {}).hotkeys || {},
+    );
+    cfg.settings.overlay = Object.assign(
+      { dim: 55, hideIcons: true, allDisplays: false, closeOnBlur: true },
+      (parsed.settings || {}).overlay || {},
     );
     if (!Array.isArray(cfg.widgets)) cfg.widgets = d.widgets;
     for (const w of cfg.widgets) {

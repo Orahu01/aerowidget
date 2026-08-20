@@ -2,6 +2,9 @@
 'use strict';
 
 const DISPLAY = Number(new URLSearchParams(location.search).get('display') || 0);
+// 同じレンダラを「壁紙」と「呼び出せるダッシュボード」の両方で使う。
+// 違いは暗幕・閉じる操作・編集不可の 3 点だけ。
+const OVERLAY = new URLSearchParams(location.search).get('overlay') === '1';
 
 const PRESETS = {
   aurora: `radial-gradient(45% 60% at 18% 82%, rgba(56,110,240,.55), transparent 65%),
@@ -1285,6 +1288,11 @@ function applyEnv(env) {
   systemWallpaper = env.systemWallpaper || '';
   onlineWallpaper = env.onlineWallpaper || null;
   if (env.osLocale) osLocale = env.osLocale;
+  if (OVERLAY) {
+    const dim = Number(((config.settings || {}).overlay || {}).dim);
+    document.documentElement.style.setProperty('--scrim',
+      String(Math.max(0, Math.min(95, Number.isFinite(dim) ? dim : 55)) / 100));
+  }
   renderAll();
 }
 
@@ -1348,7 +1356,21 @@ window.wall.onTicker((d) => {
   tick(['ticker']);
 });
 window.wall.onFontsChanged(() => injectFonts());
+if (OVERLAY) {
+  document.body.classList.add('overlay');
+
+  const close = () => window.wall.closeOverlay();
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+  // ウィジェットそのものではなく、余白を押したときだけ閉じる
+  window.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.widget')) close();
+  });
+}
+
 window.wall.onEditMode((v) => {
+  if (OVERLAY) return;   // ダッシュボードは配置編集の対象外
   editing = v;
   document.body.classList.toggle('edit', v);
   if (!v) {
