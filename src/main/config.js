@@ -1,4 +1,4 @@
-// 設定の読み書き (%APPDATA%/widgetwall/config.json)  — スキーマ v2 (マルチモニタ対応)
+// 設定の読み書き (%APPDATA%/aerowidget/config.json)  — スキーマ v2 (マルチモニタ対応)
 'use strict';
 
 const { app } = require('electron');

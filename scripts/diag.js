@@ -1,4 +1,4 @@
-// 診断: WidgetWall ウィンドウの現在の親子関係・位置・可視性を出力する
+// 診断: AeroWidget ウィンドウの現在の親子関係・位置・可視性を出力する
 'use strict';
 
 const koffi = require('koffi');
@@ -63,10 +63,10 @@ const cb2 = koffi.register((h, _l) => {
 EnumWindows(cb2, 0);
 koffi.unregister(cb2);
 
-console.log('--- WidgetWall windows (any depth from desktop) ---');
+console.log('--- AeroWidget windows (any depth from desktop) ---');
 const cb3 = koffi.register((h, _l) => {
   const t = title(num(h));
-  if (t.includes('WidgetWall')) {
+  if (t.includes('AeroWidget')) {
     info(num(h), 'WW');
     console.log('   parent:', num(GetParent(num(h))));
   }

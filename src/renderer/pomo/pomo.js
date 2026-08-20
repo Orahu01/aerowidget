@@ -2,6 +2,9 @@
 // タイマーは動作中のみ 1 秒 tick (停止中はタイマーなし = 省電力)。
 'use strict';
 
+// アプリ名は main から envelope で届く。届く前の保険として既定値を置く
+let BRAND = 'AeroWidget';
+
 let widget = null;
 let phase = 'work';       // 'work' | 'break'
 let remaining = 25 * 60;  // 秒
@@ -58,7 +61,7 @@ function applyStyle() {
 
 function notifyPhase(next) {
   try {
-    new Notification('WidgetWall', {
+    new Notification(BRAND, {
       body: next === 'break' ? (en() ? 'Nice work. Time for a break ☕' : '作業おつかれさま。休憩しましょう ☕') : (en() ? 'Break is over. Back to work' : '休憩おわり。作業に戻りましょう'),
       silent: false,
     });
@@ -107,6 +110,7 @@ window.fw.onPomoToggle(() => setRunning(!running));
 window.fw.onWidget((w) => { widget = w; applyStyle(); });
 window.fw.onConfig((env) => {
   if (env.osLocale) osLocale = env.osLocale;
+  if (env.brand) BRAND = env.brand;
   const w = (env.config.widgets || []).find(x => x.id === window.fw.id);
   if (w) { widget = w; widget._lang = (env.config.settings || {}).language || 'auto'; applyStyle(); render(); }
 });

@@ -1,5 +1,6 @@
 // Open-Meteo (APIキー不要) から天気を取得する。
 // 座標ごとにキャッシュし、現在の天気ウィジェットと予報ウィジェットの両方に使う。
+const brand = require('../shared/brand');
 'use strict';
 
 const { EventEmitter } = require('events');
@@ -34,7 +35,7 @@ async function fetchJson(url, timeoutMs = 12000) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'WidgetWall/5.0' } });
+    const res = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': brand.UA } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
   } finally {

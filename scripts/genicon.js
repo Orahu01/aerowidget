@@ -1,5 +1,13 @@
 // アプリアイコン生成 (依存ライブラリなし)
 // assets/icon.png (256), assets/icon.ico (16-256), assets/tray.png (32) を出力する
+//
+// 図案は AeroWidget の AW モノグラム。三角の A と逆三角の W を並べたもので、
+// 三角形そのものが翼 (aero) にも読めるようにしてある。512 座標系で定義し、
+// 各サイズへ縮小して描く。
+//
+// 小さいサイズでは線幅を素直に縮小すると消えてしまうので、サイズごとに
+// 太らせている (16px で 1px を切らないこと)。ここを自動でやりたいがために
+// 画像を読み込まず 1 ピクセルずつ描いている。
 'use strict';
 
 const fs = require('fs');
@@ -67,53 +75,82 @@ function sdSegment(x, y, ax, ay, bx, by) {
   return Math.hypot(pax - bax * t, pay - bay * t);
 }
 
+// ---------------------------------------------------------------- 図案 (512 座標系)
+// A: 三角形 / W: 上辺のある W。どちらも閉じた折れ線
+const MARK_A = [[104, 344], [176, 176], [248, 344]];
+const MARK_W = [[272, 176], [408, 176], [368, 344], [340, 254], [312, 344]];
+
+// 512 空間での線幅。小さいほど太らせないと線が飛ぶ
+function strokeFor(S) {
+  if (S <= 16) return 58;
+  if (S <= 24) return 48;
+  if (S <= 32) return 42;
+  if (S <= 48) return 38;
+  return 34;
+}
+
+// 閉じた折れ線までの距離 (最短)。丸い継ぎ目は距離場の性質で自然に出る
+function sdPolyline(x, y, pts, k) {
+  let d = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    d = Math.min(d, sdSegment(x, y, a[0] * k, a[1] * k, b[0] * k, b[1] * k));
+  }
+  return d;
+}
+
+// SVG の linearGradient は既定で「そのパスのバウンディングボックス」基準。
+// キャンバス全体を基準にすると中間色しか拾えず、色がくすむ。
+function bbox(pts) {
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+
+// x1,y1=0,0 -> x2,y2=1,1 の対角グラデーションでの位置 (0..1)
+function gradT(px, py, box, k) {
+  const u = (px - box.x * k) / (box.w * k);
+  const v = (py - box.y * k) / (box.h * k);
+  return clamp((u + v) / 2, 0, 1);
+}
+
+function mix(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+const A_FROM = [49, 192, 122], A_TO = [47, 136, 224];    // #31c07a -> #2f88e0
+const W_FROM = [49, 192, 122], W_TO = [255, 154, 60];    // #31c07a -> #ff9a3c
+const BOX_A = bbox(MARK_A), BOX_W = bbox(MARK_W);
+
 function render(S) {
   const img = Buffer.alloc(S * S * 4);
   const c = S / 2;
-  const half = S * 0.47;             // 角丸四角の半径
-  const rad = S * 0.235;             // 角丸
-  const ringR = S * 0.27;            // 時計リング半径
-  const ringW = Math.max(1.2, S * 0.055);
-  const handW = Math.max(1.0, S * 0.048);
-
-  // 針: 10時10分 (見栄えの良い定番角度)
-  const a1 = (-150 * Math.PI) / 180; // 時針 (10時方向)
-  const a2 = (-30 * Math.PI) / 180;  // 分針 (2時方向)
-  const h1 = { x: c + Math.cos(a1) * ringR * 0.52, y: c + Math.sin(a1) * ringR * 0.52 };
-  const h2 = { x: c + Math.cos(a2) * ringR * 0.72, y: c + Math.sin(a2) * ringR * 0.72 };
+  const half = S * 0.5;              // 角丸四角は全面 (余白は図案側で確保済み)
+  const rad = S * 0.1875;            // 角丸 (512 空間で 96)
+  const k = S / 512;                 // 512 座標系 -> 実サイズ
+  const sw = (strokeFor(S) * k) / 2; // 線の半幅
 
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const i = (y * S + x) * 4;
       const px = x + 0.5, py = y + 0.5;
 
-      const dBg = sdRoundRect(px, py, c, c, half, half, rad);
-      const aBg = cov(dBg);
+      const aBg = cov(sdRoundRect(px, py, c, c, half, half, rad));
       if (aBg <= 0) continue;
 
-      // チャコールの微グラデーション (#26292f → #17181c)
-      const t = clamp((px + py) / (2 * S), 0, 1);
-      let r = 38 + (23 - 38) * t;
-      let g = 41 + (24 - 41) * t;
-      let b = 47 + (28 - 47) * t;
-      // 左上をほんのり明るく
-      const hl = clamp(1 - Math.hypot(px - S * 0.3, py - S * 0.25) / (S * 0.75), 0, 1);
-      r += 14 * hl; g += 14 * hl; b += 16 * hl;
+      // 白地。ほんのり上を明るくして、真っ白のべた面に見えないようにする
+      const tv = clamp(py / S, 0, 1);
+      let col = [255, 255, 255];
+      col = mix(col, [244, 245, 247], tv * 0.55);
 
-      // ゴールドの時計マーク (#e3a94f)
-      const dRing = Math.abs(Math.hypot(px - c, py - c) - ringR) - ringW / 2;
-      const dH1 = sdSegment(px, py, c, c, h1.x, h1.y) - handW / 2;
-      const dH2 = sdSegment(px, py, c, c, h2.x, h2.y) - handW / 2;
-      const dDot = Math.hypot(px - c, py - c) - handW * 0.9;
-      const aw = Math.max(cov(dRing), cov(dH1), cov(dH2), cov(dDot));
+      const aA = cov(sdPolyline(px, py, MARK_A, k) - sw);
+      const aW = cov(sdPolyline(px, py, MARK_W, k) - sw);
 
-      r = r + (227 - r) * aw;
-      g = g + (169 - g) * aw;
-      b = b + (79 - b) * aw;
+      if (aA > 0) col = mix(col, mix(A_FROM, A_TO, gradT(px, py, BOX_A, k)), aA);
+      if (aW > 0) col = mix(col, mix(W_FROM, W_TO, gradT(px, py, BOX_W, k)), aW);
 
-      img[i] = Math.round(clamp(r, 0, 255));
-      img[i + 1] = Math.round(clamp(g, 0, 255));
-      img[i + 2] = Math.round(clamp(b, 0, 255));
+      img[i] = Math.round(clamp(col[0], 0, 255));
+      img[i + 1] = Math.round(clamp(col[1], 0, 255));
+      img[i + 2] = Math.round(clamp(col[2], 0, 255));
       img[i + 3] = Math.round(255 * aBg);
     }
   }

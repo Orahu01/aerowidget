@@ -1,4 +1,4 @@
-# WidgetWall
+# AeroWidget
 
 デスクトップアイコンの**背面**に表示される、ウィジェット付きライブ壁紙アプリ (Windows 10 / 11)。
 Wallpaper Engine と同じ WorkerW 方式で、時計・日付・天気・ハードウェアモニタなどを
@@ -16,8 +16,8 @@ Wallpaper Engine と同じ WorkerW 方式で、時計・日付・天気・ハー
 
 | ファイル | こんな人向け |
 |---|---|
-| **WidgetWall-Setup-x.x.x.exe** | はじめての方 (ワンクリックインストール、自動でデスクトップにショートカット作成) |
-| **WidgetWall-Portable-x.x.x.exe** | インストール不要でそのまま使いたい方 |
+| **AeroWidget-Setup-x.x.x.exe** | はじめての方 (ワンクリックインストール、自動でデスクトップにショートカット作成) |
+| **AeroWidget-Portable-x.x.x.exe** | インストール不要でそのまま使いたい方 |
 
 ダウンロードして実行するだけで使えます。ビルドやコマンド入力は不要です。
 初回起動時に SmartScreen の警告が出た場合は「詳細情報」→「実行」を選んでください
@@ -94,7 +94,7 @@ Wallpaper Engine と同じ WorkerW 方式で、時計・日付・天気・ハー
 
 ## 使い方
 
-1. `WidgetWall-Setup-*.exe` (インストーラ) か `WidgetWall-Portable-*.exe` (単体 exe) を実行
+1. `AeroWidget-Setup-*.exe` (インストーラ) か `AeroWidget-Portable-*.exe` (単体 exe) を実行
 2. 設定画面で壁紙とウィジェットを設定
 3. 「レイアウトを編集」→ デスクトップ上でドラッグ → 保存して完了
 4. ✕ で閉じてもトレイに常駐して壁紙は表示され続けます

@@ -2,6 +2,7 @@
 //  - bing:   Bing の「今日の画像」
 //  - picsum: Lorem Picsum のランダム写真
 // ダウンロードして userData に保存し、ローカル画像として表示する。
+const brand = require('../shared/brand');
 'use strict';
 
 const { app } = require('electron');
@@ -25,7 +26,7 @@ async function fetchBuf(url, timeoutMs = 30000) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'Mozilla/5.0 WidgetWall/5.0' }, redirect: 'follow' });
+    const res = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': `Mozilla/5.0 ${brand.UA}` }, redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return Buffer.from(await res.arrayBuffer());
   } finally {

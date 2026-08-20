@@ -23,7 +23,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: WidgetWall のバージョン / Version
+      label: AeroWidget のバージョン / Version
       description: 設定 → 一般 → バージョン に表示されています
       placeholder: v5.0.0
     validations:
@@ -57,6 +57,6 @@ body:
     id: extra
     attributes:
       label: その他 / Anything else
-      description: スクリーンショットや、%APPDATA%\widgetwall\config.json の関係部分など (個人情報は伏せて OK)
+      description: スクリーンショットや、%APPDATA%\aerowidget\config.json の関係部分など (個人情報は伏せて OK)
     validations:
       required: false

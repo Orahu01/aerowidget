@@ -1,5 +1,6 @@
 // RSS ヘッドラインと 株価/為替 (Yahoo Finance chart API) の取得。
 // どちらもウィジェットが存在するときだけ heartbeat で定期更新する。
+const brand = require('../shared/brand');
 'use strict';
 
 const { EventEmitter } = require('events');
@@ -19,7 +20,7 @@ async function fetchText(url, timeoutMs = 15000) {
   try {
     const res = await fetch(url, {
       signal: ac.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 WidgetWall/4.0', 'Accept': '*/*' },
+      headers: { 'User-Agent': `Mozilla/5.0 ${brand.UA}`, 'Accept': '*/*' },
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.text();

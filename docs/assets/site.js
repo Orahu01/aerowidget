@@ -1,4 +1,4 @@
-// WidgetWall — site behaviour
+// AeroWidget — site behaviour
 // 表紙の見本は実時間で動かす。アプリと同じものが出ているという説得力のため。
 
 (function () {

@@ -1,4 +1,4 @@
-// WidgetWall — 壁紙レンダラ (v2: マルチモニタ / 省電力 / ゾーン・ライン・フォルダ)
+// AeroWidget — 壁紙レンダラ (v2: マルチモニタ / 省電力 / ゾーン・ライン・フォルダ)
 'use strict';
 
 const DISPLAY = Number(new URLSearchParams(location.search).get('display') || 0);

@@ -1,6 +1,6 @@
 {
-  "name": "widgetwall",
-  "version": "5.3.0",
+  "name": "aerowidget",
+  "version": "5.4.0",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "PoohS",
@@ -11,8 +11,8 @@
     "dist": "electron-builder --win"
   },
   "build": {
-    "appId": "com.antigravity.widgetwall",
-    "productName": "WidgetWall",
+    "appId": "com.orahu01.aerowidget",
+    "productName": "AeroWidget",
     "compression": "maximum",
     "publish": [
       {
@@ -51,7 +51,7 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
-      "shortcutName": "WidgetWall"
+      "shortcutName": "AeroWidget"
     },
     "portable": {
       "artifactName": "${productName}-Portable-${version}.${ext}"

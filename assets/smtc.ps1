@@ -1,4 +1,4 @@
-# WidgetWall - SMTC (System Media Transport Controls) ブリッジ
+# AeroWidget - SMTC (System Media Transport Controls) ブリッジ
 # Windows の「再生中メディア」(Spotify / ブラウザの YouTube など) を 3 秒ごとに監視し、
 # 変化があったときだけ 1 行 JSON を stdout に出力する。
 # WinRT を使うため Windows PowerShell 5.1 (powershell.exe) で実行すること。

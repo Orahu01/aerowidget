@@ -72,7 +72,7 @@ jobs:
       - name: Verify build output
         shell: pwsh
         run: |
-          foreach ($required in @('WidgetWall-Setup-*.exe', 'WidgetWall-Portable-*.exe', 'latest.yml')) {
+          foreach ($required in @('AeroWidget-Setup-*.exe', 'AeroWidget-Portable-*.exe', 'latest.yml')) {
             if (-not (Get-ChildItem "dist\$required" -File -ErrorAction SilentlyContinue)) {
               Write-Host "::error::$required がビルドされていません"
               exit 1
@@ -91,9 +91,9 @@ jobs:
 
           $tag = '${{ github.ref_name }}'
           $patterns = @(
-            'WidgetWall-Setup-*.exe',
-            'WidgetWall-Setup-*.exe.blockmap',
-            'WidgetWall-Portable-*.exe',
+            'AeroWidget-Setup-*.exe',
+            'AeroWidget-Setup-*.exe.blockmap',
+            'AeroWidget-Portable-*.exe',
             'latest.yml'
           )
           $assets = $patterns |
@@ -126,10 +126,10 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
-          name: WidgetWall-windows
+          name: AeroWidget-windows
           path: |
-            dist/WidgetWall-Setup-*.exe
-            dist/WidgetWall-Portable-*.exe
+            dist/AeroWidget-Setup-*.exe
+            dist/AeroWidget-Portable-*.exe
             dist/latest.yml
           if-no-files-found: error
           retention-days: 14

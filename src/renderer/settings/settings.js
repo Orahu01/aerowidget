@@ -1,4 +1,4 @@
-// WidgetWall — 設定画面 (v3)
+// AeroWidget — 設定画面 (v3)
 'use strict';
 
 const PRESETS = {
@@ -147,7 +147,7 @@ const JA_EN = {
   '3件': '3', '5件': '5', '8件': '8', '12件': '12', '1件': '1', '2件': '2',
   'なし (リスト表示)': 'Off (list)', '10秒ごとに1件': 'Every 10s', '30秒ごとに1件': 'Every 30s', '60秒ごとに1件': 'Every 60s',
   '自動 (LHM があれば使う)': 'Auto (use LHM if running)', '内蔵 (CPU/MEM のみ)': 'Built-in (CPU/MEM only)',
-  'ようこそ WidgetWall へ': 'Welcome to WidgetWall',
+
   'まずは好みのテーマをひとつ選んでください。あとから何でも変えられます。': 'Pick a theme to start with. You can change everything later.',
   '自分でゼロから作る': 'Start from scratch',
   'ミニマル': 'Minimal', 'サイバー': 'Cyber', '和': 'Zen', '情報ダッシュボード': 'Dashboard', 'フォーカス': 'Focus', 'ミュージック': 'Music',
@@ -166,8 +166,18 @@ function T(s) {
   return JA_EN[s] || s;
 }
 
+// アプリ名は package.json 由来の 1 か所から流し込む (改名しても追従する)
+let BRAND = 'AeroWidget';
+function applyBrand() {
+  for (const el of document.querySelectorAll('[data-brand]')) el.textContent = BRAND;
+  for (const el of document.querySelectorAll('[data-brand-welcome]')) {
+    el.textContent = uiLang() === 'en' ? `Welcome to ${BRAND}` : `ようこそ ${BRAND} へ`;
+  }
+}
+
 // data-i18n の付いた静的 HTML を言語に合わせて差し替える
 function applyI18n() {
+  applyBrand();
   for (const el of document.querySelectorAll('[data-i18n]')) {
     if (el.dataset.i18nJa == null) el.dataset.i18nJa = el.textContent;
     el.textContent = uiLang() === 'en' ? (JA_EN[el.dataset.i18nJa] || el.dataset.i18nJa) : el.dataset.i18nJa;
@@ -2064,6 +2074,7 @@ window.api.onConfig((env) => {
   cfg = env.config;
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
+  if (env.brand) BRAND = env.brand;
   renderWallpaperTab();
   renderGeneral();
   if (Date.now() > suppressUntil) renderWidgetList();
@@ -2078,6 +2089,7 @@ window.api.onFontsChanged(() => injectFonts());
   cfg = env.config;
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
+  if (env.brand) BRAND = env.brand;
   displays = await window.api.listDisplays();
   try {
     const hw = await window.api.getHw();

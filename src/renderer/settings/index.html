@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
-  <title>WidgetWall 設定</title>
+  <title>AeroWidget 設定</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -65,7 +65,7 @@
   <!-- ================= タイトルバー ================= -->
   <header id="titlebar">
     <img class="brand-mark" src="../../../assets/icon.png" alt="">
-    <span class="brand">WidgetWall</span>
+    <span class="brand" data-brand></span>
     <div class="tb-spacer"></div>
     <button class="tb-btn" id="btn-min" title="最小化"><svg class="ic"><use href="#i-min"/></svg></button>
     <button class="tb-btn tb-close" id="btn-close" title="閉じる"><svg class="ic"><use href="#i-x"/></svg></button>
@@ -458,7 +458,7 @@
   <div id="wizard" style="display:none">
     <div id="wizard-card">
       <img class="wiz-logo" src="../../../assets/icon.png" alt="">
-      <h2 class="wiz-title" data-i18n="wiz.title">ようこそ WidgetWall へ</h2>
+      <h2 class="wiz-title" data-i18n="wiz.title"><span data-brand-welcome></span></h2>
       <p class="wiz-sub" data-i18n="wiz.sub">まずは好みのテーマをひとつ選んでください。あとから何でも変えられます。</p>
       <div id="wizard-themes"></div>
       <div class="wiz-foot">

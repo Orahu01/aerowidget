@@ -1,5 +1,6 @@
 // ICS (iCalendar) 購読 — Google カレンダーの「非公開 URL (iCal 形式)」等を
 // 貼るだけで予定を表示できる。OAuth 不要。30 分ごとに更新。
+const brand = require('../shared/brand');
 'use strict';
 
 const { EventEmitter } = require('events');
@@ -13,7 +14,7 @@ async function fetchText(url, timeoutMs = 20000) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'WidgetWall/5.0' } });
+    const res = await fetch(url, { signal: ac.signal, headers: { 'User-Agent': brand.UA } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.text();
   } finally {

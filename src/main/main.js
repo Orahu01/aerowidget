@@ -1,8 +1,10 @@
-// WidgetWall — メインプロセス (v2: マルチモニタ / フォルダウィジェット / 省電力)
+// AeroWidget — メインプロセス (v2: マルチモニタ / フォルダウィジェット / 省電力)
 'use strict';
 
 const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, powerMonitor, nativeImage, session, shell, desktopCapturer } = require('electron');
 const path = require('path');
+const brand = require('../shared/brand');
+const migrate = require('./migrate');
 const config = require('./config');
 const backup = require('./backup');
 const attach = require('./wallpaperAttach');
@@ -67,7 +69,11 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => openSettings());
-  app.whenReady().then(onReady);
+  app.whenReady().then(() => {
+    // 旧名からの引っ越しは、設定を読むより先に済ませる
+    try { migrate.run(); } catch (e) { console.error('migrate failed:', e.message); }
+    return onReady();
+  });
 }
 
 // ---------------------------------------------------------------- ユーティリティ
@@ -90,6 +96,7 @@ function configEnvelope() {
     systemWallpaper: attach.getSystemWallpaperPath(),
     onlineWallpaper: onlinewall.getCurrent(),
     osLocale: app.getLocale() || 'ja',
+    brand: brand.NAME,
   };
 }
 
@@ -625,7 +632,7 @@ function createTray() {
     icon = nativeImage.createEmpty();
   }
   tray = new Tray(icon);
-  tray.setToolTip('WidgetWall');
+  tray.setToolTip(brand.NAME);
   const rebuild = () => {
     const auto = getAutostart();
     const lang = config.get().settings.language || 'auto';
@@ -1408,7 +1415,7 @@ ipcMain.on('inter:save', (e, id, options) => {
 ipcMain.handle('config:export', async () => {
   const r = await dialog.showSaveDialog(settingsWin, {
     title: '設定をエクスポート',
-    defaultPath: `WidgetWall-settings-${new Date().toISOString().slice(0, 10)}.json`,
+    defaultPath: `${brand.NAME}-settings-${new Date().toISOString().slice(0, 10)}.json`,
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
   if (r.canceled || !r.filePath) return { ok: false, msg: 'キャンセルしました' };
@@ -1430,7 +1437,7 @@ ipcMain.handle('config:import', async () => {
   try {
     const parsed = JSON.parse(require('fs').readFileSync(r.filePaths[0], 'utf8'));
     if (!parsed || typeof parsed !== 'object' || (!parsed.widgets && !parsed.wallpapers && !parsed.wallpaper)) {
-      return { ok: false, msg: 'WidgetWall の設定ファイルではありません' };
+      return { ok: false, msg: `${brand.NAME} の設定ファイルではありません` };
     }
     placedKey.clear();
     config.replace(parsed, 'インポートの前');
@@ -1532,16 +1539,17 @@ ipcMain.handle('hotkeys:failed', () => hotkeys.failed());
 ipcMain.handle('app:uninstall', async () => {
   if (!app.isPackaged) return { ok: false, msg: '開発モードでは使えません' };
   if (process.env.PORTABLE_EXECUTABLE_FILE) {
-    return { ok: false, msg: 'ポータブル版は exe を削除するだけでアンインストール完了です (設定は %APPDATA%\\widgetwall)' };
+    return { ok: false, msg: `ポータブル版は exe を削除するだけでアンインストール完了です (設定は %APPDATA%\${brand.ID})` };
   }
-  const un = path.join(path.dirname(process.execPath), 'Uninstall WidgetWall.exe');
+  // アンインストーラの名前は electron-builder が productName から作る
+  const un = path.join(path.dirname(process.execPath), `Uninstall ${brand.NAME}.exe`);
   if (!require('fs').existsSync(un)) return { ok: false, msg: 'アンインストーラが見つかりません (設定 → アプリから削除してください)' };
   const { response } = await dialog.showMessageBox(settingsWin, {
     type: 'warning',
     buttons: ['アンインストール', 'キャンセル'],
     defaultId: 1,
     cancelId: 1,
-    message: 'WidgetWall をアンインストールしますか?',
+    message: `${brand.NAME} をアンインストールしますか?`,
     detail: '壁紙とウィジェットは消えます。設定ファイルは残るため、再インストールすれば元に戻ります。',
   });
   if (response !== 0) return { ok: false, msg: 'キャンセルしました' };
