@@ -80,6 +80,7 @@ const JA_EN = {
   'アプリを取得できませんでした (ボタンを押してから 6 秒以内に対象のウィンドウをクリックしてください)':
     'Could not detect the app (click the target window within 6 seconds of pressing the button)',
   '→ このレイアウトへ': 'switch to this layout:',
+  '→ アイコンは': 'and desktop icons:', '(アイコンは触らない)': "(don't touch icons)",
   // v5.9 切り替えボタン
   '切り替えボタン': 'Layout switcher',
   '並べるレイアウト': 'Layouts to show',
@@ -103,6 +104,15 @@ const JA_EN = {
   '復元しました (': 'Restored (',
   ' / 見つからず飛ばした: ': ' / skipped (not found): ',
   '(なし = オフ)': '(none = off)',
+  'この配置で隠すアイコン': 'Icons to hide in this arrangement',
+  'クリックで隠す': 'Click to hide', 'クリックで表示に戻す': 'Click to show again',
+  '画面のすき間へ最大 ': 'Up to ', ' 個まで隠せます。隠したアイコンは削除されません。': ' icons can be tucked into the gap between monitors. Hidden icons are never deleted.',
+  'この画面構成では隠す場所がありません (モニタが画面いっぱいのため)。フォルダウィジェットで必要なものだけ並べる方法をおすすめします。':
+    'There is no off-screen gap on this display setup, so icons cannot be hidden. A folder widget listing just what you need works well instead.',
+  '隠す ': 'hidden ', ' / 隠した: ': ' / hidden: ',
+  '直前の状態を自動で控えてあります': 'A copy of the previous state is kept automatically',
+  '元に戻す': 'Undo', 'いま行った復元や切り替えを取り消します': 'Undo the restore or switch you just made',
+  '元に戻しました': 'Reverted',
   '赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。':
     'The keys marked in red could not be registered because another app already uses them. Please choose different keys.',
   // v5.3 呼び出せるダッシュボード
@@ -1941,6 +1951,26 @@ function pushScenes() {
   window.api.setSettings({ scenes: JSON.parse(JSON.stringify(scenesCfg())) });
 }
 
+// シーンで切り替えるアイコン配置。'' = アイコンには触らない
+function scnIconSelect(value, onChange) {
+  const sel = document.createElement('select');
+  const snaps = cfg.settings.iconLayouts || [];
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = T('(アイコンは触らない)');
+  sel.appendChild(empty);
+  for (const l of snaps) {
+    if (l.name === '復元前 (自動)') continue;      // 自動退避は選ばせない
+    const o = document.createElement('option');
+    o.value = l.name;
+    o.textContent = l.name;
+    sel.appendChild(o);
+  }
+  sel.value = snaps.some(l => l.name === value) ? value : '';
+  sel.onchange = () => onChange(sel.value);
+  return sel;
+}
+
 function scnLayoutSelect(value, onChange) {
   const sel = document.createElement('select');
   const layouts = cfg.settings.layouts || [];
@@ -2130,10 +2160,47 @@ function scnRuleCard(rule, i) {
   dest.append(arrow, sel);
   card.appendChild(dest);
 
+  // アイコン配置 (任意)
+  const iconRow = document.createElement('div');
+  iconRow.className = 'scn-row';
+  const iconLab = document.createElement('span');
+  iconLab.className = 'dim';
+  iconLab.textContent = T('→ アイコンは');
+  iconRow.append(iconLab, scnIconSelect(rule.icons, (v) => { rule.icons = v; pushScenes(); }));
+  card.appendChild(iconRow);
+
   return card;
 }
 
 // ---- デスクトップアイコンの保存 / 復元 ----
+// この配置で隠すアイコン (チェックした名前)
+let icHide = new Set();
+
+async function renderIconPicker() {
+  const box = $('#ic-picker');
+  if (!box) return;
+  const names = await window.api.iconNames();
+  box.innerHTML = '';
+  for (const name of names) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip' + (icHide.has(name) ? ' active' : '');
+    chip.textContent = name;
+    chip.title = icHide.has(name) ? T('クリックで表示に戻す') : T('クリックで隠す');
+    chip.onclick = () => {
+      if (icHide.has(name)) icHide.delete(name); else icHide.add(name);
+      renderIconPicker();
+    };
+    box.appendChild(chip);
+  }
+  if (!names.length) {
+    const p = document.createElement('span');
+    p.className = 'note';
+    p.textContent = T('デスクトップアイコンにアクセスできません');
+    box.appendChild(p);
+  }
+}
+
 async function renderIconLayouts() {
   const wrap = $('#ic-list');
   if (!wrap) return;
@@ -2147,13 +2214,26 @@ async function renderIconLayouts() {
     cnt.textContent = T('デスクトップアイコンにアクセスできません');
   }
 
+  // 隠せるか (死角の数) を正直に伝える
+  const cap = await window.api.iconCapacity();
+  const capEl = $('#ic-cap');
+  if (capEl) {
+    capEl.textContent = cap > 0
+      ? T('画面のすき間へ最大 ') + cap + T(' 個まで隠せます。隠したアイコンは削除されません。')
+      : T('この画面構成では隠す場所がありません (モニタが画面いっぱいのため)。フォルダウィジェットで必要なものだけ並べる方法をおすすめします。');
+    capEl.style.color = cap > 0 ? '' : '#ffb27a';
+  }
+  await renderIconPicker();
+
   $('#ic-save').onclick = async () => {
-    const r = await window.api.saveIcons($('#ic-name').value.trim());
+    const r = await window.api.saveIcons($('#ic-name').value.trim(), [...icHide]);
     $('#ic-status').textContent = r.ok ? T('保存しました (') + r.count + T(' 個)') : r.msg;
     if (r.ok) { $('#ic-name').value = ''; renderIconLayouts(); }
   };
 
-  const snaps = await window.api.iconSnapshots();
+  const res = await window.api.iconSnapshots();
+  const snaps = res.saved || [];
+  const auto = res.auto || null;
   wrap.innerHTML = '';
   for (const snap of snaps) {
     const row = document.createElement('div');
@@ -2164,7 +2244,10 @@ async function renderIconLayouts() {
     const meta = document.createElement('span');
     meta.className = 'note';
     meta.style.padding = '0';
-    meta.textContent = snap.count + T(' 個') + ' ・ ' + new Date(snap.savedAt).toLocaleString('ja-JP');
+    const hidN = (snap.hidden || []).length;
+    meta.textContent = snap.count + T(' 個')
+      + (hidN ? ' ・ ' + T('隠す ') + hidN : '')
+      + ' ・ ' + new Date(snap.savedAt).toLocaleString('ja-JP');
 
     const restore = document.createElement('button');
     restore.className = 'btn';
@@ -2172,7 +2255,9 @@ async function renderIconLayouts() {
     restore.onclick = async () => {
       const r = await window.api.restoreIcons(snap.name);
       if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+      icHide = new Set(snap.hidden || []);
       let msg = T('復元しました (') + r.moved + T(' 個)');
+      if (r.hidden) msg += T(' / 隠した: ') + r.hidden + T(' 個');
       if (r.skipped) msg += T(' / 見つからず飛ばした: ') + r.skipped + T(' 個');
       $('#ic-status').textContent = msg;
       renderIconLayouts();
@@ -2190,24 +2275,47 @@ async function renderIconLayouts() {
     wrap.appendChild(row);
   }
 
+  // 自動退避は一覧に混ぜず、控えめな 1 行として最後に置く
+  if (auto) {
+    const row = document.createElement('div');
+    row.className = 'gf-item';
+    row.style.opacity = '.72';
+    const nm = document.createElement('span');
+    nm.className = 'note';
+    nm.style.padding = '0';
+    nm.style.flex = '1';
+    nm.textContent = T('直前の状態を自動で控えてあります') + ' ・ ' + new Date(auto.savedAt).toLocaleString('ja-JP');
+    const undo = document.createElement('button');
+    undo.className = 'btn';
+    undo.textContent = T('元に戻す');
+    undo.title = T('いま行った復元や切り替えを取り消します');
+    undo.onclick = async () => {
+      const r = await window.api.restoreIcons(auto.name);
+      $('#ic-status').textContent = r.ok ? T('元に戻しました') : r.msg;
+      renderIconLayouts();
+    };
+    row.append(nm, undo);
+    wrap.appendChild(row);
+  }
+
   // 自動復元の選択 (「(なし)」= オフ)
-  const auto = $('#ic-auto');
-  auto.innerHTML = '';
+  const autoSel = $('#ic-auto');
+  autoSel.innerHTML = '';
   const off = document.createElement('option');
   off.value = '';
   off.textContent = T('(なし = オフ)');
-  auto.appendChild(off);
+  autoSel.appendChild(off);
   for (const snap of snaps) {
     const o = document.createElement('option');
     o.value = snap.name;
     o.textContent = snap.name;
-    auto.appendChild(o);
+    autoSel.appendChild(o);
   }
-  auto.value = cfg.settings.iconAutoRestore || '';
-  auto.onchange = () => {
+  autoSel.value = cfg.settings.iconAutoRestore || '';
+  autoSel.onchange = () => {
     touch();
-    cfg.settings.iconAutoRestore = auto.value;
-    window.api.setSettings({ iconAutoRestore: auto.value });
+    cfg.settings.iconAutoRestore = autoSel.value;
+    window.api.setSettings({ iconAutoRestore: autoSel.value });
   };
 }
 

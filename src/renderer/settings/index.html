@@ -381,9 +381,14 @@
         <div class="group">
           <p class="foot-note" data-i18n="ic.note">アイコンの並びを保存しておき、解像度の変更やモニタの抜き差しで散らかったときに元へ戻せます。保存は<b>読み取るだけ</b>で、配置を変更するのは「復元」を押したときだけ。復元の直前には今の並びを「復元前 (自動)」として退避するので、戻しすぎても元に戻せます。</p>
           <div class="row">
+            <label data-i18n="ic.hideList">この配置で隠すアイコン</label>
+            <div class="ctl"><div id="ic-picker" class="chips"></div></div>
+          </div>
+          <p class="foot-note" id="ic-cap"></p>
+          <div class="row">
             <label><span id="ic-count" class="dim"></span></label>
             <div class="ctl gf-ctl">
-              <input type="text" id="ic-name" placeholder="例: 通常 / ゲーム後">
+              <input type="text" id="ic-name" placeholder="例: 通常 / ゲーム用 / 仕事用">
               <button class="btn" id="ic-save"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="ic.save">今の配置を保存</span></button>
             </div>
           </div>

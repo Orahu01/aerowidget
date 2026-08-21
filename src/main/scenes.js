@@ -19,6 +19,7 @@ let cfg = { enabled: false, defaultLayout: '', rules: [] };
 let applyFn = null;        // (layoutName) => bool  適用できたら true
 let paused = false;        // 編集モード中は評価しない
 let lastTarget = null;     // 直近に適用を指示したレイアウト名
+let lastIcons = null;      // 直近に適用を指示したアイコン配置名
 let lastKey = '';          // cfg の変化検出
 
 const state = {
@@ -67,17 +68,30 @@ function ruleMatches(rule, now = new Date()) {
 function evaluate(reason) {
   if (!cfg.enabled || paused || !applyFn) return;
   let target = String(cfg.defaultLayout || '');
+  let icons = String(cfg.defaultIcons || '');
   let matched = 'default';
   for (const r of cfg.rules || []) {
-    if (!r || r.enabled === false || !r.layout) continue;
-    if (ruleMatches(r)) { target = String(r.layout); matched = r.name || r.trigger?.type; break; }
+    if (!r || r.enabled === false) continue;
+    // レイアウトだけ / アイコンだけ の指定も認める
+    if (!r.layout && !r.icons) continue;
+    if (ruleMatches(r)) {
+      target = String(r.layout || cfg.defaultLayout || '');
+      icons = String(r.icons || '');
+      matched = r.name || r.trigger?.type;
+      break;
+    }
   }
-  if (!target || target === lastTarget) return;
+  // レイアウトが同じでもアイコンだけ変わることがあるので両方見る
+  if (target === lastTarget && icons === lastIcons) return;
+  if (!target && !icons) return;
   if (process.env.WW_DEBUG) {
-    console.log(`[scenes] ${reason || 'eval'}: -> "${target}" (${matched}) fg=${state.foreground || '-'} fs=${state.fsMonitors.size} bat=${state.onBattery}`);
+    console.log(`[scenes] ${reason || 'eval'}: -> "${target}" icons="${icons}" (${matched}) fg=${state.foreground || '-'} fs=${state.fsMonitors.size} bat=${state.onBattery}`);
   }
-  if (applyFn(target)) {
-    lastTarget = target;
+  // applyFn は {layoutOk} を返す。アイコンだけの指定でも呼ぶ
+  const ok = applyFn(target, icons);
+  lastIcons = icons;
+  if (ok || !target) {
+    if (target) lastTarget = target;
     emitter.emit('applied', target);
   }
 }
@@ -116,9 +130,10 @@ function sync(scenesCfg) {
   cfg = JSON.parse(key);
   if (!cfg.enabled) {
     lastTarget = null;         // 無効化したら次の有効化はまっさらから
+    lastIcons = null;
     return;
   }
-  if (!wasEnabled) lastTarget = null;
+  if (!wasEnabled) { lastTarget = null; lastIcons = null; }
   evaluate('config');
 }
 

@@ -82,11 +82,13 @@ function defaults() {
       scenes: {
         enabled: false,
         defaultLayout: '',         // どのルールにも当てはまらない通常時のレイアウト名
-        rules: [],                 // [{id, name, enabled, trigger, layout}]
+        defaultIcons: '',          // 通常時に戻すアイコン配置の名前 ('' = 触らない)
+        rules: [],                 // [{id, name, enabled, trigger, layout, icons}]
                                    //  trigger: {type:'app', apps:[exe名...]}
                                    //         | {type:'fullscreen'}
                                    //         | {type:'time', days:[0..6], from:'HH:MM', to:'HH:MM'}
                                    //         | {type:'battery'}  (バッテリー駆動中)
+                                   //  icons  : アイコン配置の名前 ('' = アイコンは触らない)
       },
       // デスクトップアイコンの配置の保存 / 復元。
       // 保存は読むだけ。復元だけが書き込みで、押したときのみ動く。
@@ -159,7 +161,7 @@ function load() {
     );
     if (!Array.isArray(cfg.settings.layouts)) cfg.settings.layouts = [];
     cfg.settings.scenes = Object.assign(
-      { enabled: false, defaultLayout: '', rules: [] },
+      { enabled: false, defaultLayout: '', defaultIcons: '', rules: [] },
       (parsed.settings || {}).scenes || {},
     );
     if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];

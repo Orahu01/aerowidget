@@ -918,6 +918,23 @@ function applySceneLayout(name) {
   return true;
 }
 
+// シーンが指すアイコン配置へ切り替える。
+// レイアウトと違い、アイコンは指定が無ければ「触らない」。
+// 勝手に動かされるのが一番困る対象なので、既定は無操作。
+let lastSceneIcons = null;
+function applySceneIcons(iconsName) {
+  const want = String(iconsName || '');
+  if (!want) return;                       // 指定なし = 触らない
+  if (want === lastSceneIcons) return;     // 同じ配置なら書き込まない
+  const r = applyIconSnapshot(want);
+  if (r && r.ok) {
+    lastSceneIcons = want;
+    if (process.env.WW_DEBUG) {
+      console.log(`[icons] シーン -> "${want}" (戻した ${r.moved} / 隠した ${r.hidden})`);
+    }
+  }
+}
+
 const AUTO_BACKUP_NAME = '適用前の構成 (自動)';
 
 function applyTheme(id) {
@@ -1092,7 +1109,12 @@ function onReady() {
   fullscreen.on('foreground', (exe) => scenes.setForeground(exe));
 
   // シーンエンジン起動。バッテリー状態も最初に読んでおく
-  scenes.init((name) => applySceneLayout(name));
+  scenes.init((name, iconsName) => {
+    const ok = name ? applySceneLayout(name) : true;
+    // アイコンはレイアウトと独立。指定が無ければ触らない
+    applySceneIcons(iconsName);
+    return ok;
+  });
   try { scenes.setBattery(powerMonitor.isOnBatteryPower()); } catch (_) { /* デスクトップ機 */ }
   powerMonitor.on('on-battery', () => scenes.setBattery(true));
   powerMonitor.on('on-ac', () => scenes.setBattery(false));
@@ -1605,32 +1627,50 @@ const ICON_BACKUP_NAME = '復元前 (自動)';
 
 // 現在のアイコン配置を name つきスナップとして settings.iconLayouts に積む。
 // 読むだけ。書き込みは一切しない。同名は上書き、最大 21 枠 (自動退避 1 + 通常 20)。
-function saveIconSnapshot(name) {
+function saveIconSnapshot(name, hidden) {
   const now = icons.list();
   if (!now || !now.length) return { ok: false, msg: 'デスクトップアイコンを読み取れませんでした' };
   const clean = String(name || '').slice(0, 40) || `アイコン配置 ${new Date().toLocaleString('ja-JP')}`;
+  const hide = Array.isArray(hidden) ? hidden.filter(Boolean) : [];
   config.update(cfg => {
     const keep = (cfg.settings.iconLayouts || []).filter(l => l.name !== clean);
-    cfg.settings.iconLayouts = [...keep, { name: clean, savedAt: Date.now(), icons: now }].slice(-21);
+    cfg.settings.iconLayouts = [...keep,
+      { name: clean, savedAt: Date.now(), icons: now, hidden: hide }].slice(-21);
   });
   return { ok: true, count: now.length, name: clean };
 }
 
-ipcMain.handle('icons:available', () => icons.available());
-ipcMain.handle('icons:current', () => (icons.list() || []).length);
-ipcMain.handle('icons:snapshots', () =>
-  (config.get().settings.iconLayouts || []).map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length })));
-
-ipcMain.handle('icons:save', (e, name) => saveIconSnapshot(name));
-
-ipcMain.handle('icons:restore', (e, name) => {
+// スナップを適用する共通処理。書き込む前に必ず今の並びを退避する。
+function applyIconSnapshot(name) {
   const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
   if (!snap) return { ok: false, msg: 'その配置が見つかりません' };
-  // 書き込む前に、今の配置を必ず退避する
   saveIconSnapshot(ICON_BACKUP_NAME);
-  const r = icons.apply(snap.icons);
-  if (!r) return { ok: false, msg: 'アイコンを復元できませんでした (デスクトップにアクセスできません)' };
-  return { ok: true, moved: r.moved, skipped: r.skipped, total: r.total };
+  const r = icons.apply(snap.icons, snap.hidden || []);
+  if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
+  return { ok: true, ...r };
+}
+
+ipcMain.handle('icons:available', () => icons.available());
+ipcMain.handle('icons:current', () => (icons.list() || []).length);
+ipcMain.handle('icons:names', () => (icons.list() || []).map(i => i.name));
+// 自動退避は「自分で保存した配置」と混ぜない。
+// 選ぶ対象ではなく安全網なので、UI 側でも別枠に置く。
+ipcMain.handle('icons:snapshots', () => {
+  const all = (config.get().settings.iconLayouts || [])
+    .map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length, hidden: (l.hidden || []).length }));
+  return {
+    saved: all.filter(l => l.name !== ICON_BACKUP_NAME),
+    auto: all.find(l => l.name === ICON_BACKUP_NAME) || null,
+  };
+});
+
+ipcMain.handle('icons:save', (e, name, hidden) => saveIconSnapshot(name, hidden));
+
+ipcMain.handle('icons:restore', (e, name) => applyIconSnapshot(name));
+
+// この環境で「隠す」が使えるか (死角がいくつあるか)
+ipcMain.handle('icons:capacity', () => {
+  try { return icons.hideCapacity(); } catch (_) { return 0; }
 });
 
 ipcMain.handle('icons:remove', (e, name) => {
@@ -1649,10 +1689,7 @@ function onDisplayChanged() {
   clearTimeout(iconRestoreTimer);
   // 構成変更が落ち着くまで少し待つ (連続イベントの最後の1回だけ効かせる)
   iconRestoreTimer = setTimeout(() => {
-    const snap = (config.get().settings.iconLayouts || []).find(l => l.name === target);
-    if (!snap) return;
-    saveIconSnapshot(ICON_BACKUP_NAME);
-    icons.apply(snap.icons);
+    applyIconSnapshot(target);
     if (process.env.WW_DEBUG) console.log('[icons] 解像度変更 -> "' + target + '" へ自動復元');
   }, 4000);
 }
