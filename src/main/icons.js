@@ -145,6 +145,23 @@ function autoArrange() {
   catch (_) { return null; }
 }
 
+// 保存時の原点と今の原点の差。原点情報が無い古いデータは「今と同じ」とみなす
+function originDelta(savedOrigin, cur) {
+  return {
+    dx: (savedOrigin && Number.isFinite(savedOrigin.x) ? savedOrigin.x : cur.x) - cur.x,
+    dy: (savedOrigin && Number.isFinite(savedOrigin.y) ? savedOrigin.y : cur.y) - cur.y,
+  };
+}
+
+// 控えてある元位置 (記録ごとの原点つき) を今の原点基準へ引き直す。
+// 今の画面に無ければ null
+function homeToCurrent(h, cur, isOff) {
+  if (!h) return null;
+  const x = (h.x | 0) + ((Number.isFinite(h.ox) ? h.ox : cur.x) - cur.x);
+  const y = (h.y | 0) + ((Number.isFinite(h.oy) ? h.oy : cur.y) - cur.y);
+  return isOff(cur.x + x, cur.y + y) ? null : { x, y };
+}
+
 const STEP_X = 130, STEP_Y = 126;   // アイコン間隔よりわずかに広く取る
 const cellKey = (x, y) => Math.round(x / STEP_X) + ',' + Math.round(y / STEP_Y);
 
@@ -176,17 +193,8 @@ function freeVisibleCells(limit, taken) {
 // 戻り値 { moves:[{name,x,y}], parked:[{name,x,y}], rescued, celled }
 function planMoves(want, hide, savedOrigin, home, stay, env) {
   const cur = env.origin;
-  const dx = (savedOrigin && Number.isFinite(savedOrigin.x) ? savedOrigin.x : cur.x) - cur.x;
-  const dy = (savedOrigin && Number.isFinite(savedOrigin.y) ? savedOrigin.y : cur.y) - cur.y;
-
-  // home は記録ごとに原点を持つので、それぞれ今の原点へずらす
-  const homeAt = (name) => {
-    const h = home && home[name];
-    if (!h) return null;
-    const hx = (h.x | 0) + ((Number.isFinite(h.ox) ? h.ox : cur.x) - cur.x);
-    const hy = (h.y | 0) + ((Number.isFinite(h.oy) ? h.oy : cur.y) - cur.y);
-    return env.isOff(cur.x + hx, cur.y + hy) ? null : { x: hx, y: hy };
-  };
+  const { dx, dy } = originDelta(savedOrigin, cur);
+  const homeAt = (name) => homeToCurrent(home && home[name], cur, env.isOff);
 
   const hideSet = new Set(hide);
   const taken = new Set();
@@ -231,18 +239,13 @@ function planMoves(want, hide, savedOrigin, home, stay, env) {
 // 死角にいた分は home に控えた元位置へ直す。戻り値の座標は今の原点基準
 function unparkRows(rows, savedOrigin, home) {
   const cur = origin();
-  const dx = (savedOrigin && Number.isFinite(savedOrigin.x) ? savedOrigin.x : cur.x) - cur.x;
-  const dy = (savedOrigin && Number.isFinite(savedOrigin.y) ? savedOrigin.y : cur.y) - cur.y;
+  const { dx, dy } = originDelta(savedOrigin, cur);
   let repaired = 0;
   const out = (rows || []).map(it => {
     const x = (it.x | 0) + dx, y = (it.y | 0) + dy;
     if (!isOffScreen(cur.x + x, cur.y + y)) return { ...it, x, y };
-    const h = home && home[it.name];
-    if (h) {
-      const hx = (h.x | 0) + ((Number.isFinite(h.ox) ? h.ox : cur.x) - cur.x);
-      const hy = (h.y | 0) + ((Number.isFinite(h.oy) ? h.oy : cur.y) - cur.y);
-      if (!isOffScreen(cur.x + hx, cur.y + hy)) { repaired++; return { ...it, x: hx, y: hy }; }
-    }
+    const h = homeToCurrent(home && home[it.name], cur, isOffScreen);
+    if (h) { repaired++; return { ...it, x: h.x, y: h.y }; }
     return { ...it, x, y };                    // 直せないものはそのまま (原点だけ引き直す)
   });
   out.repaired = repaired;
@@ -382,14 +385,6 @@ function strandedNames() {
 
 // 画面外のアイコンを全部、見える場所へ並べ直す。
 // 元位置が分からなくても必ず戻せる最後の手段なので、
-// 保存済み座標 (仮想画面の左上からの相対) が、どのモニタにも載っていないか。
-// 「退避先の座標を元の場所として覚えてしまう」のを防ぐのに使う
-function isParked(x, y) {
-  const ox = GetSystemMetrics(SM_XVIRTUALSCREEN);
-  const oy = GetSystemMetrics(SM_YVIRTUALSCREEN);
-  return isOffScreen(ox + (x | 0), oy + (y | 0));
-}
-
 // 保存データに頼らず「空いている見えるセル」を自前で探して置く。
 // home: {名前 -> {x,y}} 最後に見えていた位置。あればそこへ戻す。
 // 無い / 埋まっている場合だけ、空いている見えるセルへ置く。
@@ -414,35 +409,50 @@ function showAll(home = {}) {
       const n = readName(s2, i);
       if (n && !nameToIndex.has(n)) nameToIndex.set(n, i);
     }
+    const put = (idx, x, y) => {
+      num(SendMessageW(s2.lv, LVM_SETITEMPOSITION, idx, pack(x, y)));
+      taken.add(cellKey(x, y));
+    };
+
     let moved = 0, restored = 0, placed = 0;
     const needCell = [];
     for (const it of stranded) {
       const i = nameToIndex.get(it.name);
       if (i == null) continue;
-
-      // 覚えている元位置 (記録時の原点から引き直す) が使えて、空いていればそこへ
-      const h = home[it.name];
-      let hx = null, hy = null;
-      if (h) {
-        hx = (h.x | 0) + ((Number.isFinite(h.ox) ? h.ox : o.x) - o.x);
-        hy = (h.y | 0) + ((Number.isFinite(h.oy) ? h.oy : o.y) - o.y);
-      }
-      if (h && !isOffScreen(o.x + hx, o.y + hy) && !taken.has(cellKey(hx, hy))) {
-        num(SendMessageW(s2.lv, LVM_SETITEMPOSITION, i, pack(hx, hy)));
-        taken.add(cellKey(hx, hy));
+      const h = homeToCurrent(home[it.name], o, isOffScreen);
+      if (h && !taken.has(cellKey(h.x, h.y))) {
+        put(i, h.x, h.y);
         moved++; restored++;
         continue;
       }
-      needCell.push({ name: it.name, i });
+      // home が埋まっている / 無い -> あとで空きセルへ。近い場所を選べるよう home も覚えておく
+      needCell.push({ i, near: h });
     }
-    // 元位置が分からない / 埋まっている場合だけ空きセルへ
-    const cells = freeVisibleCells(needCell.length, taken);
-    needCell.forEach((it, n) => {
-      const c = cells[n];
-      if (!c) return;
-      num(SendMessageW(s2.lv, LVM_SETITEMPOSITION, it.i, pack(c.x, c.y)));
-      moved++; placed++;
-    });
+    if (needCell.length) {
+      // 空きセルを多めに集めておき、home が分かるものは一番近いセルを選ぶ。
+      // 分からないものは残りを上から順に使う (以前の並べ直しと同じ)
+      const cells = freeVisibleCells(needCell.length * 4 + 8, new Set(taken));
+      const used = new Set();
+      const pick = (near) => {
+        let best = -1, bestD = Infinity;
+        for (let k = 0; k < cells.length; k++) {
+          if (used.has(k)) continue;
+          if (!near) { best = k; break; }
+          const d = (cells[k].x - near.x) ** 2 + (cells[k].y - near.y) ** 2;
+          if (d < bestD) { bestD = d; best = k; }
+        }
+        if (best < 0) return null;
+        used.add(best);
+        return cells[best];
+      };
+      for (const it of needCell) {
+        const c = pick(it.near);
+        if (!c) continue;
+        put(it.i, c.x, c.y);
+        moved++;
+        if (it.near) restored++; else placed++;
+      }
+    }
     return { moved, restored, placed, stranded: stranded.length };
   } catch (_) {
     return null;
@@ -457,5 +467,5 @@ function available() {
 }
 
 module.exports = {
-  isParked, list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll, visibleList,
-  origin, autoArrange, planMoves, unparkRows, freeVisibleCells };
+  list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll, visibleList,
+  origin, originDelta, homeToCurrent, autoArrange, planMoves, unparkRows, freeVisibleCells };

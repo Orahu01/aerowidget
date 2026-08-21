@@ -691,6 +691,8 @@ function widgetHtml(w) {
     case 'pomo': return interPhHtml(w, 'ポモドーロ');
     case 'volume': return interPhHtml(w, '音量');
     case 'todo': return interPhHtml(w, 'ToDo');
+    case 'switcher': return interPhHtml(w, '切り替えボタン');
+    case 'modeswitch': return interPhHtml(w, 'モード切替');
     case 'forecast': return forecastHtml(w.options || {});
     case 'worldclock': return worldclockHtml(w.options || {});
     case 'battery': return batteryHtml(w.options || {});
@@ -706,7 +708,7 @@ function applyWidgetStyle(el, w) {
   const o = w.options || {};
   el.className = 'widget ' + w.type
     + (w.type === 'folder' ? ' folderph' : '')
-    + (['note', 'pomo', 'volume', 'nowplaying', 'todo'].includes(w.type) ? ' interph' : '')
+    + (['note', 'pomo', 'volume', 'nowplaying', 'todo', 'switcher', 'modeswitch'].includes(w.type) ? ' interph' : '')
     + (w.locked ? ' locked' : '')
     + (w.type === 'line' && o.orient === 'v' ? ' vert' : '');
   el.style.cssText = '';
@@ -776,8 +778,8 @@ function applyWidgetStyle(el, w) {
       el.style.padding = '0.7em 0.9em';
     }
     el.style.setProperty('--cal-acc', o.accent || '#e3a94f');
-  } else if (['note', 'pomo', 'volume', 'nowplaying', 'todo'].includes(w.type)) {
-    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96], todo: [250, 220] }[w.type];
+  } else if (['note', 'pomo', 'volume', 'nowplaying', 'todo', 'switcher', 'modeswitch'].includes(w.type)) {
+    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96], todo: [250, 220], switcher: [300, 46], modeswitch: [300, 46] }[w.type];
     el.style.width = (o.w || defs[0]) + 'px';
     el.style.height = (o.h || defs[1]) + 'px';
     el.style.background = `rgba(13, 16, 22, ${o.bgOpacity ?? 0.6})`;
@@ -1165,9 +1167,9 @@ window.addEventListener('wheel', (e) => {
     o.wPct = Math.max(10, Math.min(100, (o.wPct || 40) + (up ? step : -step)));
     window.wall.editLive(w.id, { options: { wPct: o.wPct } });
     showBadge(`幅 ${o.wPct}%`, e.clientX, e.clientY);
-  } else if (['note', 'pomo', 'volume', 'nowplaying', 'todo'].includes(w.type)) {
+  } else if (['note', 'pomo', 'volume', 'nowplaying', 'todo', 'switcher', 'modeswitch'].includes(w.type)) {
     const f = up ? 1.05 : 0.95;
-    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96], todo: [250, 220] }[w.type];
+    const defs = { note: [240, 180], pomo: [210, 150], volume: [260, 120], nowplaying: [320, 96], todo: [250, 220], switcher: [300, 46], modeswitch: [300, 46] }[w.type];
     o.w = Math.round(Math.max(140, Math.min(800, (o.w || defs[0]) * f)));
     o.h = Math.round(Math.max(60, Math.min(600, (o.h || defs[1]) * f)));
     window.wall.editLive(w.id, { options: { w: o.w, h: o.h } });

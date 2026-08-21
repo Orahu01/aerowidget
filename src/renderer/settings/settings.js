@@ -142,8 +142,9 @@ const JA_EN = {
   '名前を付ける': 'Name this widget', '絞り込み': 'Filter', '名前や種類で探す': 'Search by name or type',
   '見つかりませんでした': 'Nothing matched', 'いま適用中': 'active now', '読み直しました': 'Reloaded',
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
-  '元の場所が画面に無かった ': 'moved to last spot: ', '個は前の位置へ': '',
-  '行き先の分からない ': 'placed in empty cells: ', '個は空きへ': '',
+  '画面に無い保存位置だった {n} 個は前の場所へ': '{n} kept their previous on-screen spot',
+  '行き先の分からない {n} 個は空きへ': '{n} placed in empty cells',
+  '作成できませんでした: ': 'Could not create: ', '並び替えを保存できませんでした': 'Could not save the order',
   'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
     'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モード切替ボタン': 'Mode switch button',
@@ -202,7 +203,7 @@ const JA_EN = {
   '直径': 'Diameter', '針の色': 'Hands color',
   '秒を表示': 'Show seconds', '12時間表示': '12-hour', 'AM / PM を表示': 'Show AM/PM',
   '表示形式': 'Format', '検索': 'Search',
-  'アイコン': 'Icon', '都市名': 'City name', '天気の説明': 'Description', '最高 / 最低気温': 'High / Low',
+  '天気アイコン': 'Icon', '都市名': 'City name', '天気の説明': 'Description', '最高 / 最低気温': 'High / Low',
   '秒針': 'Second hand', '目盛り': 'Ticks', '文字盤': 'Face', 'ダーク': 'Dark', 'ライト': 'Light', '文字盤の濃さ': 'Face opacity',
   '曜日の行': 'Weekday row', '日曜・土曜に色': 'Color Sun/Sat', '背景パネル': 'Background panel', '今日の色': 'Today color', '背景の濃さ': 'Background opacity',
   'タイトル': 'Title', '日付': 'Date', '過ぎたら経過日数を表示': 'Show days passed',
@@ -949,6 +950,7 @@ function renderAddRow() {
     b.addEventListener('click', async () => {
       const created = await window.api.addWidget(type);
       if (created) expanded.add(created.id);
+      widgetQuery = '';              // 絞り込み中でも、作ったものは必ず見えるように
       cfg = (await window.api.getConfig()).config;
       renderWidgetList();
     });
@@ -1056,7 +1058,7 @@ function typeOptionsUI(w) {
 
     const row = document.createElement('div');
     row.className = 'chk-row';
-    row.appendChild(mkCheck('アイコン', o.showIcon !== false, v => patchWidget(w.id, { options: { showIcon: v } })));
+    row.appendChild(mkCheck('天気アイコン', o.showIcon !== false, v => patchWidget(w.id, { options: { showIcon: v } })));
     row.appendChild(mkCheck('都市名', o.showCity !== false, v => patchWidget(w.id, { options: { showCity: v } })));
     row.appendChild(mkCheck('天気の説明', o.showDesc !== false, v => patchWidget(w.id, { options: { showDesc: v } })));
     row.appendChild(mkCheck('最高 / 最低気温', !!o.showHiLow, v => patchWidget(w.id, { options: { showHiLow: v } })));
@@ -1565,6 +1567,7 @@ function widgetCard(w) {
   pen.innerHTML = PEN_SVG;
   pen.addEventListener('click', (e) => {
     e.stopPropagation();
+    touch();                         // 入力中に onConfig で一覧を作り直されないように
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.className = 'wc-name-in';
@@ -1781,7 +1784,11 @@ function renderWidgetList() {
     inp.id = 'widget-filter';
     inp.placeholder = T('名前や種類で探す');
     inp.value = widgetQuery;
-    inp.addEventListener('input', () => { widgetQuery = inp.value; applyWidgetFilter(); });
+    inp.addEventListener('input', () => {
+      touch();                       // 入力中に onConfig で一覧を作り直されないように
+      widgetQuery = inp.value;
+      applyWidgetFilter();
+    });
     const ctl = document.createElement('div');
     ctl.className = 'ctl';
     ctl.appendChild(inp);
@@ -1798,9 +1805,11 @@ function renderWidgetList() {
 // 絞り込みは表示の出し入れだけで行う (作り直すと入力欄からフォーカスが外れる)
 function applyWidgetFilter() {
   const q = widgetQuery.trim().toLowerCase();
+  const cards = new Map([...document.querySelectorAll('#widget-list .widget-card')]
+    .map(el => [el.dataset.wid, el]));
   let hit = 0;
   for (const w of cfg.widgets) {
-    const card = document.querySelector(`.widget-card[data-wid="${w.id}"]`);
+    const card = cards.get(w.id);
     if (!card) continue;
     const meta = TYPES[w.type] || { label: w.type };
     const hay = `${w.name || ''} ${T(meta.label)} ${w.type}`.toLowerCase();
@@ -2531,7 +2540,7 @@ function icModeCard(snap, allNames) {
   // 数の表示はチェックのたびに書き直す (一覧そのものは作り直さない)
   let iconsSubMeta = null;
   let widgetsSubMeta = null;
-  const updateCounts = () => {
+  let updateCounts = () => {
     const h = hideNow();
     meta.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
       + T('隠す ') + h + T(' 個') + ' ・ '
@@ -2567,22 +2576,29 @@ function icModeCard(snap, allNames) {
     card.classList.toggle('drop-before', before);
     card.classList.toggle('drop-after', !before);
   });
-  card.addEventListener('dragleave', () => card.classList.remove('drop-before', 'drop-after'));
+  card.addEventListener('dragleave', (e) => {
+    // dragleave は子要素をまたぐたびに飛んでくる。カードの外へ出たときだけ消す
+    if (e.relatedTarget && card.contains(e.relatedTarget)) return;
+    card.classList.remove('drop-before', 'drop-after');
+  });
   card.addEventListener('drop', async (e) => {
     const from = e.dataTransfer.getData('text/ww-mode');
     if (!from) return;
     e.preventDefault();
-    const before = card.classList.contains('drop-before');
+    // クラスの残り香ではなく、落とした瞬間のカーソル位置で上下を決める
+    const rc = card.getBoundingClientRect();
+    const before = e.clientY < rc.top + rc.height / 2;
     card.classList.remove('drop-before', 'drop-after');
     if (from === snap.name) return;
-    const order = [...document.querySelectorAll('.ic-mode')].map(el => el.dataset.mode).filter(Boolean);
+    const order = [...document.querySelectorAll('#ic-modes .ic-mode')].map(el => el.dataset.mode).filter(Boolean);
     const cut = order.indexOf(from);
     if (cut < 0) return;
     order.splice(cut, 1);
     let at = order.indexOf(snap.name);
     if (!before) at++;
     order.splice(at, 0, from);
-    await window.api.reorderIconModes(order);
+    const r = await safeCall(window.api.reorderIconModes(order), { ok: false });
+    if (!r || !r.ok) icStatus(T('並び替えを保存できませんでした'));
     renderIconPicker();
   });
   card.appendChild(head);
@@ -2658,8 +2674,8 @@ function icModeCard(snap, allNames) {
       if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
       let m = T('適用しました');
       if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
-      if (r.rescued) m += ' ・ ' + T('元の場所が画面に無かった ') + r.rescued + T(' 個は前の位置へ');
-      if (r.celled) m += ' ・ ' + T('行き先の分からない ') + r.celled + T(' 個は空きへ');
+      if (r.rescued) m += ' ・ ' + T('画面に無い保存位置だった {n} 個は前の場所へ').replace('{n}', r.rescued);
+      if (r.celled) m += ' ・ ' + T('行き先の分からない {n} 個は空きへ').replace('{n}', r.celled);
       if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
       if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
       $('#ic-status').textContent = m;
@@ -2715,6 +2731,8 @@ function icModeCard(snap, allNames) {
   }));
   body.appendChild(linkRow);
 
+  let noteNone = null;     // 「ひとつも選んでいない」の知らせ
+  let noteSwitcher = null; // 「切り替えボタンをしまうと戻れない」の知らせ
   if (wd.link) {
     if (!allWidgets.length) {
       body.appendChild(mkNote(T('ウィジェットがまだありません。')));
@@ -2753,20 +2771,30 @@ function icModeCard(snap, allNames) {
         wlist.appendChild(row);
       }
       body.appendChild(wlist);
-      if (!wOn()) {
-        body.appendChild(mkNote(T('ひとつも選んでいないので、このモードではウィジェットに触りません。')));
-      }
-      if (wOn() && allWidgets.some(w => (w.type === 'switcher' || w.type === 'modeswitch') && !wd.on.has(w.id))) {
-        body.appendChild(mkNote(T('切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。')));
-      }
+      // どちらの知らせもチェックのたびに出し入れする (作った時点の状態で固定しない)
+      noteNone = mkNote(T('ひとつも選んでいないので、このモードではウィジェットに触りません。'));
+      noteSwitcher = mkNote(T('切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。'));
+      body.append(noteNone, noteSwitcher);
     }
   }
+
+  const baseUpdateCounts = updateCounts;
+  updateCounts = () => {
+    baseUpdateCounts();
+    if (noteNone) noteNone.style.display = wOn() ? 'none' : '';
+    if (noteSwitcher) {
+      const hidesSwitcher = wOn() > 0 && allWidgets.some(w =>
+        (w.type === 'switcher' || w.type === 'modeswitch') && !wd.on.has(w.id));
+      noteSwitcher.style.display = hidesSwitcher ? '' : 'none';
+    }
+  };
+  updateCounts();
 
   card.appendChild(body);
   return card;
 }
 
-async function renderIconPicker() {
+async function renderIconPicker(snapshots) {
   const wrap = $('#ic-modes');
   if (!wrap) return;
 
@@ -2774,10 +2802,13 @@ async function renderIconPicker() {
   const sc = document.getElementById('content');
   const keepScroll = sc ? sc.scrollTop : 0;
 
-  const names = await window.api.iconNames();
-  const res = await window.api.iconSnapshots();
+  const [names, res, alias] = await Promise.all([
+    safeCall(window.api.iconNames(), []),
+    snapshots ? Promise.resolve(snapshots) : safeCall(window.api.iconSnapshots(), { saved: [] }),
+    safeCall(window.api.iconAliases(), {}),
+  ]);
   const snaps = (res && res.saved) || [];
-  try { icAlias = (await window.api.iconAliases()) || {}; } catch (_) { icAlias = {}; }
+  icAlias = alias || {};
 
   wrap.innerHTML = '';
   if (!names.length) {
@@ -2793,23 +2824,32 @@ async function renderIconPicker() {
 }
 
 
+// IPC が 1 つ失敗しただけでページ全体 (ボタンの配線を含む) が
+// 止まらないように、既定値つきで包んで並列に取る
+function safeCall(promise, fallback) {
+  return Promise.resolve(promise).then(v => v, () => fallback);
+}
+
 async function renderIconLayouts() {
   const wrap = $('#ic-list');
   if (!wrap) return;
 
-  const avail = await window.api.iconsAvailable();
+  const [avail, stranded, aa, parked, cap, res] = await Promise.all([
+    safeCall(window.api.iconsAvailable(), false),
+    safeCall(window.api.strandedIcons(), []),
+    safeCall(window.api.iconAutoArrange(), null),
+    safeCall(window.api.parkedWidgets(), 0),
+    safeCall(window.api.iconCapacity(), 0),
+    safeCall(window.api.iconSnapshots(), { saved: [], auto: null }),
+  ]);
+
   const cnt = $('#ic-count');
   if (cnt) {
-    if (avail) {
-      const n = await window.api.iconsCurrent();
-      cnt.textContent = T('現在のアイコン: ') + n + T(' 個');
-    } else {
-      cnt.textContent = T('デスクトップアイコンにアクセスできません');
-    }
+    cnt.textContent = avail
+      ? '' : T('デスクトップアイコンにアクセスできません');
   }
 
   // 画面外に取り残されているアイコンがあれば目立たせる
-  const stranded = await window.api.strandedIcons();
   const sEl = $('#ic-stranded');
   const box = $('#ic-rescue-box');
   if (sEl) {
@@ -2835,16 +2875,11 @@ async function renderIconLayouts() {
 
   // デスクトップの「自動整列」がオンだと、隠しても Windows が並べ直してしまう
   const aaEl = $('#ic-autoarrange');
-  if (aaEl) {
-    let aa = null;
-    try { aa = await window.api.iconAutoArrange(); } catch (_) { aa = null; }
-    aaEl.style.display = aa ? '' : 'none';
-  }
+  if (aaEl) aaEl.style.display = aa ? '' : 'none';
 
   // ウィジェットがしまわれていたら、このページからも戻せるようにする
   const parkedBox = $('#ic-parked');
   if (parkedBox) {
-    const parked = await window.api.parkedWidgets();
     parkedBox.innerHTML = '';
     parkedBox.style.display = parked ? '' : 'none';
     if (parked) {
@@ -2865,7 +2900,6 @@ async function renderIconLayouts() {
   }
 
   // 隠せるか (死角の数) を正直に伝える
-  const cap = await window.api.iconCapacity();
   const capEl = $('#ic-cap');
   if (capEl) {
     capEl.textContent = cap > 0
@@ -2873,17 +2907,6 @@ async function renderIconLayouts() {
       : T('この画面構成では隠す場所がありません (モニタが画面いっぱいのため)。フォルダウィジェットで必要なものだけ並べる方法をおすすめします。');
     capEl.style.color = cap > 0 ? '' : '#ffb27a';
   }
-  $('#ic-save').onclick = async () => {
-    // 作った直後は何も隠していない状態。開いてチェックを入れて保存する
-    const r = await window.api.saveIcons($('#ic-name').value.trim(), []);
-    if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
-    $('#ic-status').textContent = T('作成しました。開いて隠すアイコンを選んでください。');
-    $('#ic-name').value = '';
-    icOpenModes.add(r.name);          // 作ったら開いた状態で出す
-    renderIconLayouts();
-  };
-
-  const res = await window.api.iconSnapshots();
   const snaps = res.saved || [];
   const auto = res.auto || null;
   wrap.innerHTML = '';
@@ -2933,10 +2956,37 @@ async function renderIconLayouts() {
 
   // モード一覧は最後に描く。ここで転んでも上の操作は生きたままにする
   try {
-    await renderIconPicker();
+    await renderIconPicker(res);
   } catch (err) {
-    $('#ic-status').textContent = T('モード一覧を表示できませんでした: ') + (err && err.message);
+    icStatus(T('モード一覧を表示できませんでした: ') + (err && err.message));
   }
+}
+
+// 作成まわりは「一度だけ・描画の成否と無関係に」配線する。
+// 以前は renderIconLayouts の途中 (6 個の await の後) で配線していたため、
+// 手前のどれかが一度でも失敗するとボタンがハンドラ無しのまま永久に無反応だった。
+async function createIconMode() {
+  const nameEl = $('#ic-name');
+  try {
+    // 作った直後は何も隠していない状態。開いてチェックを入れて保存する
+    const r = await window.api.saveIcons(nameEl.value.trim(), []);
+    if (!r.ok) { icStatus(r.msg); return; }
+    icStatus(T('作成しました。開いて隠すアイコンを選んでください。'));
+    nameEl.value = '';
+    icOpenModes.add(r.name);          // 作ったら開いた状態で出す
+    renderIconLayouts();
+  } catch (err) {
+    icStatus(T('作成できませんでした: ') + ((err && err.message) || err));
+  }
+}
+$('#ic-save').addEventListener('click', createIconMode);
+$('#ic-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') createIconMode(); });
+
+// 結果の知らせは #ic-status (ページ下部) と、どこにいても見えるトーストの両方に出す
+function icStatus(text) {
+  const el = $('#ic-status');
+  if (el) el.textContent = text;
+  toast(text);
 }
 
 $('#layout-save').addEventListener('click', async () => {
@@ -3170,6 +3220,9 @@ async function refreshAll() {
   refreshing = true;
   try {
     icImgCache = new Map();          // アイコン画像は取り直す
+    icDraft.clear();                 // 未保存のチェックも捨てる (読み直しの約束どおり)
+    icWDraft.clear();
+    try { await window.api.flushIconImages(); } catch (_) {}   // main 側の画像キャッシュも
     const env = await window.api.getConfig();
     cfg = env.config;
     sysWall = env.systemWallpaper || '';
@@ -3178,6 +3231,7 @@ async function refreshAll() {
     renderWallpaperTab();
     renderWidgetList();
     await renderGeneral();
+    await renderIconLayouts();       // アイコンページ (モード・地図) も読み直す
     injectFonts();
     toast(T('読み直しました'));
   } finally {

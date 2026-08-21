@@ -1090,11 +1090,18 @@ function onReady() {
 
   updater.init();
 
+  // 変更の配信は config.update の中から同期で呼ばれる。どれかが投げると
+  // 保存した側の IPC まで巻き添えで失敗するので、各段を独立に守る。
+  let trayTimer = null;
   config.on('change', (c) => {
-    broadcast('config', configEnvelope());
-    syncServices();
-    if (!editMode) syncFolders();
-    if (tray && tray.rebuild) tray.rebuild();
+    try { broadcast('config', configEnvelope()); } catch (e) { if (process.env.WW_DEBUG) console.error('[change] broadcast:', e); }
+    try { syncServices(); } catch (e) { if (process.env.WW_DEBUG) console.error('[change] services:', e); }
+    try { if (!editMode) syncFolders(); } catch (e) { if (process.env.WW_DEBUG) console.error('[change] folders:', e); }
+    // トレイはキー入力のたびに作り直す価値がない。少し待って 1 回だけ
+    clearTimeout(trayTimer);
+    trayTimer = setTimeout(() => {
+      try { if (tray && tray.rebuild) tray.rebuild(); } catch (e) { if (process.env.WW_DEBUG) console.error('[change] tray:', e); }
+    }, 300);
   });
   weather.on('update', (d) => broadcast('weather', d));
   sysinfo.on('disks', (d) => broadcast('disks', d));
@@ -1698,6 +1705,14 @@ function saveIconSnapshot(name, hidden) {
   const rows = unpark(now);                        // 今の原点基準なので差分ゼロ、死角の分だけ直る
   const o = icons.origin();
   const prev = (config.get().settings.iconLayouts || []).find(l => l.name === clean);
+  // 上限は黙って消さずに断る。並び替えで順序が意味を持つようになったので、
+  // slice で先頭を落とすと「ユーザーが一番上に置いたモード」が消えてしまう
+  const arr0 = config.get().settings.iconLayouts || [];
+  const isNew = !arr0.some(l => l.name === clean);
+  const userCount = arr0.filter(l => l.name !== ICON_BACKUP_NAME).length;
+  if (isNew && clean !== ICON_BACKUP_NAME && userCount >= 20) {
+    return { ok: false, msg: 'モードは 20 個まで保存できます。使っていないものを削除してください' };
+  }
   config.update(cfg => {
     const arr = (cfg.settings.iconLayouts || []).slice();
     const entry = {
@@ -1710,7 +1725,7 @@ function saveIconSnapshot(name, hidden) {
     // 上書きは同じ場所に置く。末尾へ移すと、編集のたびに一覧の並びが崩れる
     const idx = arr.findIndex(l => l.name === clean);
     if (idx >= 0) arr[idx] = entry; else arr.push(entry);
-    cfg.settings.iconLayouts = arr.slice(-21);
+    cfg.settings.iconLayouts = arr;
   });
   return { ok: true, count: rows.length, name: clean };
 }
@@ -1760,13 +1775,17 @@ function applyIconSnapshot(name) {
   let widgetsRestored = 0;    // 連動していないモードで、しまってあったものを出した数
   if (wantWidgets) widgets = applyWidgetSet(snap.widgetsOn);
   else if (linkUsed && name !== ICON_BACKUP_NAME) widgetsRestored = showAllWidgets();
-  if (name !== ICON_BACKUP_NAME) {
-    config.update(cfg => { cfg.settings.currentIconMode = name; });
-  }
+  // 元に戻したら「どのモードでもない」状態。印を残すと、切り替えボタンが
+  // 同名再適用を拒み、モニタ変更の当て直しが取り消したモードを復活させる
+  config.update(cfg => {
+    cfg.settings.currentIconMode = name === ICON_BACKUP_NAME ? '' : name;
+  });
   return { ok: true, ...r, widgets, widgetsRestored };
 }
 
-ipcMain.handle('icons:available', () => icons.available());
+ipcMain.handle('icons:available', () => {
+  try { return icons.available(); } catch (_) { return false; }
+});
 // 読み取り系は投げない。失敗しても空で返し、設定画面の描画を止めない
 ipcMain.handle('icons:current', () => {
   try { return (icons.list() || []).length; } catch (_) { return 0; }
@@ -1826,6 +1845,8 @@ function pointsToFolder(target) {
 
 // アイコン画像 (dataURL)。デスクトップ上のものだけに限る
 const deskIconCache = new Map();
+// F5 で画像も取り直せるようにする (キャッシュはここが持っているため)
+ipcMain.handle('icons:flushImages', () => { deskIconCache.clear(); return true; });
 ipcMain.handle('icons:image', async (e, name) => {
   if (deskIconCache.has(name)) return deskIconCache.get(name);
   const p2 = desktopPathByName().get(String(name || ''));
@@ -1834,6 +1855,7 @@ ipcMain.handle('icons:image', async (e, name) => {
     const url = pointsToFolder(p2)
       ? FOLDER_ICON
       : await resolveIcon(p2).then(img => (img ? img.toDataURL() : null));
+    if (deskIconCache.size > 300) deskIconCache.clear();   // 名前の入れ替わりで溜まり続けないように
     deskIconCache.set(name, url);
     return url;
   } catch (_) {
@@ -1866,7 +1888,12 @@ ipcMain.handle('icons:snapshots', () => {
   };
 });
 
-ipcMain.handle('icons:save', (e, name, hidden) => saveIconSnapshot(name, hidden));
+ipcMain.handle('icons:save', (e, name, hidden) => {
+  if (String(name || '').trim() === ICON_BACKUP_NAME) {
+    return { ok: false, msg: 'その名前は自動退避用に使っているので選べません' };
+  }
+  return saveIconSnapshot(name, hidden);
+});
 
 ipcMain.handle('icons:restore', (e, name) => applyIconSnapshot(name));
 
@@ -1982,18 +2009,31 @@ ipcMain.handle('icons:remove', (e, name) => {
 let iconRestoreTimer = null;
 function onDisplayChanged() {
   lastDisplayChangeAt = Date.now();
-  const st = config.get().settings;
-  let target = st.iconAutoRestore;
-  if (!target && st.currentIconMode) {
-    const cur = (st.iconLayouts || []).find(l => l.name === st.currentIconMode);
-    if (cur && (cur.hidden || []).length) target = cur.name;   // 隠し直す必要があるときだけ
-  }
-  if (!target) return;
   clearTimeout(iconRestoreTimer);
   // 構成変更が落ち着くまで少し待つ (連続イベントの最後の1回だけ効かせる)
   iconRestoreTimer = setTimeout(() => {
-    applyIconSnapshot(target);
-    if (process.env.WW_DEBUG) console.log('[icons] モニタ構成変更 -> "' + target + '" を当て直し');
+    const cur = config.get().settings;
+    if (cur.iconAutoRestore) {
+      // ユーザーが明示的に選んだ配置へ戻す (従来どおりのオプトイン)
+      applyIconSnapshot(cur.iconAutoRestore);
+      if (process.env.WW_DEBUG) console.log('[icons] モニタ構成変更 -> "' + cur.iconAutoRestore + '" へ復元');
+      return;
+    }
+    // それ以外は勝手に並べ直さない。ただし Windows が退避中のアイコンを
+    // 引き戻してしまうので、いまのモードが隠しているぶんだけは隠し直す。
+    // 見えているアイコンの位置には一切触らない。
+    const mode = (cur.iconLayouts || []).find(l => l.name === cur.currentIconMode);
+    const hide = (mode && mode.hidden) || [];
+    if (!hide.length) return;
+    try {
+      const back = new Set(icons.strandedNames() || []);
+      const escaped = hide.filter(n => !back.has(n));
+      if (!escaped.length) return;                 // 全部まだ隠れている
+      const r = icons.apply([], escaped);
+      if (process.env.WW_DEBUG) console.log('[icons] モニタ構成変更 -> ' + ((r && r.hidden) || 0) + ' 個を隠し直し');
+    } catch (e) {
+      if (process.env.WW_DEBUG) console.error('[icons] 隠し直しに失敗:', e);
+    }
   }, 5000);
 }
 
