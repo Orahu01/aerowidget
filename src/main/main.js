@@ -61,7 +61,7 @@ const pendingLayout = new Map();       // 編集モード中のレイアウト�
 const iconCache = new Map();           // path -> dataURL
 
 // デスクトップ上でクリックできる「小窓型」ウィジェット
-const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying', 'todo', 'switcher']);
+const INTERACTIVE_TYPES = new Set(['folder', 'note', 'pomo', 'volume', 'nowplaying', 'todo', 'switcher', 'modeswitch']);
 let widgetsHidden = false;             // ホットキーによる全ウィジェット非表示
 const placedKey = new Map();           // widgetId -> 配置キー (無関係な設定変更で再配置しない)
 const placeGen = new Map();            // widgetId -> 世代 (収束ループの多重実行防止)
@@ -130,7 +130,7 @@ function interDims(w) {
   }
   if (w.type === 'nowplaying') return { w: Math.max(200, o.w || 320), h: Math.max(70, o.h || 96) };
   if (w.type === 'todo') return { w: Math.max(170, o.w || 250), h: Math.max(120, o.h || 220) };
-  if (w.type === 'switcher') {
+  if (w.type === 'switcher' || w.type === 'modeswitch') {
     return o.vertical
       ? { w: Math.max(110, o.w || 150), h: Math.max(80, o.h || 160) }
       : { w: Math.max(140, o.w || 300), h: Math.max(34, o.h || 46) };
@@ -338,7 +338,7 @@ function rebuildWallWindows() {
 }
 
 // ---------------------------------------------------------------- 対話ウィジェットウィンドウ (フォルダ / メモ / タイマー)
-const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying', todo: 'todo', switcher: 'switcher' };
+const INTER_RENDERER = { folder: 'folder', note: 'note', pomo: 'pomo', volume: 'volume', nowplaying: 'nowplaying', todo: 'todo', switcher: 'switcher', modeswitch: 'switcher' };
 
 function createFolderWindow(widget) {
   const dims = interDims(widget);
@@ -1699,14 +1699,18 @@ function saveIconSnapshot(name, hidden) {
   const o = icons.origin();
   const prev = (config.get().settings.iconLayouts || []).find(l => l.name === clean);
   config.update(cfg => {
-    const keep = (cfg.settings.iconLayouts || []).filter(l => l.name !== clean);
-    cfg.settings.iconLayouts = [...keep, {
+    const arr = (cfg.settings.iconLayouts || []).slice();
+    const entry = {
       name: clean, savedAt: Date.now(), icons: [...rows], hidden: hide,
       origin: { x: o.x, y: o.y },                  // どのモニタ構成で覚えたか
       // 同じ名前を上書きするときは、ウィジェットの連動を持ち越す
       linkWidgets: !!(prev && prev.linkWidgets),
       widgetsOn: (prev && prev.widgetsOn) ? prev.widgetsOn.slice() : [],
-    }].slice(-21);
+    };
+    // 上書きは同じ場所に置く。末尾へ移すと、編集のたびに一覧の並びが崩れる
+    const idx = arr.findIndex(l => l.name === clean);
+    if (idx >= 0) arr[idx] = entry; else arr.push(entry);
+    cfg.settings.iconLayouts = arr.slice(-21);
   });
   return { ok: true, count: rows.length, name: clean };
 }
@@ -1867,6 +1871,20 @@ ipcMain.handle('icons:save', (e, name, hidden) => saveIconSnapshot(name, hidden)
 ipcMain.handle('icons:restore', (e, name) => applyIconSnapshot(name));
 
 // モードの名前を変える。名前で参照している設定も一緒に付け替える
+// モードの並び替え (名前の配列で新しい順序を受け取る)
+ipcMain.handle('icons:reorder', (e, names) => {
+  const order = Array.isArray(names) ? names.filter(Boolean) : [];
+  if (!order.length) return { ok: false };
+  config.update(cfg => {
+    const arr = cfg.settings.iconLayouts || [];
+    const byName = new Map(arr.map(l => [l.name, l]));
+    const listed = order.map(n => byName.get(n)).filter(Boolean);
+    const rest = arr.filter(l => !order.includes(l.name));   // 自動退避などはそのまま後ろへ
+    cfg.settings.iconLayouts = [...listed, ...rest];
+  });
+  return { ok: true };
+});
+
 ipcMain.handle('icons:rename', (e, from, to) => {
   const clean = String(to || '').trim().slice(0, 40);
   if (!clean) return { ok: false, msg: '名前を入れてください' };

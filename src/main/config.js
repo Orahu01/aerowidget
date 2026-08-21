@@ -365,6 +365,12 @@ function newWidget(type) {
         ...base, x: 14, y: 30, size: 20, weight: 300, letterSpacing: 2, shadow: 'soft',
         options: { zones: '東京=Asia/Tokyo\nニューヨーク=America/New_York\nロンドン=Europe/London', showDate: false, hour12: false },
       };
+    case 'modeswitch':
+      // アイコンのモード切替ボタン。中身は switcher と同じ描画で対象だけ固定
+      return {
+        ...base, x: 50, y: 86, size: 13, weight: 500, letterSpacing: 1, shadow: 'none',
+        options: { items: [], w: 300, h: 46, bgOpacity: 0.55, vertical: false },
+      };
     case 'switcher':
       return {
         ...base, x: 50, y: 92, size: 13, weight: 500, letterSpacing: 1, shadow: 'none',

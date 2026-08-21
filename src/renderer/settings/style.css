@@ -1003,3 +1003,10 @@ input[type="text"].bad {
   padding: 9px 12px;
   background: rgba(255, 178, 122, .07);
 }
+
+/* モードの並び替え (見出しをつまんで動かす) */
+.ic-mode-head { cursor: grab; }
+.ic-mode-head:active { cursor: grabbing; }
+.ic-mode.dragging { opacity: .45; }
+.ic-mode.drop-before { box-shadow: 0 -2px 0 0 var(--acc); }
+.ic-mode.drop-after { box-shadow: 0 2px 0 0 var(--acc); }
