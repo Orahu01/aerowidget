@@ -138,6 +138,8 @@ const JA_EN = {
   'ひとつも選んでいないので、このモードではウィジェットに触りません。':
     'Nothing is selected, so this mode leaves widgets alone.',
   'しまってあるウィジェット: ': 'Parked widgets: ',
+  '名前を付ける': 'Name this widget', '絞り込み': 'Filter', '名前や種類で探す': 'Search by name or type',
+  '見つかりませんでした': 'Nothing matched', 'いま適用中': 'active now', '読み直しました': 'Reloaded',
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
   'モードの名前': 'Mode name', '名前を変える': 'Rename', '名前を変えました': 'Renamed',
   'デスクトップのアイコン': 'Desktop icons', 'ウィジェット': 'Widgets', 'ウィジェット ': 'widgets ',
@@ -1528,9 +1530,14 @@ function typeOptionsUI(w) {
 const NO_FONT_TYPES = new Set(['line', 'image', 'analog']);
 const NO_SHADOW_TYPES = new Set(['line']);
 
+let widgetQuery = '';               // ウィジェットの絞り込み文字列
+// 名前を付ける鉛筆 (ウィジェットの見出しとアイコン一覧で共用)
+const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
+
 function widgetCard(w) {
   const meta = TYPES[w.type] || { icon: 'i-widgets', label: w.type };
   const card = document.createElement('div');
+  card.dataset.wid = w.id;
   card.className = 'widget-card' + (expanded.has(w.id) ? ' open' : '') + (w.off ? ' is-off' : '');
 
   const head = document.createElement('div');
@@ -1542,10 +1549,46 @@ function widgetCard(w) {
   title.className = 'wc-title';
   // 呼び名を付けていればそれを見出しにする (同じ種類が並ぶと見分けが付かないため)
   title.textContent = w.name || T(meta.label);
+
+  // 見出しから直接、名前を付けたり変えたりできる
+  const pen = document.createElement('button');
+  pen.className = 'wc-pen';
+  pen.title = T('名前を付ける');
+  pen.innerHTML = PEN_SVG;
+  pen.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'wc-name-in';
+    inp.value = w.name || '';
+    inp.placeholder = T(meta.label);
+    inp.maxLength = 24;
+    let done = false;
+    const save = () => {
+      if (done) return;
+      done = true;
+      patchWidget(w.id, { name: inp.value.trim().slice(0, 24) });
+      renderWidgetList();
+    };
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') save();
+      if (ev.key === 'Escape') { done = true; renderWidgetList(); }
+    });
+    inp.addEventListener('blur', save);
+    inp.addEventListener('click', (ev) => ev.stopPropagation());
+    title.replaceWith(inp);
+    inp.focus();
+    inp.select();
+  });
+
   const sub = document.createElement('span');
   sub.className = 'wc-sub';
-  const dispLabel = displays.length > 1 ? ` ・ モニタ${(w.display || 0) + 1}` : '';
-  sub.textContent = NO_FONT_TYPES.has(w.type) ? dispLabel.replace(' ・ ', '') : `${w.font} ・ ${w.size}px${dispLabel}`;
+  // 名前を付けると種類が見出しから消えるので、副題に残しておく
+  sub.textContent = [
+    w.name ? T(meta.label) : '',
+    NO_FONT_TYPES.has(w.type) ? '' : `${w.font} ・ ${w.size}px`,
+    displays.length > 1 ? `${T('モニタ')}${(w.display || 0) + 1}` : '',
+  ].filter(Boolean).join(' ・ ');
   const spacer = document.createElement('span');
   spacer.className = 'wc-spacer';
   const chev = document.createElement('span');
@@ -1554,6 +1597,7 @@ function widgetCard(w) {
 
   head.appendChild(glyph);
   head.appendChild(title);
+  head.appendChild(pen);
   head.appendChild(sub);
   head.appendChild(spacer);
   // 消さずにしまう / 出す
@@ -1577,7 +1621,8 @@ function widgetCard(w) {
   }));
   head.appendChild(chev);
   head.addEventListener('click', (e) => {
-    if (e.target.closest('.wc-del')) return;
+    if (e.target.closest('.wc-del') || e.target.closest('.wc-pen')) return;
+    if (e.target.closest('.wc-name-in')) return;
     if (expanded.has(w.id)) expanded.delete(w.id); else expanded.add(w.id);
     card.classList.toggle('open');
   });
@@ -1717,7 +1762,53 @@ function renderWidgetList() {
     list.appendChild(row);
   }
 
+  // 数が増えると探しづらいので、名前や種類で絞り込めるようにする
+  if (cfg.widgets.length >= 6) {
+    const row = document.createElement('div');
+    row.className = 'row wf-row';
+    const lab = document.createElement('label');
+    lab.textContent = T('絞り込み');
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.id = 'widget-filter';
+    inp.placeholder = T('名前や種類で探す');
+    inp.value = widgetQuery;
+    inp.addEventListener('input', () => { widgetQuery = inp.value; applyWidgetFilter(); });
+    const ctl = document.createElement('div');
+    ctl.className = 'ctl';
+    ctl.appendChild(inp);
+    row.append(lab, ctl);
+    list.appendChild(row);
+  } else {
+    widgetQuery = '';
+  }
+
   for (const w of cfg.widgets) list.appendChild(widgetCard(w));
+  applyWidgetFilter();
+}
+
+// 絞り込みは表示の出し入れだけで行う (作り直すと入力欄からフォーカスが外れる)
+function applyWidgetFilter() {
+  const q = widgetQuery.trim().toLowerCase();
+  let hit = 0;
+  for (const w of cfg.widgets) {
+    const card = document.querySelector(`.widget-card[data-wid="${w.id}"]`);
+    if (!card) continue;
+    const meta = TYPES[w.type] || { label: w.type };
+    const hay = `${w.name || ''} ${T(meta.label)} ${w.type}`.toLowerCase();
+    const show = !q || hay.includes(q);
+    card.style.display = show ? '' : 'none';
+    if (show) hit++;
+  }
+  const none = $('#widget-none');
+  if (none) none.remove();
+  if (q && !hit) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.id = 'widget-none';
+    p.textContent = T('見つかりませんでした');
+    $('#widget-list').appendChild(p);
+  }
 }
 
 // ---------------------------------------------------------------- テーマ / ウィザード
@@ -2291,7 +2382,6 @@ async function iconImageFor(name) {
 }
 
 const CHECK_SVG = '<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
-const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
 
 function widgetLabel(w) {
   const meta = TYPES[w.type] || { label: w.type };
@@ -2416,13 +2506,21 @@ function icModeCard(snap, allNames) {
   const nm = document.createElement('span');
   nm.className = 'ic-mode-name';
   nm.textContent = snap.name;
+  head.append(nm);
+  if (snap.name === (cfg.settings || {}).currentIconMode) {
+    const now = document.createElement('span');
+    now.className = 'ic-now';
+    now.textContent = T('いま適用中');
+    head.appendChild(now);
+    card.classList.add('is-now');
+  }
   const meta = document.createElement('span');
   meta.className = 'ic-mode-meta';
   meta.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
     + T('隠す ') + hideNow + T(' 個') + ' ・ '
     + T('見えるのは ') + (allNames.length - hideNow) + T(' 個')
     + (wd.link ? ' ・ ' + T('ウィジェット ') + wOn + '/' + allWidgets.length : '');
-  head.append(nm, meta);
+  head.append(meta);
   head.onclick = () => {
     if (open) icOpenModes.delete(snap.name); else icOpenModes.add(snap.name);
     renderIconPicker();
@@ -2974,6 +3072,51 @@ async function loadFonts() {
   names.sort((a, b) => a.localeCompare(b, 'ja'));
   systemFonts = names;
 }
+
+// ---------------------------------------------------------------- 読み直し (F5)
+// デスクトップにアイコンを足した / ウィジェットを外で変えた、といったときに
+// 開き直さずに取り直せるようにする。ページの再読み込みではないのでタブは保つ。
+let refreshing = false;
+async function refreshAll() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    icImgCache = new Map();          // アイコン画像は取り直す
+    const env = await window.api.getConfig();
+    cfg = env.config;
+    sysWall = env.systemWallpaper || '';
+    if (env.osLocale) osLocale = env.osLocale;
+    displays = await window.api.listDisplays();
+    renderWallpaperTab();
+    renderWidgetList();
+    await renderGeneral();
+    injectFonts();
+    toast(T('読み直しました'));
+  } finally {
+    refreshing = false;
+  }
+}
+
+let toastTimer = null;
+function toast(text) {
+  let el = $('#toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+document.addEventListener('keydown', (e) => {
+  const r = e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r');
+  if (!r) return;
+  e.preventDefault();
+  refreshAll();
+});
 
 // ---------------------------------------------------------------- 初期化・購読
 window.api.onConfig((env) => {

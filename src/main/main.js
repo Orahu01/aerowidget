@@ -656,10 +656,21 @@ function createTray() {
     const layoutItems = layouts.length
       ? layouts.map((l, i) => ({ label: l.name || `レイアウト ${i + 1}`, click: () => applyLayout(i) }))
       : [{ label: t('(設定画面から保存できます)', '(save from settings)'), enabled: false }];
+
+    // アイコンのモードも、いま当たっているものに印を付けて並べる
+    const iconModes = (config.get().settings.iconLayouts || []).filter(l => l.name !== ICON_BACKUP_NAME);
+    const curIcons = config.get().settings.currentIconMode || '';
+    const iconModeItems = iconModes.map(l => ({
+      label: l.name, type: 'radio', checked: l.name === curIcons,
+      click: () => applyIconSnapshot(l.name),
+    }));
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: t('設定を開く', 'Open settings'), click: () => openSettings() },
       { label: t('レイアウトを編集', 'Edit layout'), click: () => enterEditMode() },
       { label: t('レイアウトプリセット', 'Layout presets'), submenu: layoutItems },
+      ...(iconModes.length
+        ? [{ label: t('アイコンのモード', 'Icon modes'), submenu: iconModeItems }]
+        : []),
       { label: t('天気を更新', 'Refresh weather'), click: () => { const w = weatherWidget(); if (w) weather.refresh(w.options); } },
       {
         // しまってあるものがあるときだけ出す最後の逃げ道
