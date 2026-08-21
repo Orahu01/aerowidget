@@ -42,6 +42,7 @@ const GetSystemMetrics = user32.func('__stdcall', 'GetSystemMetrics', 'int', ['i
 const GetWindowLongPtrW = user32.func('__stdcall', 'GetWindowLongPtrW', 'int64', ['uint64', 'int']);
 const MonitorFromPoint = user32.func('__stdcall', 'MonitorFromPoint', 'uint64', ['int64', 'uint32']);
 
+const SM_CXSCREEN = 0, SM_CYSCREEN = 1;   // 主モニタの大きさ (主モニタの原点は常に 0,0)
 const SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77;
 const SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79;
 const MONITOR_DEFAULTTONULL = 0;
@@ -165,21 +166,37 @@ function homeToCurrent(h, cur, isOff) {
 const STEP_X = 130, STEP_Y = 126;   // アイコン間隔よりわずかに広く取る
 const cellKey = (x, y) => Math.round(x / STEP_X) + ',' + Math.round(y / STEP_Y);
 
-// 画面に映る空きセルを上から順に集める。taken は cellKey の Set
+// 画面に映る空きセルを集める。taken は cellKey の Set。
+// 仮想画面の左上から詰めると、モニタを左や上に並べている環境では
+// 「サブモニタから埋まる」ことになる (実害: 行き場のないアイコンが
+// 縦置きのサブへ飛び、それを保存すると座標ごと焼き付いた)。
+// なので主モニタの中を先に、その後で残りを走査する。
 function freeVisibleCells(limit, taken) {
   const o = origin();
   const vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
   const vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+  // 主モニタはスクリーン座標で常に (0,0) 始まり
+  const pw = GetSystemMetrics(SM_CXSCREEN);
+  const ph = GetSystemMetrics(SM_CYSCREEN);
+  const inPrimary = (lx, ly) => {
+    const sx = o.x + lx, sy = o.y + ly;
+    return sx >= 0 && sx < pw && sy >= 0 && sy < ph;
+  };
   const out = [];
-  for (let ly = 0; ly < vh && out.length < limit; ly += STEP_Y) {
-    for (let lx = 0; lx < vw && out.length < limit; lx += STEP_X) {
-      if (isOffScreen(o.x + lx, o.y + ly)) continue;
-      const k = cellKey(lx, ly);
-      if (taken && taken.has(k)) continue;
-      if (taken) taken.add(k);
-      out.push({ x: lx, y: ly });
+  const scan = (accept) => {
+    for (let ly = 0; ly < vh && out.length < limit; ly += STEP_Y) {
+      for (let lx = 0; lx < vw && out.length < limit; lx += STEP_X) {
+        if (!accept(lx, ly)) continue;
+        if (isOffScreen(o.x + lx, o.y + ly)) continue;
+        const k = cellKey(lx, ly);
+        if (taken && taken.has(k)) continue;
+        if (taken) taken.add(k);
+        out.push({ x: lx, y: ly });
+      }
     }
-  }
+  };
+  scan(inPrimary);                                   // まず主モニタ
+  scan((lx, ly) => !inPrimary(lx, ly));              // それから残り
   return out;
 }
 
