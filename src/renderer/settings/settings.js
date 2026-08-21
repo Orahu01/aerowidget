@@ -119,7 +119,14 @@ const JA_EN = {
   'すべて表示する': 'Bring them all back',
   '隠したアイコンが分からなくなったときは、これを押せば全部を画面に呼び戻します。保存した配置が無くても戻せます。':
     'If you lose track of hidden icons, this pulls every one of them back onto the screen. It works even with no saved arrangement.',
-  'ありません': 'None', '画面に戻しました (': 'Brought back (',
+  'ありません': 'None',
+  '確認できませんでした': 'Could not check',
+  'いま確認できませんでした。公開の直後かもしれません。少し待ってからもう一度お試しください。':
+    'Could not check just now. The release may still be going up — please try again in a moment.',
+  '元の位置に戻す': 'Put them back', '元の位置に戻しました (': 'Put back (',
+  ' / 元の位置が分からず並べ直した: ': ' / no known spot, laid out: ',
+  '隠したアイコンが分からなくなったときは、これを押せば元の位置へ戻します。隠す前の位置を覚えているので、保存した配置が無くても戻せます。元の位置が今の画面に無いものだけ、空いている場所へ並べます。':
+    'If you lose track of hidden icons, this puts them back where they were. Their pre-hide positions are remembered, so it works with no saved arrangement. Only icons whose old spot no longer exists get laid out in free space.',
   'シーン': 'Scenes', 'アイコン': 'Icons', '設定': 'Settings',
   '赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。':
     'The keys marked in red could not be registered because another app already uses them. Please choose different keys.',
@@ -2240,9 +2247,12 @@ async function renderIconLayouts() {
     showAllBtn.disabled = !stranded.length;
     showAllBtn.onclick = async () => {
       const r = await window.api.showAllIcons();
-      $('#ic-status').textContent = r.ok
-        ? T('画面に戻しました (') + r.moved + T(' 個)')
-        : r.msg;
+      if (!r.ok) { $('#ic-status').textContent = r.msg; }
+      else {
+        let m = T('元の位置に戻しました (') + (r.restored || 0) + T(' 個)');
+        if (r.placed) m += T(' / 元の位置が分からず並べ直した: ') + r.placed + T(' 個');
+        $('#ic-status').textContent = m;
+      }
       renderIconLayouts();
     };
   }
@@ -2392,8 +2402,21 @@ function updateStatusText(s) {
     case 'latest': t.textContent = '最新版です'; break;
     case 'portable': t.textContent = 'ポータブル版は手動更新です (Releases から最新版をダウンロード)'; break;
     case 'dev': t.textContent = '開発モードでは無効'; break;
-    case 'error': t.textContent = `確認できませんでした${s.message ? ' (' + s.message + ')' : ''}`; break;
+    case 'error':
+      // 公開直後などの一時的な失敗は、待てば直ると伝える
+      t.textContent = s.message === 'transient'
+        ? T('いま確認できませんでした。公開の直後かもしれません。少し待ってからもう一度お試しください。')
+        : `${T('確認できませんでした')}${s.message ? ' (' + s.message + ')' : ''}`;
+      break;
     default: t.textContent = '未確認';
+  }
+
+  // 更新すると何が変わるのかを見せる (判断できないまま再起動を迫らない)
+  const notes = $('#update-notes');
+  if (notes) {
+    const show = s.notes && ['confirm', 'available', 'downloading', 'ready'].includes(s.state);
+    notes.style.display = show ? '' : 'none';
+    notes.textContent = show ? s.notes : '';
   }
 }
 

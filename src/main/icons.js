@@ -226,6 +226,16 @@ function apply(saved, hidden = []) {
   }
 }
 
+// いま画面に見えているアイコンだけ {name,x,y} で返す。
+// 「最後に見えていた位置」を記録するために使う (隠す前の住所)。
+function visibleList() {
+  const all = list();
+  if (!all) return null;
+  const ox = GetSystemMetrics(SM_XVIRTUALSCREEN);
+  const oy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+  return all.filter(i => !isOffScreen(ox + i.x, oy + i.y));
+}
+
 // いま画面外 (どのモニタにも映らない位置) にいるアイコン
 function strandedNames() {
   const all = list();
@@ -238,7 +248,9 @@ function strandedNames() {
 // 画面外のアイコンを全部、見える場所へ並べ直す。
 // 元位置が分からなくても必ず戻せる最後の手段なので、
 // 保存データに頼らず「空いている見えるセル」を自前で探して置く。
-function showAll() {
+// home: {名前 -> {x,y}} 最後に見えていた位置。あればそこへ戻す。
+// 無い / 埋まっている場合だけ、空いている見えるセルへ置く。
+function showAll(home = {}) {
   const all = list();
   if (!all) return null;
   const ox = GetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -275,15 +287,28 @@ function showAll() {
       const n = readName(s2, i);
       if (n && !nameToIndex.has(n)) nameToIndex.set(n, i);
     }
-    let moved = 0;
+    let moved = 0, restored = 0, placed = 0;
+    let nextFree = 0;
     for (const it of stranded) {
       const i = nameToIndex.get(it.name);
-      const slot = free[moved];
-      if (i == null || !slot) continue;
+      if (i == null) continue;
+
+      // 覚えている元位置が使えるならそこへ
+      const h = home[it.name];
+      const canGoHome = h && !isOffScreen(ox + (h.x | 0), oy + (h.y | 0));
+      if (canGoHome) {
+        num(SendMessageW(s2.lv, LVM_SETITEMPOSITION, i, pack(h.x | 0, h.y | 0)));
+        moved++; restored++;
+        continue;
+      }
+      // 元位置が分からない / いまの画面に無い場合だけ空きセルへ
+      const slot = free[nextFree];
+      if (!slot) continue;
+      nextFree++;
       num(SendMessageW(s2.lv, LVM_SETITEMPOSITION, i, pack(slot.x, slot.y)));
-      moved++;
+      moved++; placed++;
     }
-    return { moved, stranded: stranded.length };
+    return { moved, restored, placed, stranded: stranded.length };
   } catch (_) {
     return null;
   } finally {
@@ -296,4 +321,4 @@ function available() {
   return !!(lv && IsWindow(lv));
 }
 
-module.exports = { list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll };
+module.exports = { list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll, visibleList };

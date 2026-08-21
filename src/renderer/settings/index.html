@@ -403,6 +403,7 @@
               <button class="btn primary" id="btn-update-install" style="display:none">再起動して更新</button>
             </div>
           </div>
+          <pre class="foot-note" id="update-notes" style="display:none;white-space:pre-wrap;margin-top:-4px"></pre>
           <div class="row">
             <label data-i18n="gen.prerelease">先行版を受け取る</label>
             <div class="ctl">
@@ -447,10 +448,10 @@
             <label data-i18n="ic.stranded">画面の外にあるアイコン</label>
             <div class="ctl">
               <span class="dim" id="ic-stranded"></span>
-              <button class="btn primary" id="ic-showall"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="ic.showAll">すべて表示する</span></button>
+              <button class="btn primary" id="ic-showall"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="ic.showAll">元の位置に戻す</span></button>
             </div>
           </div>
-          <p class="foot-note" data-i18n="ic.strandedNote">隠したアイコンが分からなくなったときは、これを押せば全部を画面に呼び戻します。保存した配置が無くても戻せます。</p>
+          <p class="foot-note" data-i18n="ic.strandedNote">隠したアイコンが分からなくなったときは、これを押せば元の位置へ戻します。隠す前の位置を覚えているので、保存した配置が無くても戻せます。元の位置が今の画面に無いものだけ、空いている場所へ並べます。</p>
         </div>
 
         <h2 data-i18n="ic.title">アイコンの配置を保存する</h2>

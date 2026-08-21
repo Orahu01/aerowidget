@@ -94,6 +94,7 @@ function defaults() {
       // 保存は読むだけ。復元だけが書き込みで、押したときのみ動く。
       iconLayouts: [],             // [{name, savedAt, icons:[{name,x,y}]}]
       iconAutoRestore: '',         // 解像度変更で自動復元するスナップ名 ('' = オフ・既定)
+      iconHome: {},                // アイコン名 -> 最後に画面で見えていた位置 (帰り先)
     },
   };
 }
@@ -166,6 +167,7 @@ function load() {
     );
     if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];
     if (!Array.isArray(cfg.settings.iconLayouts)) cfg.settings.iconLayouts = [];
+    if (!cfg.settings.iconHome || typeof cfg.settings.iconHome !== 'object') cfg.settings.iconHome = {};
     cfg.settings.hotkeys = Object.assign(
       { enabled: false, overlay: 'Ctrl+Alt+A', toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
       (parsed.settings || {}).hotkeys || {},

@@ -32,8 +32,38 @@ function supported() {
   return app.isPackaged && !isPortable();
 }
 
+// GitHub のリリース本文から、設定画面に出せる短い平文を作る。
+// electron-updater は releaseNotes を HTML 文字列 (または配列) で渡してくる。
+function readableNotes(info) {
+  let raw = info && info.releaseNotes;
+  if (Array.isArray(raw)) raw = raw.map(r => (r && r.note) || '').join('\n');
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+
+  const text = raw
+    .replace(/<\/(p|div|li|h\d)>/gi, '\n')     // ブロックの終わりは改行に
+    .replace(/<li[^>]*>/gi, '・')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')                    // 残りのタグを落とす
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+
+  const lines = text.split('\n')
+    .map(l => l.replace(/^[\s*#>-]+/, '').trim())
+    .filter(l => l && !/^https?:\/\//i.test(l))   // 素の URL 行は落とす
+    .filter(l => !/^(full changelog|co-authored-by)/i.test(l));
+
+  // 長くなりすぎないよう先頭だけ
+  const picked = [];
+  for (const l of lines) {
+    picked.push(l.length > 110 ? l.slice(0, 110) + '…' : l);
+    if (picked.length >= 6) break;
+  }
+  return picked.join('\n');
+}
+
 function setStatus(state, extra = {}) {
-  status = { state, version: status.version, message: '', ...extra };
+  // notes は次の状態へ引き継ぐ (download 中に消えないように)
+  status = { state, version: status.version, notes: status.notes || '', message: '', ...extra };
   emitter.emit('status', status);
 }
 
@@ -56,16 +86,21 @@ function init() {
   autoUpdater.on('update-available', (info) => {
     if (isPrerelease(info.version)) {
       // 先行版: 本人が「入れる」と言うまで落とさない
-      setStatus('confirm', { version: info.version });
+      setStatus('confirm', { version: info.version, notes: readableNotes(info) });
       return;
     }
-    setStatus('available', { version: info.version });
+    setStatus('available', { version: info.version, notes: readableNotes(info) });
     autoUpdater.downloadUpdate().catch(() => {});
   });
   autoUpdater.on('update-not-available', () => setStatus('latest'));
   autoUpdater.on('download-progress', (p) => setStatus('downloading', { version: status.version, message: Math.round(p.percent) + '%' }));
-  autoUpdater.on('update-downloaded', (info) => setStatus('ready', { version: info.version }));
-  autoUpdater.on('error', (e) => setStatus('error', { message: String(e && e.message || e).slice(0, 120) }));
+  autoUpdater.on('update-downloaded', (info) => setStatus('ready', { version: info.version, notes: readableNotes(info) }));
+  autoUpdater.on('error', (e) => {
+    const raw = String((e && e.message) || e);
+    // 公開直後は latest.yml がまだ無いことがある。生の英文を出さず、待てば直ると伝える
+    const transient = /latest\.yml|ENOTFOUND|ETIMEDOUT|ECONNRESET|404/i.test(raw);
+    setStatus('error', { message: transient ? 'transient' : raw.slice(0, 120) });
+  });
 
   // 起動 20 秒後に一度チェック、以降 6 時間ごと (単一ハートビートに集約)
   setTimeout(() => check(), 20000);
@@ -97,7 +132,7 @@ function setAllowPrerelease(on) {
 // 先行版の確認に「はい」と答えたとき
 function download() {
   if (autoUpdater && status.state === 'confirm') {
-    setStatus('available', { version: status.version });
+    setStatus('available', { version: status.version, notes: status.notes });
     autoUpdater.downloadUpdate().catch(() => {});
   }
 }

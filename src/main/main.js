@@ -1625,9 +1625,22 @@ ipcMain.handle('hotkeys:failed', () => hotkeys.failed());
 // ---- デスクトップアイコンの保存 / 復元 ----
 const ICON_BACKUP_NAME = '復元前 (自動)';
 
+// 「最後に見えていた位置」。隠す前の住所をここに貯めておき、
+// 呼び戻すときの帰り先にする。隠したまま保存を繰り返しても失われない。
+function rememberHome() {
+  const vis = icons.visibleList();
+  if (!vis || !vis.length) return;
+  config.update(cfg => {
+    const home = { ...(cfg.settings.iconHome || {}) };
+    for (const i of vis) home[i.name] = { x: i.x, y: i.y };
+    cfg.settings.iconHome = home;
+  });
+}
+
 // 現在のアイコン配置を name つきスナップとして settings.iconLayouts に積む。
 // 読むだけ。書き込みは一切しない。同名は上書き、最大 21 枠 (自動退避 1 + 通常 20)。
 function saveIconSnapshot(name, hidden) {
+  if (Array.isArray(hidden) && hidden.length) rememberHome();
   const now = icons.list();
   if (!now || !now.length) return { ok: false, msg: 'デスクトップアイコンを読み取れませんでした' };
   const clean = String(name || '').slice(0, 40) || `アイコン配置 ${new Date().toLocaleString('ja-JP')}`;
@@ -1644,6 +1657,7 @@ function saveIconSnapshot(name, hidden) {
 function applyIconSnapshot(name) {
   const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
   if (!snap) return { ok: false, msg: 'その配置が見つかりません' };
+  rememberHome();                       // 隠す前の住所を控える
   saveIconSnapshot(ICON_BACKUP_NAME);
   const r = icons.apply(snap.icons, snap.hidden || []);
   if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
@@ -1658,7 +1672,7 @@ ipcMain.handle('icons:stranded', () => icons.strandedNames() || []);
 // 画面外に取り残されたアイコンを全部呼び戻す (最後の逃げ道)
 ipcMain.handle('icons:showAll', () => {
   saveIconSnapshot(ICON_BACKUP_NAME);
-  const r = icons.showAll();
+  const r = icons.showAll(config.get().settings.iconHome || {});
   if (!r) return { ok: false, msg: 'デスクトップにアクセスできませんでした' };
   return { ok: true, ...r };
 });

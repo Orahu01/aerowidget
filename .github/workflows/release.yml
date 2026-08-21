@@ -115,7 +115,52 @@ jobs:
             gh release upload $tag @assets --clobber
           } else {
             Write-Host "Release $tag を作成します"
-            $flags = @('--title', $tag, '--generate-notes', '--verify-tag')
+            # リリース本文は日本語で書く。アプリの更新画面にそのまま出るので、
+          # 英語のコミット件名が並ぶだけの --generate-notes では利用者に伝わらない。
+          # docs/changelog.html の該当バージョンの節から箇条書きを拾う。
+          $notesFile = Join-Path $env:RUNNER_TEMP 'relnotes.md'
+          $ver = $tag.TrimStart('v')
+          $notes = ''
+          $cl = 'docs/changelog.html'
+          if (Test-Path $cl) {
+            $html = Get-Content $cl -Raw
+            # <div class="v">5.9.1</div> から次の </section> までを取り出す
+            $pattern = '(?s)<div class="v">' + [regex]::Escape($ver) + '</div>.*?</section>'
+            $m = [regex]::Match($html, $pattern)
+            if ($m.Success) {
+              $body = $m.Value
+              $lines = @()
+              foreach ($h in [regex]::Matches($body, '(?s)<h4>(.*?)</h4>')) {
+                $lines += ''
+                $lines += '### ' + ($h.Groups[1].Value -replace '<[^>]+>', '').Trim()
+              }
+              # 見出しと箇条書きを出現順に拾い直す
+              $lines = @()
+              foreach ($t in [regex]::Matches($body, '(?s)<h4>(.*?)</h4>|<li>(.*?)</li>')) {
+                if ($t.Groups[1].Success) {
+                  $lines += ''
+                  $lines += '### ' + ($t.Groups[1].Value -replace '<[^>]+>', '').Trim()
+                } else {
+                  $txt = $t.Groups[2].Value -replace '<[^>]+>', ''
+                  $txt = [System.Net.WebUtility]::HtmlDecode($txt).Trim()
+                  if ($txt) { $lines += '- ' + $txt }
+                }
+              }
+              $notes = ($lines -join "`n").Trim()
+            }
+          }
+          if (-not $notes) { $notes = "$tag" }
+          $isPre = ($minor % 2) -eq 1
+          if ($isPre) {
+            $notes += "`n`n---`n" +
+              'これは先行版です。設定 → 設定 →「先行版を受け取る」を ON にした方にだけ届きます。'
+          }
+          $notes += "`n`n[すべての変更点](https://orahu01.github.io/aerowidget/changelog.html)"
+          Set-Content -Path $notesFile -Value $notes -Encoding UTF8
+          Write-Host '--- リリース本文 ---'
+          Write-Host $notes
+
+          $flags = @('--title', $tag, '--notes-file', $notesFile, '--verify-tag')
             if ($pre) { $flags += '--prerelease' }
             gh release create $tag @assets @flags
           }
