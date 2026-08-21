@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.13 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.14 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,25 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.14 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.14</div><div class="when">先行版</div></div>
+    <div>
+      <h4>ビジュアライザーが、はじめて本当に動きます</h4>
+      <ul>
+        <li>今までは<b>メディアの「再生中」情報 (SMTC) が立っている間しか</b>波を描かない作りでした。ゲームの音や一部のプレイヤーでは立たないため、「一度も動かない」状態でした</li>
+        <li>音の取り込み自体は生きていることを確かめた上で、<b>実際に鳴っている音の強さ</b>で動くように作り替えました。何の音でも波が出ます。静かなときは 1 秒 4 回の様子見だけに落として、CPU は使いません</li>
+        <li>取り込みに一度失敗しても、60 秒後に取り直します (以前は再起動まで死んだままでした)</li>
+      </ul>
+      <h4>フォルダウィジェットにドラッグ&ドロップで追加できます</h4>
+      <ul>
+        <li>設定画面のフォルダの項目に<b>ドロップ枠</b>が付きました。エクスプローラーから<b>複数まとめて</b>放り込めます</li>
+        <li><b>デスクトップ上のフォルダウィジェットへ直接ドロップ</b>もできます。設定画面を開く必要すらありません</li>
+        <li>同じものを二度入れても重複しません</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.13 -->

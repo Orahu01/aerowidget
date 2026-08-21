@@ -1,7 +1,7 @@
 // フォルダウィジェットウィンドウ用 preload
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const wid = new URLSearchParams(location.search).get('wid');
 
@@ -10,6 +10,14 @@ contextBridge.exposeInMainWorld('fw', {
   getState: () => ipcRenderer.invoke('folder:state', wid),
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),
   launch: (p) => ipcRenderer.send('folder:launch', wid, p),
+  droppedPaths: (files) => {
+    const out = [];
+    for (const f of files) {
+      try { const p = webUtils.getPathForFile(f); if (p) out.push(p); } catch (_) {}
+    }
+    return out;
+  },
+  addItems: (paths) => ipcRenderer.invoke('folder:addItems', wid, paths),
   save: (options) => ipcRenderer.send('inter:save', wid, options),
   onWidget: (cb) => ipcRenderer.on('fw', (_e, w) => cb(w)),
   onConfig: (cb) => ipcRenderer.on('config', (_e, env) => cb(env)),

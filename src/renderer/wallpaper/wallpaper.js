@@ -870,13 +870,17 @@ let visAnalyser = null;
 let visData = null;
 let visTimer = null;
 let visFailed = false;
+let visFailedAt = 0;      // 失敗しても一定時間で取り直す (一度の失敗で永久停止しない)
 let visStarting = false;
+let visQuietSince = 0;    // 無音が続いている開始時刻
 
 function visWidgets() {
   return myWidgets().filter(w => w.type === 'visualizer');
 }
 
 async function ensureVisCapture() {
+  // 失敗フラグは 60 秒で解除して取り直す (起動直後の一時的な失敗を引きずらない)
+  if (visFailed && Date.now() - visFailedAt > 60000) visFailed = false;
   if (visAnalyser || visFailed || visStarting) return;
   visStarting = true;
   try {
@@ -892,6 +896,7 @@ async function ensureVisCapture() {
     visData = new Uint8Array(visAnalyser.frequencyBinCount);
   } catch (e) {
     visFailed = true;
+    visFailedAt = Date.now();
   } finally {
     visStarting = false;
     visSync();
@@ -929,19 +934,37 @@ function drawVis(cv, w, live) {
   }
 }
 
+// 何をもって「音が鳴っている」とするか: SMTC の再生中フラグは
+// ゲームやブラウザの音では立たないことがあり、それに縛った結果
+// 「一度も動かない」になっていた。ここでは解析値そのものを見る。
 function visFrame() {
-  const playing = !!(mediaData && mediaData.playing);
-  if (visAnalyser && playing) visAnalyser.getByteFrequencyData(visData);
-  for (const w of visWidgets()) {
-    const rec = widgetEls.get(w.id);
-    const cv = rec && rec.el.querySelector('.vis-canvas');
-    if (cv) drawVis(cv, w, playing && !!visAnalyser);
+  if (!visAnalyser || paused) { visTimer = null; return; }
+  visAnalyser.getByteFrequencyData(visData);
+  let peak = 0;
+  for (let i = 0; i < visData.length; i++) if (visData[i] > peak) peak = visData[i];
+  const live = peak > 6;                       // ノイズ床より上なら「鳴っている」
+
+  if (live) {
+    visQuietSince = 0;
+    for (const w of visWidgets()) {
+      const rec = widgetEls.get(w.id);
+      const cv = rec && rec.el.querySelector('.vis-canvas');
+      if (cv) drawVis(cv, w, true);
+    }
+    visTimer = setTimeout(visFrame, 33);       // 鳴っている間は 30fps
+    return;
   }
-  if (playing && visAnalyser && !paused) {
-    visTimer = setTimeout(visFrame, 33);
-  } else {
-    visTimer = null;
+
+  // 静かになった: 一度だけ平らに戻し、あとは 250ms ごとの様子見 (描画なし)
+  if (!visQuietSince) {
+    visQuietSince = Date.now();
+    for (const w of visWidgets()) {
+      const rec = widgetEls.get(w.id);
+      const cv = rec && rec.el.querySelector('.vis-canvas');
+      if (cv) drawVis(cv, w, false);
+    }
   }
+  visTimer = setTimeout(visFrame, 250);
 }
 
 function visSync() {
@@ -949,7 +972,8 @@ function visSync() {
   clearTimeout(visTimer);
   visTimer = null;
   if (!ws.length) return;
-  if (!visAnalyser && !visFailed) ensureVisCapture();
+  if (!visAnalyser) ensureVisCapture();
+  visQuietSince = 0;
   visFrame(); // 停止中でも 1 回は描いてアイドル状態を見せる
 }
 
@@ -1395,6 +1419,7 @@ window.wall.onPower(({ paused: p }) => {
   if (video) { if (p) video.pause(); else video.play().catch(() => {}); }
   if (!p) { tick(); }
   scheduleTick();
+  visSync();               // 省電力から戻ったらビジュアライザーも再開
 });
 
 (async () => {

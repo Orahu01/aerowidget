@@ -1010,3 +1010,20 @@ input[type="text"].bad {
 .ic-mode.dragging { opacity: .45; }
 .ic-mode.drop-before { box-shadow: 0 -2px 0 0 var(--acc); }
 .ic-mode.drop-after { box-shadow: 0 2px 0 0 var(--acc); }
+
+/* フォルダ項目のドロップ枠 */
+.fitem-drop {
+  margin: 8px 0 6px;
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.fitem-drop.over, .fitem-list.over {
+  border-color: var(--acc);
+  background: var(--acc-dim);
+  color: var(--text);
+}

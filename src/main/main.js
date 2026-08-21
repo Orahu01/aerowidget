@@ -1264,6 +1264,27 @@ ipcMain.handle('file:pickImage', async () => {
   return (r.canceled || !r.filePaths[0]) ? null : r.filePaths[0];
 });
 
+// デスクトップ上のフォルダウィジェットへの直接ドロップ
+ipcMain.handle('folder:addItems', (e, wid, paths) => {
+  const clean = (Array.isArray(paths) ? paths : [])
+    .filter(p2 => typeof p2 === 'string' && p2);
+  if (!clean.length) return { ok: false, added: 0 };
+  let added = 0;
+  config.update(cfg => {
+    const w = (cfg.widgets || []).find(x => x.id === wid && x.type === 'folder');
+    if (!w) return;
+    if (!w.options) w.options = {};
+    const items = w.options.items || (w.options.items = []);
+    const have = new Set(items.map(i => i.path));
+    for (const p2 of clean) {
+      if (have.has(p2)) continue;
+      items.push({ path: p2, name: path.basename(p2).replace(/\.(lnk|exe|url|bat)$/i, '') });
+      added++;
+    }
+  });
+  return { ok: true, added };
+});
+
 ipcMain.handle('folder:pick', async () => {
   const r = await dialog.showOpenDialog(settingsWin, {
     title: 'フォルダウィジェットに入れるアプリ・ファイルを選択',

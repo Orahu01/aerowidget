@@ -1,7 +1,7 @@
 // 設定ウィンドウ用 preload
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   getConfig: () => ipcRenderer.invoke('config:get'),
@@ -72,6 +72,14 @@ contextBridge.exposeInMainWorld('api', {
   revealBackups: () => ipcRenderer.invoke('backup:reveal'),
   onUpdateStatus: (cb) => ipcRenderer.on('update-status', (_e, s) => cb(s)),
   pickFolderItems: () => ipcRenderer.invoke('folder:pick'),
+  // ドロップされた File 群を絶対パスへ (webUtils は preload でしか使えない)
+  droppedPaths: (files) => {
+    const out = [];
+    for (const f of files) {
+      try { const p = webUtils.getPathForFile(f); if (p) out.push(p); } catch (_) {}
+    }
+    return out;
+  },
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),
   searchCity: (q) => ipcRenderer.invoke('city:search', q),
   getWeather: () => ipcRenderer.invoke('weather:get'),

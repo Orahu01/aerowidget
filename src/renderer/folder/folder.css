@@ -81,3 +81,9 @@ html, body {
   text-align: center;
   padding: 8px;
 }
+
+/* ドロップ受け入れ中の見た目 */
+#card.dropping {
+  outline: 2px dashed rgba(227, 169, 79, 0.9);
+  outline-offset: -4px;
+}

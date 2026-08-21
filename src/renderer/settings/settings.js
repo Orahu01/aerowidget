@@ -139,6 +139,8 @@ const JA_EN = {
   'ひとつも選んでいないので、このモードではウィジェットに触りません。':
     'Nothing is selected, so this mode leaves widgets alone.',
   'しまってあるウィジェット: ': 'Parked widgets: ',
+  'ここへドラッグでも追加できます (複数まとめて OK)': 'Or drag files here (multiple at once is fine)',
+  '{n} 個を追加しました': 'Added {n} item(s)',
   '名前を付ける': 'Name this widget', '絞り込み': 'Filter', '名前や種類で探す': 'Search by name or type',
   '見つかりませんでした': 'Nothing matched', 'いま適用中': 'active now', '読み直しました': 'Reloaded',
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
@@ -1514,6 +1516,44 @@ function typeOptionsUI(w) {
       renderItems();
     });
     wrap.appendChild(ctlRow('アイテム', addBtn));
+
+    // エクスプローラーからのドラッグ&ドロップでも追加できる (複数まとめて可)
+    const dz = document.createElement('div');
+    dz.className = 'fitem-drop';
+    dz.textContent = T('ここへドラッグでも追加できます (複数まとめて OK)');
+    const addPaths = (paths) => {
+      if (!paths.length) return;
+      const have = new Set((o.items || []).map(x => x.path));
+      const add = paths
+        .filter(p2 => !have.has(p2))
+        .map(p2 => ({ path: p2, name: p2.split(/[\\/]/).pop().replace(/\.(lnk|exe|url|bat)$/i, '') }));
+      if (!add.length) return;
+      o.items = [...(o.items || []), ...add];
+      patchWidget(w.id, { options: { items: o.items } });
+      renderItems();
+      toast(T('{n} 個を追加しました').replace('{n}', add.length));
+    };
+    const onDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dz.classList.remove('over');
+      list.classList.remove('over');
+      addPaths(window.api.droppedPaths(e.dataTransfer.files || []));
+    };
+    for (const el of [dz, list]) {
+      el.addEventListener('dragover', (e) => {
+        if (![...e.dataTransfer.types].includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        el.classList.add('over');
+      });
+      el.addEventListener('dragleave', (e) => {
+        if (e.relatedTarget && el.contains(e.relatedTarget)) return;
+        el.classList.remove('over');
+      });
+      el.addEventListener('drop', onDrop);
+    }
+    wrap.appendChild(dz);
     wrap.appendChild(list);
     renderItems();
 

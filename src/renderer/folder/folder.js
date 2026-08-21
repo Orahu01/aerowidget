@@ -57,6 +57,25 @@ async function render() {
   }
 }
 
+// エクスプローラーからの直接ドロップで追加できる (複数まとめて可)。
+// 追加は main が config に書き、その変更通知で render() が呼ばれて反映される
+document.body.addEventListener('dragover', (e) => {
+  if (![...e.dataTransfer.types].includes('Files')) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  card.classList.add('dropping');
+});
+document.body.addEventListener('dragleave', (e) => {
+  if (e.relatedTarget) return;
+  card.classList.remove('dropping');
+});
+document.body.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  card.classList.remove('dropping');
+  const paths = window.fw.droppedPaths(e.dataTransfer.files || []);
+  if (paths.length) await window.fw.addItems(paths);
+});
+
 async function injectFonts() {
   try {
     document.getElementById('gfonts').textContent = await window.fw.getFontsCss();
