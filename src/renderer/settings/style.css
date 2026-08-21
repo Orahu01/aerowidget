@@ -994,3 +994,12 @@ input[type="text"].bad {
   z-index: 60;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* 自動整列の警告 */
+.foot-note.warn {
+  color: #ffb27a;
+  border: 1px solid rgba(255, 178, 122, .4);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: rgba(255, 178, 122, .07);
+}

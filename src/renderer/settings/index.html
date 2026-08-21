@@ -451,6 +451,7 @@
               <button class="btn primary" id="ic-showall"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="ic.showAll">元の位置に戻す</span></button>
             </div>
           </div>
+          <p class="foot-note warn" id="ic-autoarrange" style="display:none" data-i18n="ic.autoArrange">デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。</p>
           <div class="gf-item" id="ic-parked" style="display:none"></div>
           <p class="foot-note" data-i18n="ic.strandedNote">隠したアイコンが分からなくなったときは、これを押せば元の位置へ戻します。隠す前の位置を覚えているので、保存した配置が無くても戻せます。元の位置が今の画面に無いものだけ、空いている場所へ並べます。</p>
         </div>
@@ -473,7 +474,7 @@
             <label data-i18n="ic.auto">解像度が変わったら自動で戻す</label>
             <div class="ctl"><select id="ic-auto" style="min-width:220px"></select></div>
           </div>
-          <p class="foot-note" data-i18n="ic.autoNote">既定はオフです。オンにすると、モニタ構成が変わったときに選んだ配置へ自動で戻します (このときも直前に自動退避します)。</p>
+          <p class="foot-note" data-i18n="ic.autoNote">モニタ構成が変わると Windows が画面外のアイコンを引き戻してしまうため、隠しているモードが当たっているときは、落ち着いてから自動で当て直します。ここで配置を選ぶと、常にその配置へ戻すようになります。</p>
           <p class="foot-note" id="ic-status"></p>
         </div>
       </section>

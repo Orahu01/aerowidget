@@ -1655,12 +1655,19 @@ const ICON_BACKUP_NAME = '復元前 (自動)';
 
 // 「最後に見えていた位置」。隠す前の住所をここに貯めておき、
 // 呼び戻すときの帰り先にする。隠したまま保存を繰り返しても失われない。
+let lastDisplayChangeAt = 0;   // モニタ構成が最後に変わった時刻 (直後の記録を止める)
+
 function rememberHome() {
+  // モニタ構成が変わった直後は、Windows が画面外のアイコンを適当な場所へ
+  // 引き戻していることがある。その混乱中の位置を「元の場所」として
+  // 覚えてしまうと以後ずっと崩れるので、落ち着くまで記録しない。
+  if (Date.now() - lastDisplayChangeAt < 8000) return;
   const vis = icons.visibleList();
   if (!vis || !vis.length) return;
+  const o = icons.origin();
   config.update(cfg => {
     const home = { ...(cfg.settings.iconHome || {}) };
-    for (const i of vis) home[i.name] = { x: i.x, y: i.y };
+    for (const i of vis) home[i.name] = { x: i.x, y: i.y, ox: o.x, oy: o.y };
     cfg.settings.iconHome = home;
   });
 }
@@ -1668,20 +1675,15 @@ function rememberHome() {
 // 現在のアイコン配置を name つきスナップとして settings.iconLayouts に積む。
 // 読むだけ。書き込みは一切しない。同名は上書き、最大 21 枠 (自動退避 1 + 通常 20)。
 // 死角に退避しているアイコンの座標を、控えてある元位置に直す。
-// 退避先を「元の場所」として保存してしまうと、二度と帰れなくなる
-function unpark(rows) {
-  const home = config.get().settings.iconHome || {};
-  let repaired = 0;
-  const out = (rows || []).map(it => {
-    let parked = false;
-    try { parked = icons.isParked(it.x, it.y); } catch (_) { parked = false; }
-    const h = parked && home[it.name];
-    if (!h) return it;
-    repaired++;
-    return { ...it, x: h.x | 0, y: h.y | 0 };
-  });
-  out.repaired = repaired;
-  return out;
+// 保存時とモニタ構成が違えば、原点の差分も引き直す (icons.unparkRows)
+function unpark(rows, savedOrigin) {
+  try {
+    return icons.unparkRows(rows, savedOrigin, config.get().settings.iconHome || {});
+  } catch (_) {
+    const out = (rows || []).slice();
+    out.repaired = 0;
+    return out;
+  }
 }
 
 function saveIconSnapshot(name, hidden) {
@@ -1689,13 +1691,18 @@ function saveIconSnapshot(name, hidden) {
   const now = icons.list();
   if (!now || !now.length) return { ok: false, msg: 'デスクトップアイコンを読み取れませんでした' };
   const clean = String(name || '').slice(0, 40) || `アイコン配置 ${new Date().toLocaleString('ja-JP')}`;
-  const hide = Array.isArray(hidden) ? hidden.filter(Boolean) : [];
-  const rows = clean === ICON_BACKUP_NAME ? now : unpark(now);
+  // 自動退避は「いま隠れている名前」も控える。戻すときに同じものを隠し直すため
+  const hide = clean === ICON_BACKUP_NAME
+    ? (icons.strandedNames() || [])
+    : (Array.isArray(hidden) ? hidden.filter(Boolean) : []);
+  const rows = unpark(now);                        // 今の原点基準なので差分ゼロ、死角の分だけ直る
+  const o = icons.origin();
   const prev = (config.get().settings.iconLayouts || []).find(l => l.name === clean);
   config.update(cfg => {
     const keep = (cfg.settings.iconLayouts || []).filter(l => l.name !== clean);
     cfg.settings.iconLayouts = [...keep, {
       name: clean, savedAt: Date.now(), icons: [...rows], hidden: hide,
+      origin: { x: o.x, y: o.y },                  // どのモニタ構成で覚えたか
       // 同じ名前を上書きするときは、ウィジェットの連動を持ち越す
       linkWidgets: !!(prev && prev.linkWidgets),
       widgetsOn: (prev && prev.widgetsOn) ? prev.widgetsOn.slice() : [],
@@ -1742,7 +1749,8 @@ function applyIconSnapshot(name) {
       if (b) { b.linkWidgets = true; b.widgetsOn = nowOn; }
     });
   }
-  const r = icons.apply(snap.icons, snap.hidden || []);
+  const r = icons.apply(snap.icons, snap.hidden || [],
+    { origin: snap.origin, home: config.get().settings.iconHome || {} });
   if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
   let widgets = 0;            // このモードで出したウィジェットの数
   let widgetsRestored = 0;    // 連動していないモードで、しまってあったものを出した数
@@ -1916,13 +1924,24 @@ ipcMain.handle('icons:setHidden', (e, name, hidden) => {
 
   const hide = Array.isArray(hidden) ? hidden.filter(Boolean) : [];
   rememberHome();
-  const fixed = unpark(snap.icons);
+  const fixed = unpark(snap.icons, snap.origin);   // 保存時の原点から今の原点へ引き直す
+  const o = icons.origin();
 
   config.update(cfg => {
     const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
-    if (l) { l.hidden = hide; l.icons = [...fixed]; l.savedAt = Date.now(); }
+    if (l) {
+      l.hidden = hide;
+      l.icons = [...fixed];
+      l.origin = { x: o.x, y: o.y };
+      l.savedAt = Date.now();
+    }
   });
   return { ok: true, count: fixed.length, hidden: hide.length, repaired: fixed.repaired };
+});
+
+// デスクトップの「アイコンの自動整列」がオンか (オンだと隠す/戻すが効かない)
+ipcMain.handle('icons:autoArrange', () => {
+  try { return icons.autoArrange(); } catch (_) { return null; }
 });
 
 // この環境で「隠す」が使えるか (死角がいくつあるか)
@@ -1938,18 +1957,26 @@ ipcMain.handle('icons:remove', (e, name) => {
   return (config.get().settings.iconLayouts || []).map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length }));
 });
 
-// 解像度・モニタ構成が変わったとき、設定でオプトインしていれば自動復元する。
-// 既定はオフ。オンでも、書き込む前に必ず退避する。
+// 解像度・モニタ構成が変わったとき。
+// Windows はこのとき画面外のアイコンを適当な場所へ引き戻すので、
+// 隠しているモードが当たっているなら、落ち着いてから当て直して隠し直す。
+// 「解像度が変わったら自動で戻す」で配置を選んでいれば、そちらを優先する。
 let iconRestoreTimer = null;
 function onDisplayChanged() {
-  const target = config.get().settings.iconAutoRestore;
-  if (!target) return;   // 既定オフ
+  lastDisplayChangeAt = Date.now();
+  const st = config.get().settings;
+  let target = st.iconAutoRestore;
+  if (!target && st.currentIconMode) {
+    const cur = (st.iconLayouts || []).find(l => l.name === st.currentIconMode);
+    if (cur && (cur.hidden || []).length) target = cur.name;   // 隠し直す必要があるときだけ
+  }
+  if (!target) return;
   clearTimeout(iconRestoreTimer);
   // 構成変更が落ち着くまで少し待つ (連続イベントの最後の1回だけ効かせる)
   iconRestoreTimer = setTimeout(() => {
     applyIconSnapshot(target);
-    if (process.env.WW_DEBUG) console.log('[icons] 解像度変更 -> "' + target + '" へ自動復元');
-  }, 4000);
+    if (process.env.WW_DEBUG) console.log('[icons] モニタ構成変更 -> "' + target + '" を当て直し');
+  }, 5000);
 }
 
 // 切り替えボタンウィジェット: レイアウト名で切り替える

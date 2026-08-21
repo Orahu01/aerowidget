@@ -141,6 +141,10 @@ const JA_EN = {
   '名前を付ける': 'Name this widget', '絞り込み': 'Filter', '名前や種類で探す': 'Search by name or type',
   '見つかりませんでした': 'Nothing matched', 'いま適用中': 'active now', '読み直しました': 'Reloaded',
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
+  '元の場所が画面に無かった ': 'moved to last spot: ', '個は前の位置へ': '',
+  '行き先の分からない ': 'placed in empty cells: ', '個は空きへ': '',
+  'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
+    'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モードの名前': 'Mode name', '名前を変える': 'Rename', '名前を変えました': 'Renamed',
   'デスクトップのアイコン': 'Desktop icons', 'ウィジェット': 'Widgets', 'ウィジェット ': 'widgets ',
   'このモードでウィジェットも切り替える': 'Switch widgets with this mode too',
@@ -2592,6 +2596,8 @@ function icModeCard(snap, allNames) {
       if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
       let m = T('適用しました');
       if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
+      if (r.rescued) m += ' ・ ' + T('元の場所が画面に無かった ') + r.rescued + T(' 個は前の位置へ');
+      if (r.celled) m += ' ・ ' + T('行き先の分からない ') + r.celled + T(' 個は空きへ');
       if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
       if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
       $('#ic-status').textContent = m;
@@ -2751,6 +2757,14 @@ async function renderIconLayouts() {
       }
       renderIconLayouts();
     };
+  }
+
+  // デスクトップの「自動整列」がオンだと、隠しても Windows が並べ直してしまう
+  const aaEl = $('#ic-autoarrange');
+  if (aaEl) {
+    let aa = null;
+    try { aa = await window.api.iconAutoArrange(); } catch (_) { aa = null; }
+    aaEl.style.display = aa ? '' : 'none';
   }
 
   // ウィジェットがしまわれていたら、このページからも戻せるようにする

@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   iconSnapshots: () => ipcRenderer.invoke('icons:snapshots'),
   saveIcons: (name, hidden) => ipcRenderer.invoke('icons:save', name, hidden),
   iconCapacity: () => ipcRenderer.invoke('icons:capacity'),
+  iconAutoArrange: () => ipcRenderer.invoke('icons:autoArrange'),
   iconNames: () => ipcRenderer.invoke('icons:names'),
   strandedIcons: () => ipcRenderer.invoke('icons:stranded'),
   iconImage: (name) => ipcRenderer.invoke('icons:image', name),
