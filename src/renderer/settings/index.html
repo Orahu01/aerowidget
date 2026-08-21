@@ -77,7 +77,9 @@
       <button class="nav-item" data-tab="themes"><svg class="ic"><use href="#i-palette"/></svg><span data-i18n="nav.themes">テーマ</span></button>
       <button class="nav-item active" data-tab="wallpaper"><svg class="ic"><use href="#i-image"/></svg><span data-i18n="nav.wallpaper">壁紙</span></button>
       <button class="nav-item" data-tab="widgets"><svg class="ic"><use href="#i-widgets"/></svg><span data-i18n="nav.widgets">ウィジェット</span></button>
-      <button class="nav-item" data-tab="general"><svg class="ic"><use href="#i-settings"/></svg><span data-i18n="nav.general">一般</span></button>
+      <button class="nav-item" data-tab="icons"><svg class="ic"><use href="#i-zone"/></svg><span data-i18n="nav.icons">アイコン</span></button>
+      <button class="nav-item" data-tab="scenes"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="nav.scenes">シーン</span></button>
+      <button class="nav-item" data-tab="general"><svg class="ic"><use href="#i-settings"/></svg><span data-i18n="nav.general">設定</span></button>
       <div class="side-spacer"></div>
       <button id="btn-edit-layout"><svg class="ic"><use href="#i-move"/></svg>レイアウトを編集</button>
       <p class="side-note">デスクトップ上で直接ドラッグ<br>して配置できます</p>
@@ -203,6 +205,50 @@
             </div>
           </div>
         </div>
+        <h2>壁紙スケジュール</h2>
+        <div class="group">
+          <div class="row">
+            <label>壁紙を自動で切り替える</label>
+            <div class="ctl">
+              <div class="seg" id="sched-mode-seg">
+                <button data-v="daynight">昼 / 夜</button>
+                <button data-v="weekly">曜日ごと</button>
+              </div>
+              <label class="switch"><input type="checkbox" id="sched-on"><span class="knob"></span></label>
+            </div>
+          </div>
+          <div class="row sched-daynight">
+            <label><svg class="ic inline"><use href="#i-sun"/></svg> 昼の開始</label>
+            <div class="ctl">
+              <input type="time" id="sched-day">
+              <span id="sched-day-prev" class="sched-prev"></span>
+              <button class="btn" id="sched-set-day">今の壁紙を昼用に登録</button>
+            </div>
+          </div>
+          <div class="row sched-daynight">
+            <label><svg class="ic inline"><use href="#i-moon"/></svg> 夜の開始</label>
+            <div class="ctl">
+              <input type="time" id="sched-night">
+              <span id="sched-night-prev" class="sched-prev"></span>
+              <button class="btn" id="sched-set-night">今の壁紙を夜用に登録</button>
+            </div>
+          </div>
+          <div class="row sched-weekly" style="display:none">
+            <label>曜日ごとの壁紙</label>
+            <div class="ctl">
+              <div class="chips" id="sched-week-chips"></div>
+            </div>
+          </div>
+          <div class="row sched-weekly" style="display:none">
+            <label id="sched-week-sel-label">選択中: 日曜日</label>
+            <div class="ctl">
+              <span id="sched-week-prev" class="sched-prev"></span>
+              <button class="btn" id="sched-week-set">今の壁紙を登録</button>
+              <button class="btn" id="sched-week-clear">クリア</button>
+            </div>
+          </div>
+          <p class="foot-note" id="sched-note">「すべて共通」の壁紙が自動で切り替わります。先に壁紙タブで好みの壁紙にしてから登録してください。未登録の曜日は変更されません。</p>
+        </div>
       </section>
 
       <!-- ======== ウィジェット ======== -->
@@ -216,8 +262,7 @@
 
       <!-- ======== 一般 ======== -->
       <section class="tab" id="tab-general">
-        <h1 data-i18n="gen.title">一般</h1>
-
+        <h1 data-i18n="gen.title">設定</h1>
         <h2 data-i18n="gen.desktop">デスクトップ</h2>
         <div class="group">
           <div class="row">
@@ -296,109 +341,6 @@
               <label class="switch"><input type="checkbox" id="pause-fs"><span class="knob"></span></label>
             </div>
           </div>
-        </div>
-
-        <h2>壁紙スケジュール</h2>
-        <div class="group">
-          <div class="row">
-            <label>壁紙を自動で切り替える</label>
-            <div class="ctl">
-              <div class="seg" id="sched-mode-seg">
-                <button data-v="daynight">昼 / 夜</button>
-                <button data-v="weekly">曜日ごと</button>
-              </div>
-              <label class="switch"><input type="checkbox" id="sched-on"><span class="knob"></span></label>
-            </div>
-          </div>
-          <div class="row sched-daynight">
-            <label><svg class="ic inline"><use href="#i-sun"/></svg> 昼の開始</label>
-            <div class="ctl">
-              <input type="time" id="sched-day">
-              <span id="sched-day-prev" class="sched-prev"></span>
-              <button class="btn" id="sched-set-day">今の壁紙を昼用に登録</button>
-            </div>
-          </div>
-          <div class="row sched-daynight">
-            <label><svg class="ic inline"><use href="#i-moon"/></svg> 夜の開始</label>
-            <div class="ctl">
-              <input type="time" id="sched-night">
-              <span id="sched-night-prev" class="sched-prev"></span>
-              <button class="btn" id="sched-set-night">今の壁紙を夜用に登録</button>
-            </div>
-          </div>
-          <div class="row sched-weekly" style="display:none">
-            <label>曜日ごとの壁紙</label>
-            <div class="ctl">
-              <div class="chips" id="sched-week-chips"></div>
-            </div>
-          </div>
-          <div class="row sched-weekly" style="display:none">
-            <label id="sched-week-sel-label">選択中: 日曜日</label>
-            <div class="ctl">
-              <span id="sched-week-prev" class="sched-prev"></span>
-              <button class="btn" id="sched-week-set">今の壁紙を登録</button>
-              <button class="btn" id="sched-week-clear">クリア</button>
-            </div>
-          </div>
-          <p class="foot-note" id="sched-note">「すべて共通」の壁紙が自動で切り替わります。先に壁紙タブで好みの壁紙にしてから登録してください。未登録の曜日は変更されません。</p>
-        </div>
-
-        <h2>レイアウトプリセット</h2>
-        <div class="group">
-          <div class="row">
-            <label>現在の構成を保存</label>
-            <div class="ctl gf-ctl">
-              <input type="text" id="layout-name" placeholder="例: 作業用 / 配信用 / シンプル">
-              <button class="btn" id="layout-save"><svg class="ic"><use href="#i-layers"/></svg>保存</button>
-            </div>
-          </div>
-          <p class="foot-note">壁紙とウィジェット配置をまるごと保存し、ワンクリック (またはトレイメニュー) で切り替えられます。</p>
-          <div id="layout-list"></div>
-        </div>
-
-        <h2 data-i18n="scn.title">シーン (状況で自動切り替え)</h2>
-        <div class="group">
-          <div class="row">
-            <label data-i18n="scn.enable">状況に合わせてレイアウトを自動で切り替える</label>
-            <div class="ctl">
-              <label class="switch"><input type="checkbox" id="scn-on"><span class="knob"></span></label>
-            </div>
-          </div>
-          <p class="foot-note" data-i18n="scn.note">ゲームが前面のときはゲーム用、仕事の時間帯は仕事用——のように、上のレイアウトプリセットを状況で切り替えます。ルールは上から順に評価され、最初に当てはまったものが使われます。シーンが切り替える直前、未保存の配置は「シーン切替前 (自動)」レイアウトに退避されるので、作業が消えることはありません。</p>
-          <div class="row">
-            <label data-i18n="scn.default">通常時 (どれにも当てはまらないとき)</label>
-            <div class="ctl"><select id="scn-default" style="min-width:220px"></select></div>
-          </div>
-          <div id="scn-rules"></div>
-          <div class="row">
-            <label></label>
-            <div class="ctl"><button class="btn" id="scn-add"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="scn.add">ルールを追加</span></button></div>
-          </div>
-          <p class="foot-note" id="scn-status"></p>
-        </div>
-
-        <h2 data-i18n="ic.title">デスクトップアイコンの配置</h2>
-        <div class="group">
-          <p class="foot-note" data-i18n="ic.note">アイコンの並びを保存しておき、解像度の変更やモニタの抜き差しで散らかったときに元へ戻せます。保存は<b>読み取るだけ</b>で、配置を変更するのは「復元」を押したときだけ。復元の直前には今の並びを「復元前 (自動)」として退避するので、戻しすぎても元に戻せます。</p>
-          <div class="row">
-            <label data-i18n="ic.hideList">この配置で隠すアイコン</label>
-            <div class="ctl"><div id="ic-picker" class="chips"></div></div>
-          </div>
-          <p class="foot-note" id="ic-cap"></p>
-          <div class="row">
-            <label><span id="ic-count" class="dim"></span></label>
-            <div class="ctl gf-ctl">
-              <input type="text" id="ic-name" placeholder="例: 通常 / ゲーム用 / 仕事用">
-              <button class="btn" id="ic-save"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="ic.save">今の配置を保存</span></button>
-            </div>
-          </div>
-          <div id="ic-list"></div>
-          <div class="row">
-            <label data-i18n="ic.auto">解像度が変わったら自動で戻す</label>
-            <div class="ctl"><select id="ic-auto" style="min-width:220px"></select></div>
-          </div>
-          <p class="foot-note" data-i18n="ic.autoNote">既定はオフです。オンにすると、モニタ構成が変わったときに選んだ配置へ自動で戻します (このときも直前に自動退避します)。</p>
-          <p class="foot-note" id="ic-status"></p>
         </div>
 
         <h2>天気</h2>
@@ -494,6 +436,81 @@
             </div>
           </div>
           <p class="foot-note">ウィンドウを閉じてもトレイに常駐し、壁紙は表示され続けます。</p>
+        </div>
+      </section>
+
+      <section class="tab" id="tab-icons">
+        <h1 data-i18n="ic.pageTitle">デスクトップアイコン</h1>
+
+        <div class="group" id="ic-rescue-box">
+          <div class="row">
+            <label data-i18n="ic.stranded">画面の外にあるアイコン</label>
+            <div class="ctl">
+              <span class="dim" id="ic-stranded"></span>
+              <button class="btn primary" id="ic-showall"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="ic.showAll">すべて表示する</span></button>
+            </div>
+          </div>
+          <p class="foot-note" data-i18n="ic.strandedNote">隠したアイコンが分からなくなったときは、これを押せば全部を画面に呼び戻します。保存した配置が無くても戻せます。</p>
+        </div>
+
+        <h2 data-i18n="ic.title">アイコンの配置を保存する</h2>
+        <div class="group">
+          <p class="foot-note" data-i18n="ic.note">アイコンの並びを保存しておき、解像度の変更やモニタの抜き差しで散らかったときに元へ戻せます。保存は<b>読み取るだけ</b>で、配置を変更するのは「復元」を押したときだけ。復元の直前には今の並びを「復元前 (自動)」として退避するので、戻しすぎても元に戻せます。</p>
+          <div class="row">
+            <label data-i18n="ic.hideList">この配置で隠すアイコン</label>
+            <div class="ctl"><div id="ic-picker" class="chips"></div></div>
+          </div>
+          <p class="foot-note" id="ic-cap"></p>
+          <div class="row">
+            <label><span id="ic-count" class="dim"></span></label>
+            <div class="ctl gf-ctl">
+              <input type="text" id="ic-name" placeholder="例: 通常 / ゲーム用 / 仕事用">
+              <button class="btn" id="ic-save"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="ic.save">今の配置を保存</span></button>
+            </div>
+          </div>
+          <div id="ic-list"></div>
+          <div class="row">
+            <label data-i18n="ic.auto">解像度が変わったら自動で戻す</label>
+            <div class="ctl"><select id="ic-auto" style="min-width:220px"></select></div>
+          </div>
+          <p class="foot-note" data-i18n="ic.autoNote">既定はオフです。オンにすると、モニタ構成が変わったときに選んだ配置へ自動で戻します (このときも直前に自動退避します)。</p>
+          <p class="foot-note" id="ic-status"></p>
+        </div>
+      </section>
+
+      <section class="tab" id="tab-scenes">
+        <h1 data-i18n="scn.pageTitle">シーン</h1>
+        <h2>レイアウトプリセット</h2>
+        <div class="group">
+          <div class="row">
+            <label>現在の構成を保存</label>
+            <div class="ctl gf-ctl">
+              <input type="text" id="layout-name" placeholder="例: 作業用 / 配信用 / シンプル">
+              <button class="btn" id="layout-save"><svg class="ic"><use href="#i-layers"/></svg>保存</button>
+            </div>
+          </div>
+          <p class="foot-note">壁紙とウィジェット配置をまるごと保存し、ワンクリック (またはトレイメニュー) で切り替えられます。</p>
+          <div id="layout-list"></div>
+        </div>
+        <h2 data-i18n="scn.title">シーン (状況で自動切り替え)</h2>
+        <div class="group">
+          <div class="row">
+            <label data-i18n="scn.enable">状況に合わせてレイアウトを自動で切り替える</label>
+            <div class="ctl">
+              <label class="switch"><input type="checkbox" id="scn-on"><span class="knob"></span></label>
+            </div>
+          </div>
+          <p class="foot-note" data-i18n="scn.note">ゲームが前面のときはゲーム用、仕事の時間帯は仕事用——のように、上のレイアウトプリセットを状況で切り替えます。ルールは上から順に評価され、最初に当てはまったものが使われます。シーンが切り替える直前、未保存の配置は「シーン切替前 (自動)」レイアウトに退避されるので、作業が消えることはありません。</p>
+          <div class="row">
+            <label data-i18n="scn.default">通常時 (どれにも当てはまらないとき)</label>
+            <div class="ctl"><select id="scn-default" style="min-width:220px"></select></div>
+          </div>
+          <div id="scn-rules"></div>
+          <div class="row">
+            <label></label>
+            <div class="ctl"><button class="btn" id="scn-add"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="scn.add">ルールを追加</span></button></div>
+          </div>
+          <p class="foot-note" id="scn-status"></p>
         </div>
       </section>
     </main>

@@ -1653,6 +1653,15 @@ function applyIconSnapshot(name) {
 ipcMain.handle('icons:available', () => icons.available());
 ipcMain.handle('icons:current', () => (icons.list() || []).length);
 ipcMain.handle('icons:names', () => (icons.list() || []).map(i => i.name));
+ipcMain.handle('icons:stranded', () => icons.strandedNames() || []);
+
+// 画面外に取り残されたアイコンを全部呼び戻す (最後の逃げ道)
+ipcMain.handle('icons:showAll', () => {
+  saveIconSnapshot(ICON_BACKUP_NAME);
+  const r = icons.showAll();
+  if (!r) return { ok: false, msg: 'デスクトップにアクセスできませんでした' };
+  return { ok: true, ...r };
+});
 // 自動退避は「自分で保存した配置」と混ぜない。
 // 選ぶ対象ではなく安全網なので、UI 側でも別枠に置く。
 ipcMain.handle('icons:snapshots', () => {

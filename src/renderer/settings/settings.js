@@ -113,6 +113,14 @@ const JA_EN = {
   '直前の状態を自動で控えてあります': 'A copy of the previous state is kept automatically',
   '元に戻す': 'Undo', 'いま行った復元や切り替えを取り消します': 'Undo the restore or switch you just made',
   '元に戻しました': 'Reverted',
+  'デスクトップアイコン': 'Desktop icons',
+  'アイコンの配置を保存する': 'Save an icon arrangement',
+  '画面の外にあるアイコン': 'Icons currently off-screen',
+  'すべて表示する': 'Bring them all back',
+  '隠したアイコンが分からなくなったときは、これを押せば全部を画面に呼び戻します。保存した配置が無くても戻せます。':
+    'If you lose track of hidden icons, this pulls every one of them back onto the screen. It works even with no saved arrangement.',
+  'ありません': 'None', '画面に戻しました (': 'Brought back (',
+  'シーン': 'Scenes', 'アイコン': 'Icons', '設定': 'Settings',
   '赤くなっているキーは、他のアプリがすでに使っているため登録できませんでした。別のキーに変えてください。':
     'The keys marked in red could not be registered because another app already uses them. Please choose different keys.',
   // v5.3 呼び出せるダッシュボード
@@ -425,6 +433,9 @@ $$('.nav-item').forEach(btn => btn.addEventListener('click', () => {
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + btn.dataset.tab));
   if (btn.dataset.tab === 'themes') renderThemes();
   if (btn.dataset.tab === 'wallpaper') renderLivePreview();
+  // 開くたびに実際のデスクトップを読み直す (取り残しの検出を最新に)
+  if (btn.dataset.tab === 'icons') renderIconLayouts();
+  if (btn.dataset.tab === 'scenes') { renderLayouts(); renderScenes(); }
 }));
 
 $('#btn-min').addEventListener('click', () => window.api.minimize());
@@ -2212,6 +2223,28 @@ async function renderIconLayouts() {
     cnt.textContent = T('現在のアイコン: ') + n + T(' 個');
   } else {
     cnt.textContent = T('デスクトップアイコンにアクセスできません');
+  }
+
+  // 画面外に取り残されているアイコンがあれば目立たせる
+  const stranded = await window.api.strandedIcons();
+  const sEl = $('#ic-stranded');
+  const box = $('#ic-rescue-box');
+  if (sEl) {
+    sEl.textContent = stranded.length
+      ? stranded.length + T(' 個') + ' ・ ' + stranded.slice(0, 4).join(', ') + (stranded.length > 4 ? ' …' : '')
+      : T('ありません');
+  }
+  if (box) box.style.borderColor = stranded.length ? 'var(--acc)' : '';
+  const showAllBtn = $('#ic-showall');
+  if (showAllBtn) {
+    showAllBtn.disabled = !stranded.length;
+    showAllBtn.onclick = async () => {
+      const r = await window.api.showAllIcons();
+      $('#ic-status').textContent = r.ok
+        ? T('画面に戻しました (') + r.moved + T(' 個)')
+        : r.msg;
+      renderIconLayouts();
+    };
   }
 
   // 隠せるか (死角の数) を正直に伝える

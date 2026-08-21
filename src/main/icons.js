@@ -226,9 +226,74 @@ function apply(saved, hidden = []) {
   }
 }
 
+// いま画面外 (どのモニタにも映らない位置) にいるアイコン
+function strandedNames() {
+  const all = list();
+  if (!all) return null;
+  const ox = GetSystemMetrics(SM_XVIRTUALSCREEN);
+  const oy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+  return all.filter(i => isOffScreen(ox + i.x, oy + i.y)).map(i => i.name);
+}
+
+// 画面外のアイコンを全部、見える場所へ並べ直す。
+// 元位置が分からなくても必ず戻せる最後の手段なので、
+// 保存データに頼らず「空いている見えるセル」を自前で探して置く。
+function showAll() {
+  const all = list();
+  if (!all) return null;
+  const ox = GetSystemMetrics(SM_XVIRTUALSCREEN);
+  const oy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+  const vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+  const vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+  const stepX = 130, stepY = 126;
+
+  const stranded = all.filter(i => isOffScreen(ox + i.x, oy + i.y));
+  if (!stranded.length) return { moved: 0, stranded: 0 };
+
+  // 見えている位置は埋まっているとみなす
+  const taken = new Set(all
+    .filter(i => !isOffScreen(ox + i.x, oy + i.y))
+    .map(i => `${Math.round(i.x / stepX)},${Math.round(i.y / stepY)}`));
+
+  // 画面に映るセルを上から順に集める
+  const free = [];
+  for (let ly = 0; ly < vh && free.length < stranded.length; ly += stepY) {
+    for (let lx = 0; lx < vw && free.length < stranded.length; lx += stepX) {
+      if (isOffScreen(ox + lx, oy + ly)) continue;
+      const key = `${Math.round(lx / stepX)},${Math.round(ly / stepY)}`;
+      if (taken.has(key)) continue;
+      taken.add(key);
+      free.push({ x: lx, y: ly });
+    }
+  }
+
+  const s2 = openSession();
+  if (!s2) return null;
+  try {
+    const nameToIndex = new Map();
+    for (let i = 0; i < s2.count; i++) {
+      const n = readName(s2, i);
+      if (n && !nameToIndex.has(n)) nameToIndex.set(n, i);
+    }
+    let moved = 0;
+    for (const it of stranded) {
+      const i = nameToIndex.get(it.name);
+      const slot = free[moved];
+      if (i == null || !slot) continue;
+      num(SendMessageW(s2.lv, LVM_SETITEMPOSITION, i, pack(slot.x, slot.y)));
+      moved++;
+    }
+    return { moved, stranded: stranded.length };
+  } catch (_) {
+    return null;
+  } finally {
+    s2.close();
+  }
+}
+
 function available() {
   const lv = findListView();
   return !!(lv && IsWindow(lv));
 }
 
-module.exports = { list, apply, available, hideCapacity, parkingSlots };
+module.exports = { list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll };
