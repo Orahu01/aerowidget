@@ -460,7 +460,7 @@ function placeFolder(id) {
 }
 
 function syncFolders() {
-  const inters = config.get().widgets.filter(w => INTERACTIVE_TYPES.has(w.type));
+  const inters = config.get().widgets.filter(w => INTERACTIVE_TYPES.has(w.type) && !w.off);
   for (const [id, win] of [...folderWins]) {
     if (!inters.find(w => w.id === id)) {
       try { attach.detach(getHwnd(win)); } catch (_) {}
@@ -573,7 +573,7 @@ function exitEditMode() {
     attachWall(idx);
   }
   placedKey.clear(); // 編集で位置が変わった可能性があるため全対話ウィジェットを配置し直す
-  for (const w of config.get().widgets.filter(x => INTERACTIVE_TYPES.has(x.type))) {
+  for (const w of config.get().widgets.filter(x => INTERACTIVE_TYPES.has(x.type) && !x.off)) {
     const win = folderWins.get(w.id);
     if (win && !win.isDestroyed()) {
       win.showInactive();
@@ -1201,6 +1201,15 @@ ipcMain.handle('widget:remove', (e, id) => config.update(c => {
   c.widgets = c.widgets.filter(w => w.id !== id);
 }));
 
+// 逃げ道: しまってあるウィジェットを全部出す
+ipcMain.handle('widgets:showAll', () => {
+  let n = 0;
+  config.update(cfg => {
+    for (const w of (cfg.widgets || [])) if (w.off) { w.off = false; n++; }
+  });
+  return { ok: true, shown: n };
+});
+
 ipcMain.handle('widget:update', (e, id, patch) => config.update(c => {
   const w = c.widgets.find(x => x.id === id);
   if (!w) return;
@@ -1663,10 +1672,15 @@ function saveIconSnapshot(name, hidden) {
   const clean = String(name || '').slice(0, 40) || `アイコン配置 ${new Date().toLocaleString('ja-JP')}`;
   const hide = Array.isArray(hidden) ? hidden.filter(Boolean) : [];
   const rows = clean === ICON_BACKUP_NAME ? now : unpark(now);
+  const prev = (config.get().settings.iconLayouts || []).find(l => l.name === clean);
   config.update(cfg => {
     const keep = (cfg.settings.iconLayouts || []).filter(l => l.name !== clean);
-    cfg.settings.iconLayouts = [...keep,
-      { name: clean, savedAt: Date.now(), icons: [...rows], hidden: hide }].slice(-21);
+    cfg.settings.iconLayouts = [...keep, {
+      name: clean, savedAt: Date.now(), icons: [...rows], hidden: hide,
+      // 同じ名前を上書きするときは、ウィジェットの連動を持ち越す
+      linkWidgets: !!(prev && prev.linkWidgets),
+      widgetsOn: (prev && prev.widgetsOn) ? prev.widgetsOn.slice() : [],
+    }].slice(-21);
   });
   return { ok: true, count: rows.length, name: clean };
 }
@@ -1691,8 +1705,12 @@ function applyIconSnapshot(name) {
   if (!snap) return { ok: false, msg: 'その配置が見つかりません' };
   rememberHome();                       // 隠す前の住所を控える
   saveIconSnapshot(ICON_BACKUP_NAME);
+  // 連動がオンでも中身が空なら「まだ決めていない」とみなす。
+  // ここで applyWidgetSet([]) を走らせると、ウィジェットが全部消えてしまう。
+  const wantWidgets = !!snap.linkWidgets && (snap.widgetsOn || []).length > 0;
+
   // ウィジェットまで動かすなら、退避にも今の出し入れを含めておく (でないと戻し切れない)
-  if (snap.linkWidgets) {
+  if (wantWidgets) {
     const nowOn = (config.get().widgets || []).filter(w => !w.off).map(w => w.id);
     config.update(cfg => {
       const b = (cfg.settings.iconLayouts || []).find(l => l.name === ICON_BACKUP_NAME);
@@ -1701,7 +1719,7 @@ function applyIconSnapshot(name) {
   }
   const r = icons.apply(snap.icons, snap.hidden || []);
   if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
-  const widgets = snap.linkWidgets ? applyWidgetSet(snap.widgetsOn || []) : 0;
+  const widgets = wantWidgets ? applyWidgetSet(snap.widgetsOn) : 0;
   if (name !== ICON_BACKUP_NAME) {
     config.update(cfg => { cfg.settings.currentIconMode = name; });
   }

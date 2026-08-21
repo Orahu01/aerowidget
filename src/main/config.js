@@ -185,6 +185,12 @@ function load() {
       if (typeof w.display !== 'number') w.display = 0;
       if (!w.options) w.options = {};
     }
+    // 5.9.5 では off が描画に効いていなかったため、そのとき書かれた off は
+    // 「隠したい」という意思とは限らない。そのまま持ち越すと更新した瞬間に
+    // ウィジェットが消えて見えるので、一度だけ全部戻す。
+    if (parsed.appVersion === '5.9.5') {
+      for (const w of cfg.widgets) w.off = false;
+    }
     delete cfg.backupReason;                    // バックアップ側の目印は持ち歩かない
     const running = appVersion();
     if (cfg.appVersion !== running) {

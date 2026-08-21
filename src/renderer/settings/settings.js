@@ -134,6 +134,10 @@ const JA_EN = {
   '保存しました': 'Saved', '適用しました': 'Applied', '隠した: ': 'hidden: ',
   '今の並びを覚え直す': 'Re-capture positions', '今の並びを覚えました (': 'Positions captured (',
   'このモードを削除します: ': 'Delete this mode: ',
+  'ひとつも選んでいません': 'nothing selected',
+  'ひとつも選んでいないので、このモードではウィジェットに触りません。':
+    'Nothing is selected, so this mode leaves widgets alone.',
+  'しまってあるウィジェット: ': 'Parked widgets: ',
   'モードの名前': 'Mode name', '名前を変える': 'Rename', '名前を変えました': 'Renamed',
   'デスクトップのアイコン': 'Desktop icons', 'ウィジェット': 'Widgets', 'ウィジェット ': 'widgets ',
   'このモードでウィジェットも切り替える': 'Switch widgets with this mode too',
@@ -1691,6 +1695,27 @@ function renderWidgetList() {
     list.innerHTML = '<p class="hint">ウィジェットがありません。上のボタンから追加してください。</p>';
     return;
   }
+
+  // しまってあるものがあれば、まとめて出せる逃げ道を上に置く
+  const hidden = cfg.widgets.filter(w => w.off).length;
+  if (hidden) {
+    const row = document.createElement('div');
+    row.className = 'gf-item';
+    const nm = document.createElement('span');
+    nm.className = 'gf-name';
+    nm.textContent = T('しまってあるウィジェット: ') + hidden + T(' 個');
+    const btn = document.createElement('button');
+    btn.className = 'btn primary';
+    btn.textContent = T('すべて出す');
+    btn.onclick = async () => {
+      await window.api.showAllWidgets();
+      cfg = (await window.api.getConfig()).config;
+      renderWidgetList();
+    };
+    row.append(nm, btn);
+    list.appendChild(row);
+  }
+
   for (const w of cfg.widgets) list.appendChild(widgetCard(w));
 }
 
@@ -2503,14 +2528,19 @@ function icModeCard(snap, allNames) {
 
   // --- ウィジェット ---
   body.appendChild(mkSubHead(T('ウィジェット'),
-    wd.link ? T('出す ') + wOn + ' / ' + allWidgets.length : T('連動しません')));
+    !wd.link ? T('連動しません')
+      : (wOn ? T('出す ') + wOn + ' / ' + allWidgets.length : T('ひとつも選んでいません'))));
 
   const linkRow = document.createElement('div');
   linkRow.className = 'ic-mode-tools';
   linkRow.appendChild(mkCheck('このモードでウィジェットも切り替える', wd.link, (v) => {
     wd.link = v;
-    // 初めてオンにしたら「いま出ているもの」を初期値にする
-    if (v && !wd.on.size) for (const w of allWidgets) if (!w.off) wd.on.add(w.id);
+    // 初めてオンにしたら「いま出ているもの」を初期値にする。
+    // ひとつも出ていないときは全部を初期値にする (空のまま保存すると何も出なくなる)
+    if (v && !wd.on.size) {
+      const vis = allWidgets.filter(w => !w.off);
+      for (const w of (vis.length ? vis : allWidgets)) wd.on.add(w.id);
+    }
     renderIconPicker();
   }));
   body.appendChild(linkRow);
@@ -2548,7 +2578,10 @@ function icModeCard(snap, allNames) {
         wlist.appendChild(row);
       }
       body.appendChild(wlist);
-      if (allWidgets.some(w => w.type === 'switcher' && !wd.on.has(w.id))) {
+      if (!wOn) {
+        body.appendChild(mkNote(T('ひとつも選んでいないので、このモードではウィジェットに触りません。')));
+      }
+      if (wOn && allWidgets.some(w => w.type === 'switcher' && !wd.on.has(w.id))) {
         body.appendChild(mkNote(T('切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。')));
       }
     }

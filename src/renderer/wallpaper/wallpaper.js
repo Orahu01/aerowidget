@@ -114,7 +114,8 @@ function myWallpaper() {
 }
 
 function myWidgets() {
-  return (config.widgets || []).filter(w => (w.display || 0) === DISPLAY);
+  // off はしまってあるだけ。設定には残るが描かない
+  return (config.widgets || []).filter(w => (w.display || 0) === DISPLAY && !w.off);
 }
 
 function customCss(v) {
