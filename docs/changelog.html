@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.15 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.16 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,23 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.16 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.16</div><div class="when">先行版</div></div>
+    <div>
+      <h4>音の出力先を切り替えるとビジュアライザーが止まる問題を修正しました</h4>
+      <ul>
+        <li>音の取り込みは<b>開始した瞬間の既定デバイスに張り付く</b>ため、出力先を変えると古いデバイスを聴き続けて止まっていました。既定の出力を 2 秒ごとに見張り、<b>切り替わったら自動で取り込み直します</b> (Windows 側で切り替えても追従します)</li>
+      </ul>
+      <h4>どの出力の音に反応するかを選べます (複数可)</h4>
+      <ul>
+        <li>ビジュアライザーの設定に<b>「反応する出力」</b>が付きました。出力デバイスの一覧に<b>チェック (複数可)</b> で、選んだ出力が既定のときだけ動きます</li>
+        <li>何も選ばなければ、これまでどおり<b>どの出力でも</b>動きます</li>
+        <li>選んでいない出力の間は、音の取り込み自体を手放して待機します (無駄に聴き続けません)</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.15 -->

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('wall', {
   onWeather: (cb) => ipcRenderer.on('weather', (_e, d) => cb(d)),
   onHw: (cb) => ipcRenderer.on('hw', (_e, d) => cb(d)),
   onMedia: (cb) => ipcRenderer.on('media', (_e, d) => cb(d)),
+  onAudioDev: (cb) => ipcRenderer.on('audiodev', (_e, d) => cb(d)),
   onRss: (cb) => ipcRenderer.on('rss', (_e, d) => cb(d)),
   onTicker: (cb) => ipcRenderer.on('ticker', (_e, d) => cb(d)),
   onDisks: (cb) => ipcRenderer.on('disks', (_e, d) => cb(d)),

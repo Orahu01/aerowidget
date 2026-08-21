@@ -1027,3 +1027,7 @@ input[type="text"].bad {
   background: var(--acc-dim);
   color: var(--text);
 }
+
+/* ビジュアライザーの出力選択 */
+.vis-devs { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.vis-dev { display: flex; align-items: center; gap: 4px; font-size: 12.5px; }

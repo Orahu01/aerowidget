@@ -118,7 +118,8 @@ function setDevice(id) {
   if (typeof id === 'string' && id) send('device ' + id);
 }
 
-function refresh() { send('list'); }
+// withDevices=false なら軽い状態確認だけ (既定デバイスの変化検知に使う)
+function refresh(withDevices = true) { send(withDevices ? 'list' : 'state'); }
 
 function getLatest() { return latest; }
 

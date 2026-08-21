@@ -142,6 +142,10 @@ const JA_EN = {
   'ここへドラッグでも追加できます (複数まとめて OK)': 'Or drag files here (multiple at once is fine)',
   '{n} 個を追加しました': 'Added {n} item(s)',
   'ファイルのパスを取得できませんでした': 'Could not resolve the dropped file paths',
+  '反応する出力': 'React to outputs',
+  'チェックした出力が既定のときだけ動きます。何も選ばなければ、どの出力でも動きます。':
+    'Runs only while a checked output is the default device. Leave all unchecked to react to any output.',
+  '出力デバイスを取得できませんでした': 'Could not list audio outputs', ' (いまの既定)': ' (current default)',
   '名前を付ける': 'Name this widget', '絞り込み': 'Filter', '名前や種類で探す': 'Search by name or type',
   '見つかりませんでした': 'Nothing matched', 'いま適用中': 'active now', '読み直しました': 'Reloaded',
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
@@ -1427,7 +1431,41 @@ function typeOptionsUI(w) {
     vRow.className = 'chk-row';
     vRow.appendChild(mkCheck('中央から上下対称', o.mirror !== false, v => patchWidget(w.id, { options: { mirror: v } })));
     wrap.appendChild(vRow);
-    wrap.appendChild(noteEl('再生中のシステム音声に反応するスペクトラムです。音楽の再生中だけ描画し、停止中は完全に止まります。初回はキャプチャ開始まで数秒かかることがあります。'));
+
+    // どの出力の音に反応するか (チェック無し = すべての出力)
+    {
+      const box = document.createElement('div');
+      box.className = 'vis-devs';
+      const note = document.createElement('p');
+      note.className = 'foot-note';
+      note.textContent = T('チェックした出力が既定のときだけ動きます。何も選ばなければ、どの出力でも動きます。');
+      wrap.appendChild(ctlRow('反応する出力', box));
+      wrap.appendChild(note);
+      (async () => {
+        const a = await window.api.audioDevices();
+        const devs = (a && a.devices) || [];
+        if (!devs.length) {
+          box.textContent = T('出力デバイスを取得できませんでした');
+          return;
+        }
+        const sel = new Set((o.devices || []));
+        for (const d of devs) {
+          const lab = document.createElement('label');
+          lab.className = 'vis-dev';
+          const c = document.createElement('input');
+          c.type = 'checkbox';
+          c.checked = sel.has(d.id);
+          c.addEventListener('change', () => {
+            if (c.checked) sel.add(d.id); else sel.delete(d.id);
+            patchWidget(w.id, { options: { devices: [...sel] } });
+          });
+          lab.appendChild(c);
+          lab.appendChild(document.createTextNode(' ' + d.name + (d.id === a.current ? T(' (いまの既定)') : '')));
+          box.appendChild(lab);
+        }
+      })();
+    }
+    wrap.appendChild(noteEl('システム音声に反応するスペクトラムです。音が鳴っている間だけ描画し、静かなときは止まります。初回はキャプチャ開始まで数秒かかることがあります。'));
 
   } else if (w.type === 'zone') {
     {

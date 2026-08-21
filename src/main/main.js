@@ -773,9 +773,19 @@ function syncServices() {
   if (needMedia && !process.env.WW_NO_MEDIA) media.start();
   else media.stop();
 
-  // 音量ウィジェットがあるときだけオーディオブリッジを起動
-  if (c.widgets.some(x => x.type === 'volume') && !process.env.WW_NO_AUDIO) audio.start();
+  // 音量ウィジェット、またはビジュアライザーがあるときにオーディオブリッジを起動
+  // (ビジュアライザーは「既定の出力がどれか」を知るのに使う)
+  const needAudio = c.widgets.some(x => x.type === 'volume' || (x.type === 'visualizer' && !x.off));
+  if (needAudio && !process.env.WW_NO_AUDIO) audio.start();
   else audio.stop();
+
+  // 既定の出力デバイスの切り替わりを拾う (Windows 側で変えても追従できるように)。
+  // ヘルパーは自発的に通知しないので、2 秒ごとに状態を聞く
+  if (c.widgets.some(x => x.type === 'visualizer' && !x.off) && !process.env.WW_NO_AUDIO) {
+    heartbeat.register('audiodev', 2000, () => audio.refresh(false), true);
+  } else {
+    heartbeat.unregister('audiodev');
+  }
 
   // ディスク / ネットワーク情報
   sysinfo.sync(
@@ -1127,7 +1137,14 @@ function onReady() {
       syncFolders();
     }
   });
-  audio.on('update', (d) => broadcast('audio', d));
+  audio.on('update', (d) => {
+    broadcast('audio', d);
+    // 既定の出力が変わった -> ビジュアライザーは取り込み直しが必要
+    if (d.current && d.current !== lastAudioOut) {
+      lastAudioOut = d.current;
+      broadcast('audiodev', { current: d.current, devices: d.devices || [] });
+    }
+  });
   feeds.on('rss', (d) => broadcast('rss', d));
   feeds.on('ticker', (d) => broadcast('ticker', d));
   updater.on('status', (s) => {
@@ -1509,6 +1526,8 @@ ipcMain.on('edit:live', (e, id, partial) => {
 });
 ipcMain.on('edit:finish', () => exitEditMode());
 
+let lastAudioOut = '';
+
 ipcMain.handle('state:request', () => ({
   ...configEnvelope(),
   weather: weather.getLatest(),
@@ -1520,6 +1539,7 @@ ipcMain.handle('state:request', () => ({
   ics: ics.snapshot(),
   widgetsHidden,
   editing: editMode,
+  audio: (() => { const a = audio.getLatest(); return a ? { current: a.current, devices: a.devices } : null; })(),
   version: app.getVersion(),
 }));
 
@@ -2039,6 +2059,18 @@ ipcMain.handle('icons:setHidden', (e, name, hidden) => {
 // デスクトップの「アイコンの自動整列」がオンか (オンだと隠す/戻すが効かない)
 ipcMain.handle('icons:autoArrange', () => {
   try { return icons.autoArrange(); } catch (_) { return null; }
+});
+
+// ビジュアライザー設定用: 出力デバイスの一覧と今の既定
+ipcMain.handle('audio:devices', async () => {
+  if (!process.env.WW_NO_AUDIO) audio.start();
+  let a = audio.getLatest();
+  if (!a || !(a.devices || []).length) {
+    audio.refresh(true);
+    await new Promise(r => setTimeout(r, 600));   // ヘルパーの応答を少し待つ
+    a = audio.getLatest();
+  }
+  return a ? { current: a.current || '', devices: a.devices || [] } : { current: '', devices: [] };
 });
 
 // この環境で「隠す」が使えるか (死角がいくつあるか)

@@ -873,9 +873,35 @@ let visFailed = false;
 let visFailedAt = 0;      // 失敗しても一定時間で取り直す (一度の失敗で永久停止しない)
 let visStarting = false;
 let visQuietSince = 0;    // 無音が続いている開始時刻
+let visStream = null;     // 取り込み中のストリーム (出力切替時に停止して取り直す)
+let visCtx = null;
+let visOutId = '';        // いまの既定出力デバイス id
 
 function visWidgets() {
   return myWidgets().filter(w => w.type === 'visualizer');
+}
+
+// どれかのビジュアライザーが、いまの既定出力で動いてよいか。
+// options.devices (デバイス id の配列) が空なら「どの出力でも動く」
+function visAllowedNow() {
+  const ws = visWidgets();
+  if (!ws.length) return false;
+  return ws.some(w => {
+    const list = (w.options || {}).devices || [];
+    return !list.length || !visOutId || list.includes(visOutId);
+  });
+}
+
+// 出力が切り替わった等で、取り込みを一度手放して取り直す
+function restartVisCapture() {
+  try { if (visStream) for (const t of visStream.getTracks()) t.stop(); } catch (_) {}
+  try { if (visCtx) visCtx.close(); } catch (_) {}
+  visStream = null;
+  visCtx = null;
+  visAnalyser = null;
+  visData = null;
+  visFailed = false;
+  visSync();
 }
 
 async function ensureVisCapture() {
@@ -887,7 +913,9 @@ async function ensureVisCapture() {
     const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     for (const t of stream.getVideoTracks()) t.stop(); // 映像は不要
     if (!stream.getAudioTracks().length) throw new Error('no audio track');
+    visStream = stream;
     const ctx = new AudioContext();
+    visCtx = ctx;
     // 出力デバイスの都合で止められることがある (切替・排他モード)。都度起こす
     ctx.onstatechange = () => { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); };
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
@@ -943,6 +971,22 @@ function drawVis(cv, w, live) {
 // 「一度も動かない」になっていた。ここでは解析値そのものを見る。
 function visFrame() {
   if (paused) { visTimer = null; return; }   // 復帰時は onPower の visSync が再開する
+
+  // いまの既定出力が「反応する出力」に入っていなければ、取り込み自体を手放して待機
+  if (!visAllowedNow()) {
+    if (visStream) {
+      try { for (const t of visStream.getTracks()) t.stop(); } catch (_) {}
+      try { if (visCtx) visCtx.close(); } catch (_) {}
+      visStream = null; visCtx = null; visAnalyser = null; visData = null;
+    }
+    for (const w of visWidgets()) {
+      const rec = widgetEls.get(w.id);
+      const cv = rec && rec.el.querySelector('.vis-canvas');
+      if (cv) drawVis(cv, w, false);
+    }
+    visTimer = setTimeout(visFrame, 1000);
+    return;
+  }
 
   // まだ音を取り込めていない間も、待機の平らなバーは出しておく。
   // 何も描かないと「ウィジェットが消えた」ようにしか見えない。
@@ -1374,6 +1418,14 @@ window.wall.onHw((d) => {
   }
   tick(['stats']);
 });
+window.wall.onAudioDev((d) => {
+  const id = (d && d.current) || '';
+  if (id === visOutId) return;
+  visOutId = id;
+  // 取り込みは前の出力に張り付いているので、取り直す
+  if (visWidgets().length) restartVisCapture();
+});
+
 window.wall.onMedia((d) => {
   mediaData = d;
   tick(['nowplaying']);
@@ -1448,6 +1500,7 @@ window.wall.onPower(({ paused: p }) => {
   onlineWallpaper = st.onlineWallpaper || null;
   hwData = st.hw;
   mediaData = st.media;
+  if (st.audio && st.audio.current) visOutId = st.audio.current;
   if (st.weatherMap) {
     for (const [k, v] of Object.entries(st.weatherMap)) weatherMap.set(k, v);
   }
