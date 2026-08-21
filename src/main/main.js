@@ -1683,9 +1683,16 @@ function applyIconSnapshot(name) {
 }
 
 ipcMain.handle('icons:available', () => icons.available());
-ipcMain.handle('icons:current', () => (icons.list() || []).length);
-ipcMain.handle('icons:names', () => (icons.list() || []).map(i => i.name));
-ipcMain.handle('icons:stranded', () => icons.strandedNames() || []);
+// 読み取り系は投げない。失敗しても空で返し、設定画面の描画を止めない
+ipcMain.handle('icons:current', () => {
+  try { return (icons.list() || []).length; } catch (_) { return 0; }
+});
+ipcMain.handle('icons:names', () => {
+  try { return (icons.list() || []).map(i => i.name); } catch (_) { return []; }
+});
+ipcMain.handle('icons:stranded', () => {
+  try { return icons.strandedNames() || []; } catch (_) { return []; }
+});
 
 // デスクトップ上の「表示名 -> ファイルパス」を作る。
 // 個人用と共用 (Public) の両方を見る。拡張子は表示名から落ちているので付け外しで照合する。
@@ -1736,7 +1743,8 @@ ipcMain.handle('icons:showAll', () => {
 // 選ぶ対象ではなく安全網なので、UI 側でも別枠に置く。
 ipcMain.handle('icons:snapshots', () => {
   const all = (config.get().settings.iconLayouts || [])
-    .map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length, hidden: (l.hidden || []).length }));
+    // hidden は名前の配列のまま返す。個数だけにすると受け取り側で復元できない
+    .map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length, hidden: (l.hidden || []).slice() }));
   return {
     saved: all.filter(l => l.name !== ICON_BACKUP_NAME),
     auto: all.find(l => l.name === ICON_BACKUP_NAME) || null,

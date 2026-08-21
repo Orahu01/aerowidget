@@ -129,6 +129,7 @@ const JA_EN = {
   '保存しました': 'Saved', '適用しました': 'Applied', '隠した: ': 'hidden: ',
   '今の並びを覚え直す': 'Re-capture positions', '今の並びを覚えました (': 'Positions captured (',
   'このモードを削除します: ': 'Delete this mode: ',
+  'モード一覧を表示できませんでした: ': 'Could not show the mode list: ',
   '作成しました。開いて隠すアイコンを選んでください。': 'Created. Open it and tick the icons to hide.',
   '全部で ': 'Total ',
   '確認できませんでした': 'Could not check',
@@ -2228,7 +2229,8 @@ const CHECK_SVG = '<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="cur
 // 1 モードぶんのカード
 function icModeCard(snap, allNames) {
   const open = icOpenModes.has(snap.name);
-  const hideSet = icDraft.get(snap.name) || new Set(snap.hidden || []);
+  const hideSet = icDraft.get(snap.name)
+    || new Set(Array.isArray(snap.hidden) ? snap.hidden : []);
   icDraft.set(snap.name, hideSet);
 
   const card = document.createElement('div');
@@ -2241,11 +2243,13 @@ function icModeCard(snap, allNames) {
   const nm = document.createElement('span');
   nm.className = 'ic-mode-name';
   nm.textContent = snap.name;
+  // 消えたショートカットが hidden に残っていても数に混ぜない
+  const hideNow = allNames.filter(n => hideSet.has(n)).length;
   const meta = document.createElement('span');
   meta.className = 'ic-mode-meta';
   meta.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
-    + T('隠す ') + hideSet.size + T(' 個') + ' ・ '
-    + T('見えるのは ') + (allNames.length - hideSet.size) + T(' 個');
+    + T('隠す ') + hideNow + T(' 個') + ' ・ '
+    + T('見えるのは ') + (allNames.length - hideNow) + T(' 個');
   head.append(nm, meta);
   head.onclick = () => {
     if (open) icOpenModes.delete(snap.name); else icOpenModes.add(snap.name);
@@ -2423,8 +2427,6 @@ async function renderIconLayouts() {
       : T('この画面構成では隠す場所がありません (モニタが画面いっぱいのため)。フォルダウィジェットで必要なものだけ並べる方法をおすすめします。');
     capEl.style.color = cap > 0 ? '' : '#ffb27a';
   }
-  await renderIconPicker();
-
   $('#ic-save').onclick = async () => {
     // 作った直後は何も隠していない状態。開いてチェックを入れて保存する
     const r = await window.api.saveIcons($('#ic-name').value.trim(), []);
@@ -2482,6 +2484,13 @@ async function renderIconLayouts() {
     cfg.settings.iconAutoRestore = autoSel.value;
     window.api.setSettings({ iconAutoRestore: autoSel.value });
   };
+
+  // モード一覧は最後に描く。ここで転んでも上の操作は生きたままにする
+  try {
+    await renderIconPicker();
+  } catch (err) {
+    $('#ic-status').textContent = T('モード一覧を表示できませんでした: ') + (err && err.message);
+  }
 }
 
 $('#layout-save').addEventListener('click', async () => {
