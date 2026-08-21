@@ -141,6 +141,7 @@ const JA_EN = {
   'しまってあるウィジェット: ': 'Parked widgets: ',
   'ここへドラッグでも追加できます (複数まとめて OK)': 'Or drag files here (multiple at once is fine)',
   '{n} 個を追加しました': 'Added {n} item(s)',
+  'ファイルのパスを取得できませんでした': 'Could not resolve the dropped file paths',
   '名前を付ける': 'Name this widget', '絞り込み': 'Filter', '名前や種類で探す': 'Search by name or type',
   '見つかりませんでした': 'Nothing matched', 'いま適用中': 'active now', '読み直しました': 'Reloaded',
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
@@ -1538,7 +1539,14 @@ function typeOptionsUI(w) {
       e.stopPropagation();
       dz.classList.remove('over');
       list.classList.remove('over');
-      addPaths(window.api.droppedPaths(e.dataTransfer.files || []));
+      // FileList のままでは contextBridge を渡れない。File の配列にして渡す
+      const files = [...(e.dataTransfer.files || [])];
+      const paths = window.api.droppedPaths(files);
+      if (files.length && !paths.length) {
+        toast(T('ファイルのパスを取得できませんでした'));
+        return;
+      }
+      addPaths(paths);
     };
     for (const el of [dz, list]) {
       el.addEventListener('dragover', (e) => {

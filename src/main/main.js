@@ -258,6 +258,11 @@ function createWallWindow(pair) {
     },
   });
   wallWins.set(pair.index, win);
+  if (process.env.WW_DEBUG) {
+    win.webContents.on('console-message', (e, level, message, line, sourceId) => {
+      console.log(`[wall${pair.index}:${level}] ${message} (${String(sourceId).split(/[\/]/).pop()}:${line})`);
+    });
+  }
 
   win.loadFile(RENDERER(path.join('wallpaper', 'index.html')), { query: { display: String(pair.index) } });
 
@@ -1037,10 +1042,14 @@ function toggleWidgetsVisible() {
 function onReady() {
   config.load();
 
+  // local-fonts はフォント一覧、media / display-capture はビジュアライザーの
+  // ループバック取り込みに必要。これを拒否していたせいで、ビジュアライザーは
+  // NotAllowedError で一度も動けなかった
+  const ALLOWED_PERMISSIONS = new Set(['local-fonts', 'media', 'display-capture']);
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => {
-    cb(permission === 'local-fonts');
+    cb(ALLOWED_PERMISSIONS.has(permission));
   });
-  session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'local-fonts');
+  session.defaultSession.setPermissionCheckHandler((wc, permission) => ALLOWED_PERMISSIONS.has(permission));
 
   // ビジュアライザー用: システム音声のループバックキャプチャを許可
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {

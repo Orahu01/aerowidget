@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.14 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.15 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,25 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.15 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.15</div><div class="when">先行版・修正</div></div>
+    <div>
+      <h4>ビジュアライザーが動かない・見えなくなる問題を修正しました</h4>
+      <ul>
+        <li>真犯人はアプリ自身の<b>権限設定</b>でした。フォント一覧のために付けた「それ以外の権限は全部拒否」が、音の取り込み (画面キャプチャ権限) まで拒否していて、<b>NotAllowedError で一度も取り込めていませんでした</b>。取り込みに必要な権限を許可しました</li>
+        <li>5.9.14 では、取り込みに失敗していると<b>待機の平らなバーすら描かず</b>、ウィジェットが消えたように見えていました。取り込めていない間も待機バーを出し、1 秒ごとに取り直します</li>
+        <li>出力デバイスの都合で解析が止められたときは、自動で起こします</li>
+        <li>実機で確認: システム音を鳴らすと波の描画が始まります (ログ: 音を検出 peak=85)</li>
+      </ul>
+      <h4>フォルダへのドラッグ&ドロップが効かない問題を修正しました</h4>
+      <ul>
+        <li>ドロップされたファイルの一覧を、そのままの形 (FileList) で内部の橋に渡していたため、<b>渡った先で空になって</b>いました。File の配列に直して渡すようにしました</li>
+        <li>パスが取れなかったときは「取得できませんでした」と表示します (黙って何もしない、をやめました)</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.14 -->

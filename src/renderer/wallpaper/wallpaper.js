@@ -888,6 +888,9 @@ async function ensureVisCapture() {
     for (const t of stream.getVideoTracks()) t.stop(); // 映像は不要
     if (!stream.getAudioTracks().length) throw new Error('no audio track');
     const ctx = new AudioContext();
+    // 出力デバイスの都合で止められることがある (切替・排他モード)。都度起こす
+    ctx.onstatechange = () => { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); };
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const src = ctx.createMediaStreamSource(stream);
     visAnalyser = ctx.createAnalyser();
     visAnalyser.fftSize = 256;
@@ -897,6 +900,7 @@ async function ensureVisCapture() {
   } catch (e) {
     visFailed = true;
     visFailedAt = Date.now();
+    console.warn('[vis] 取り込みに失敗:', (e && (e.name + ': ' + e.message)) || e);
   } finally {
     visStarting = false;
     visSync();
@@ -938,13 +942,28 @@ function drawVis(cv, w, live) {
 // ゲームやブラウザの音では立たないことがあり、それに縛った結果
 // 「一度も動かない」になっていた。ここでは解析値そのものを見る。
 function visFrame() {
-  if (!visAnalyser || paused) { visTimer = null; return; }
+  if (paused) { visTimer = null; return; }   // 復帰時は onPower の visSync が再開する
+
+  // まだ音を取り込めていない間も、待機の平らなバーは出しておく。
+  // 何も描かないと「ウィジェットが消えた」ようにしか見えない。
+  if (!visAnalyser) {
+    for (const w of visWidgets()) {
+      const rec = widgetEls.get(w.id);
+      const cv = rec && rec.el.querySelector('.vis-canvas');
+      if (cv) drawVis(cv, w, false);
+    }
+    ensureVisCapture();                      // 失敗中は 60 秒の間を置いて中で取り直す
+    visTimer = setTimeout(visFrame, 1000);
+    return;
+  }
+
   visAnalyser.getByteFrequencyData(visData);
   let peak = 0;
   for (let i = 0; i < visData.length; i++) if (visData[i] > peak) peak = visData[i];
   const live = peak > 6;                       // ノイズ床より上なら「鳴っている」
 
   if (live) {
+    if (!visFrame.logged) { visFrame.logged = true; console.log('[vis] 音を検出 (peak=' + peak + ')'); }
     visQuietSince = 0;
     for (const w of visWidgets()) {
       const rec = widgetEls.get(w.id);

@@ -72,7 +72,7 @@ document.body.addEventListener('dragleave', (e) => {
 document.body.addEventListener('drop', async (e) => {
   e.preventDefault();
   card.classList.remove('dropping');
-  const paths = window.fw.droppedPaths(e.dataTransfer.files || []);
+  const paths = window.fw.droppedPaths([...(e.dataTransfer.files || [])]);
   if (paths.length) await window.fw.addItems(paths);
 });
 
