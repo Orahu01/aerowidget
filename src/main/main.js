@@ -1639,18 +1639,36 @@ function rememberHome() {
 
 // 現在のアイコン配置を name つきスナップとして settings.iconLayouts に積む。
 // 読むだけ。書き込みは一切しない。同名は上書き、最大 21 枠 (自動退避 1 + 通常 20)。
+// 死角に退避しているアイコンの座標を、控えてある元位置に直す。
+// 退避先を「元の場所」として保存してしまうと、二度と帰れなくなる
+function unpark(rows) {
+  const home = config.get().settings.iconHome || {};
+  let repaired = 0;
+  const out = (rows || []).map(it => {
+    let parked = false;
+    try { parked = icons.isParked(it.x, it.y); } catch (_) { parked = false; }
+    const h = parked && home[it.name];
+    if (!h) return it;
+    repaired++;
+    return { ...it, x: h.x | 0, y: h.y | 0 };
+  });
+  out.repaired = repaired;
+  return out;
+}
+
 function saveIconSnapshot(name, hidden) {
-  if (Array.isArray(hidden) && hidden.length) rememberHome();
+  rememberHome();                        // 見えているものの住所を控えておく
   const now = icons.list();
   if (!now || !now.length) return { ok: false, msg: 'デスクトップアイコンを読み取れませんでした' };
   const clean = String(name || '').slice(0, 40) || `アイコン配置 ${new Date().toLocaleString('ja-JP')}`;
   const hide = Array.isArray(hidden) ? hidden.filter(Boolean) : [];
+  const rows = clean === ICON_BACKUP_NAME ? now : unpark(now);
   config.update(cfg => {
     const keep = (cfg.settings.iconLayouts || []).filter(l => l.name !== clean);
     cfg.settings.iconLayouts = [...keep,
-      { name: clean, savedAt: Date.now(), icons: now, hidden: hide }].slice(-21);
+      { name: clean, savedAt: Date.now(), icons: [...rows], hidden: hide }].slice(-21);
   });
-  return { ok: true, count: now.length, name: clean };
+  return { ok: true, count: rows.length, name: clean };
 }
 
 // スナップを適用する共通処理。書き込む前に必ず今の並びを退避する。
@@ -1668,6 +1686,44 @@ ipcMain.handle('icons:available', () => icons.available());
 ipcMain.handle('icons:current', () => (icons.list() || []).length);
 ipcMain.handle('icons:names', () => (icons.list() || []).map(i => i.name));
 ipcMain.handle('icons:stranded', () => icons.strandedNames() || []);
+
+// デスクトップ上の「表示名 -> ファイルパス」を作る。
+// 個人用と共用 (Public) の両方を見る。拡張子は表示名から落ちているので付け外しで照合する。
+function desktopPathByName() {
+  const fs = require('fs');
+  const dirs = [app.getPath('desktop')];
+  const pub = process.env.PUBLIC;
+  if (pub) dirs.push(path.join(pub, 'Desktop'));
+
+  const out = new Map();
+  for (const dir of dirs) {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch (_) { continue; }
+    for (const n of names) {
+      const full = path.join(dir, n);
+      const base = n.replace(/\.(lnk|url)$/i, '');
+      if (!out.has(base)) out.set(base, full);
+      if (!out.has(n)) out.set(n, full);
+    }
+  }
+  return out;
+}
+
+// アイコン画像 (dataURL)。デスクトップ上のものだけに限る
+const deskIconCache = new Map();
+ipcMain.handle('icons:image', async (e, name) => {
+  if (deskIconCache.has(name)) return deskIconCache.get(name);
+  const p2 = desktopPathByName().get(String(name || ''));
+  if (!p2) return null;
+  try {
+    const img = await resolveIcon(p2);
+    const url = img ? img.toDataURL() : null;
+    deskIconCache.set(name, url);
+    return url;
+  } catch (_) {
+    return null;
+  }
+});
 
 // 画面外に取り残されたアイコンを全部呼び戻す (最後の逃げ道)
 ipcMain.handle('icons:showAll', () => {
@@ -1690,6 +1746,24 @@ ipcMain.handle('icons:snapshots', () => {
 ipcMain.handle('icons:save', (e, name, hidden) => saveIconSnapshot(name, hidden));
 
 ipcMain.handle('icons:restore', (e, name) => applyIconSnapshot(name));
+
+// モードの「隠すアイコン」だけを差し替える。並び位置には触らない。
+// いま死角に退避しているアイコンは、控えてある元位置に直してから保存する。
+// そうしないと退避先の座標が「元の場所」として固まってしまう。
+ipcMain.handle('icons:setHidden', (e, name, hidden) => {
+  const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
+  if (!snap) return { ok: false, msg: 'そのモードが見つかりません' };
+
+  const hide = Array.isArray(hidden) ? hidden.filter(Boolean) : [];
+  rememberHome();
+  const fixed = unpark(snap.icons);
+
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
+    if (l) { l.hidden = hide; l.icons = [...fixed]; l.savedAt = Date.now(); }
+  });
+  return { ok: true, count: fixed.length, hidden: hide.length, repaired: fixed.repaired };
+});
 
 // この環境で「隠す」が使えるか (死角がいくつあるか)
 ipcMain.handle('icons:capacity', () => {

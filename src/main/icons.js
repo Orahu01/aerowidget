@@ -247,6 +247,14 @@ function strandedNames() {
 
 // 画面外のアイコンを全部、見える場所へ並べ直す。
 // 元位置が分からなくても必ず戻せる最後の手段なので、
+// 保存済み座標 (仮想画面の左上からの相対) が、どのモニタにも載っていないか。
+// 「退避先の座標を元の場所として覚えてしまう」のを防ぐのに使う
+function isParked(x, y) {
+  const ox = GetSystemMetrics(SM_XVIRTUALSCREEN);
+  const oy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+  return isOffScreen(ox + (x | 0), oy + (y | 0));
+}
+
 // 保存データに頼らず「空いている見えるセル」を自前で探して置く。
 // home: {名前 -> {x,y}} 最後に見えていた位置。あればそこへ戻す。
 // 無い / 埋まっている場合だけ、空いている見えるセルへ置く。
@@ -321,4 +329,5 @@ function available() {
   return !!(lv && IsWindow(lv));
 }
 
-module.exports = { list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll, visibleList };
+module.exports = {
+  isParked, list, apply, available, hideCapacity, parkingSlots, strandedNames, showAll, visibleList };

@@ -120,6 +120,17 @@ const JA_EN = {
   '隠したアイコンが分からなくなったときは、これを押せば全部を画面に呼び戻します。保存した配置が無くても戻せます。':
     'If you lose track of hidden icons, this pulls every one of them back onto the screen. It works even with no saved arrangement.',
   'ありません': 'None',
+  'モードごとに、どのアイコンを隠すかをチェックで決めます。モード名をクリックすると開きます。':
+    'Decide which icons each mode hides by ticking them. Click a mode name to open it.',
+  '新しいモードを作る': 'Create a new mode', '今の配置で作成': 'Create from current layout',
+  'まだモードがありません。下で名前を付けて作成してください。': 'No modes yet. Name one below to create it.',
+  '見えるのは ': 'visible ', 'すべて表示': 'Show all', 'すべて隠す': 'Hide all',
+  'この内容で保存': 'Save this mode', 'このモードを適用': 'Apply this mode',
+  '保存しました': 'Saved', '適用しました': 'Applied', '隠した: ': 'hidden: ',
+  '今の並びを覚え直す': 'Re-capture positions', '今の並びを覚えました (': 'Positions captured (',
+  'このモードを削除します: ': 'Delete this mode: ',
+  '作成しました。開いて隠すアイコンを選んでください。': 'Created. Open it and tick the icons to hide.',
+  '全部で ': 'Total ',
   '確認できませんでした': 'Could not check',
   'いま確認できませんでした。公開の直後かもしれません。少し待ってからもう一度お試しください。':
     'Could not check just now. The release may still be going up — please try again in a moment.',
@@ -2191,33 +2202,177 @@ function scnRuleCard(rule, i) {
 }
 
 // ---- デスクトップアイコンの保存 / 復元 ----
-// この配置で隠すアイコン (チェックした名前)
-let icHide = new Set();
+// デスクトップの見取り図に実際の配置を描き、
+// 隠したいアイコンは右の枠へドラッグして振り分ける。
+// アイコンを「どのモニタにあるか」で仕分けて並べ、隠したいものは右の枠へドラッグする。
+//
+// 実座標のまま縮小すると、アイコン間隔 127px が 13px ほどになって名前が重なる
+// (実測)。位置を正確に写すより名前が読めることを優先し、モニタごとの区画の中で
+// 元の並び順のままグリッドに整列させる。
+// モードごとに「どのアイコンを隠すか」をチェックで決める。
+// 各モードは折りたたみ、開くとデスクトップの全アイコンが名前とアイコン画像つきで並ぶ。
+const icOpenModes = new Set();      // 開いているモード名
+const icDraft = new Map();          // モード名 -> Set(隠す名前)  未保存の編集
+let icImgCache = new Map();         // 名前 -> dataURL | null
 
-async function renderIconPicker() {
-  const box = $('#ic-picker');
-  if (!box) return;
-  const names = await window.api.iconNames();
-  box.innerHTML = '';
-  for (const name of names) {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip' + (icHide.has(name) ? ' active' : '');
-    chip.textContent = name;
-    chip.title = icHide.has(name) ? T('クリックで表示に戻す') : T('クリックで隠す');
-    chip.onclick = () => {
-      if (icHide.has(name)) icHide.delete(name); else icHide.add(name);
+async function iconImageFor(name) {
+  if (icImgCache.has(name)) return icImgCache.get(name);
+  let url = null;
+  try { url = await window.api.iconImage(name); } catch (_) { url = null; }
+  icImgCache.set(name, url);
+  return url;
+}
+
+const CHECK_SVG = '<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
+
+// 1 モードぶんのカード
+function icModeCard(snap, allNames) {
+  const open = icOpenModes.has(snap.name);
+  const hideSet = icDraft.get(snap.name) || new Set(snap.hidden || []);
+  icDraft.set(snap.name, hideSet);
+
+  const card = document.createElement('div');
+  card.className = 'ic-mode' + (open ? ' open' : '');
+
+  // --- 見出し ---
+  const head = document.createElement('div');
+  head.className = 'ic-mode-head';
+  head.innerHTML = '<svg class="ic-mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  const nm = document.createElement('span');
+  nm.className = 'ic-mode-name';
+  nm.textContent = snap.name;
+  const meta = document.createElement('span');
+  meta.className = 'ic-mode-meta';
+  meta.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
+    + T('隠す ') + hideSet.size + T(' 個') + ' ・ '
+    + T('見えるのは ') + (allNames.length - hideSet.size) + T(' 個');
+  head.append(nm, meta);
+  head.onclick = () => {
+    if (open) icOpenModes.delete(snap.name); else icOpenModes.add(snap.name);
+    renderIconPicker();
+  };
+  card.appendChild(head);
+
+  if (!open) return card;
+
+  // --- 中身 ---
+  const body = document.createElement('div');
+  body.className = 'ic-mode-body';
+
+  const tools = document.createElement('div');
+  tools.className = 'ic-mode-tools';
+  const mkBtn = (label, fn, cls) => {
+    const b = document.createElement('button');
+    b.className = 'btn' + (cls ? ' ' + cls : '');
+    b.textContent = T(label);
+    b.onclick = fn;
+    return b;
+  };
+  tools.append(
+    mkBtn('すべて表示', () => { hideSet.clear(); renderIconPicker(); }),
+    mkBtn('すべて隠す', () => { for (const n of allNames) hideSet.add(n); renderIconPicker(); }),
+  );
+  const grow = document.createElement('span');
+  grow.className = 'grow';
+  tools.appendChild(grow);
+  tools.append(
+    mkBtn('この内容で保存', async () => {
+      // 位置は触らずチェックだけ更新する (今いる場所で上書きしないため)
+      const r = await window.api.setIconHidden(snap.name, [...hideSet]);
+      if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+      $('#ic-status').textContent = T('保存しました') + ' ・ '
+        + T('隠す ') + r.hidden + T(' 個');
+      icDraft.delete(snap.name);
+      renderIconLayouts();
+    }),
+    mkBtn('このモードを適用', async () => {
+      const r = await window.api.restoreIcons(snap.name);
+      if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+      let m = T('適用しました');
+      if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
+      $('#ic-status').textContent = m;
+      renderIconLayouts();
+    }),
+    // 並べ直したあとに、今のデスクトップの位置でこのモードを更新する
+    mkBtn('今の並びを覚え直す', async () => {
+      const r = await window.api.saveIcons(snap.name, [...hideSet]);
+      $('#ic-status').textContent = r.ok
+        ? T('今の並びを覚えました (') + r.count + T(' 個)') : r.msg;
+      icDraft.delete(snap.name);
+      renderIconLayouts();
+    }),
+    mkBtn('削除', async () => {
+      if (!confirm(T('このモードを削除します: ') + snap.name)) return;
+      await window.api.removeIconSnapshot(snap.name);
+      icOpenModes.delete(snap.name);
+      icDraft.delete(snap.name);
+      renderIconLayouts();
+    }, 'danger'),
+  );
+  body.appendChild(tools);
+
+  // アイコン一覧 (チェックで隠す)
+  const list = document.createElement('div');
+  list.className = 'ic-list';
+  for (const name of allNames) {
+    const row = document.createElement('div');
+    row.className = 'ic-item' + (hideSet.has(name) ? ' hidden-on' : '');
+    row.title = hideSet.has(name) ? T('クリックで表示に戻す') : T('クリックで隠す');
+
+    const ph = document.createElement('span');
+    ph.className = 'ph';
+    row.appendChild(ph);
+    iconImageFor(name).then((url) => {
+      if (!url) return;
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      ph.replaceWith(img);
+    });
+
+    const label = document.createElement('span');
+    label.className = 'nm';
+    label.textContent = name;
+    row.appendChild(label);
+    row.insertAdjacentHTML('beforeend', CHECK_SVG);
+
+    row.onclick = () => {
+      if (hideSet.has(name)) hideSet.delete(name); else hideSet.add(name);
       renderIconPicker();
     };
-    box.appendChild(chip);
+    list.appendChild(row);
   }
-  if (!names.length) {
-    const p = document.createElement('span');
-    p.className = 'note';
-    p.textContent = T('デスクトップアイコンにアクセスできません');
-    box.appendChild(p);
-  }
+  body.appendChild(list);
+  card.appendChild(body);
+  return card;
 }
+
+async function renderIconPicker() {
+  const wrap = $('#ic-modes');
+  if (!wrap) return;
+
+  const names = await window.api.iconNames();
+  const res = await window.api.iconSnapshots();
+  const snaps = (res && res.saved) || [];
+
+  wrap.innerHTML = '';
+  if (!names.length) {
+    const p = document.createElement('p');
+    p.className = 'foot-note';
+    p.textContent = T('デスクトップアイコンにアクセスできません');
+    wrap.appendChild(p);
+    return;
+  }
+  if (!snaps.length) {
+    const p = document.createElement('p');
+    p.className = 'foot-note';
+    p.textContent = T('まだモードがありません。下で名前を付けて作成してください。');
+    wrap.appendChild(p);
+    return;
+  }
+  for (const snap of snaps) wrap.appendChild(icModeCard(snap, names));
+}
+
 
 async function renderIconLayouts() {
   const wrap = $('#ic-list');
@@ -2225,11 +2380,13 @@ async function renderIconLayouts() {
 
   const avail = await window.api.iconsAvailable();
   const cnt = $('#ic-count');
-  if (avail) {
-    const n = await window.api.iconsCurrent();
-    cnt.textContent = T('現在のアイコン: ') + n + T(' 個');
-  } else {
-    cnt.textContent = T('デスクトップアイコンにアクセスできません');
+  if (cnt) {
+    if (avail) {
+      const n = await window.api.iconsCurrent();
+      cnt.textContent = T('現在のアイコン: ') + n + T(' 個');
+    } else {
+      cnt.textContent = T('デスクトップアイコンにアクセスできません');
+    }
   }
 
   // 画面外に取り残されているアイコンがあれば目立たせる
@@ -2269,54 +2426,19 @@ async function renderIconLayouts() {
   await renderIconPicker();
 
   $('#ic-save').onclick = async () => {
-    const r = await window.api.saveIcons($('#ic-name').value.trim(), [...icHide]);
-    $('#ic-status').textContent = r.ok ? T('保存しました (') + r.count + T(' 個)') : r.msg;
-    if (r.ok) { $('#ic-name').value = ''; renderIconLayouts(); }
+    // 作った直後は何も隠していない状態。開いてチェックを入れて保存する
+    const r = await window.api.saveIcons($('#ic-name').value.trim(), []);
+    if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+    $('#ic-status').textContent = T('作成しました。開いて隠すアイコンを選んでください。');
+    $('#ic-name').value = '';
+    icOpenModes.add(r.name);          // 作ったら開いた状態で出す
+    renderIconLayouts();
   };
 
   const res = await window.api.iconSnapshots();
   const snaps = res.saved || [];
   const auto = res.auto || null;
   wrap.innerHTML = '';
-  for (const snap of snaps) {
-    const row = document.createElement('div');
-    row.className = 'gf-item';
-    const name = document.createElement('span');
-    name.className = 'gf-name';
-    name.textContent = snap.name;
-    const meta = document.createElement('span');
-    meta.className = 'note';
-    meta.style.padding = '0';
-    const hidN = (snap.hidden || []).length;
-    meta.textContent = snap.count + T(' 個')
-      + (hidN ? ' ・ ' + T('隠す ') + hidN : '')
-      + ' ・ ' + new Date(snap.savedAt).toLocaleString('ja-JP');
-
-    const restore = document.createElement('button');
-    restore.className = 'btn';
-    restore.textContent = T('復元');
-    restore.onclick = async () => {
-      const r = await window.api.restoreIcons(snap.name);
-      if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
-      icHide = new Set(snap.hidden || []);
-      let msg = T('復元しました (') + r.moved + T(' 個)');
-      if (r.hidden) msg += T(' / 隠した: ') + r.hidden + T(' 個');
-      if (r.skipped) msg += T(' / 見つからず飛ばした: ') + r.skipped + T(' 個');
-      $('#ic-status').textContent = msg;
-      renderIconLayouts();
-    };
-
-    const del = document.createElement('button');
-    del.className = 'btn';
-    del.textContent = T('削除');
-    del.onclick = async () => {
-      await window.api.removeIconSnapshot(snap.name);
-      renderIconLayouts();
-    };
-
-    row.append(name, meta, restore, del);
-    wrap.appendChild(row);
-  }
 
   // 自動退避は一覧に混ぜず、控えめな 1 行として最後に置く
   if (auto) {

@@ -129,12 +129,7 @@ jobs:
             $m = [regex]::Match($html, $pattern)
             if ($m.Success) {
               $body = $m.Value
-              $lines = @()
-              foreach ($h in [regex]::Matches($body, '(?s)<h4>(.*?)</h4>')) {
-                $lines += ''
-                $lines += '### ' + ($h.Groups[1].Value -replace '<[^>]+>', '').Trim()
-              }
-              # 見出しと箇条書きを出現順に拾い直す
+              # 見出しと箇条書きを出現順に拾う
               $lines = @()
               foreach ($t in [regex]::Matches($body, '(?s)<h4>(.*?)</h4>|<li>(.*?)</li>')) {
                 if ($t.Groups[1].Success) {
@@ -153,7 +148,7 @@ jobs:
           $isPre = ($minor % 2) -eq 1
           if ($isPre) {
             $notes += "`n`n---`n" +
-              'これは先行版です。設定 → 設定 →「先行版を受け取る」を ON にした方にだけ届きます。'
+              'これは先行版です。設定画面の「設定」ページで「先行版を受け取る」を ON にした方にだけ届きます。'
           }
           $notes += "`n`n[すべての変更点](https://orahu01.github.io/aerowidget/changelog.html)"
           Set-Content -Path $notesFile -Value $notes -Encoding UTF8
