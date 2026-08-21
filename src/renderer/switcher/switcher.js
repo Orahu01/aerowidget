@@ -1,13 +1,25 @@
-// 切り替えボタン: デスクトップ上からレイアウトプリセットを切り替える。
+// 切り替えボタン: デスクトップ上からレイアウトプリセット、または
+// デスクトップアイコンのモードを切り替える (options.target で選ぶ)。
 //
 // シーンが「状況で自動」なら、こちらは「手で今すぐ」。
-// いま当たっているレイアウトはボタンが光るので、どの構成にいるか一目で分かる。
+// いま当たっているものはボタンが光るので、どの構成にいるか一目で分かる。
 'use strict';
 
 let widget = null;
 let osLocale = 'ja';
-let names = [];      // 表示するレイアウト名
-let current = '';    // いま当たっているレイアウト名
+let names = [];      // 表示する名前
+let current = '';    // いま当たっているもの
+
+// 何を切り替えるか。'icons' ならデスクトップアイコンのモード
+function target() {
+  return ((widget && widget.options && widget.options.target) === 'icons') ? 'icons' : 'layout';
+}
+const SRC = {
+  layout: { list: () => window.fw.listLayouts(), now: () => window.fw.currentLayout(),
+            apply: (n) => window.fw.applyLayout(n) },
+  icons:  { list: () => window.fw.listIconModes(), now: () => window.fw.currentIconMode(),
+            apply: (n) => window.fw.applyIconMode(n) },
+};
 
 const card = document.getElementById('card');
 const buttons = document.getElementById('buttons');
@@ -38,9 +50,9 @@ function render() {
   if (!names.length) {
     const p = document.createElement('div');
     p.id = 'empty';
-    p.textContent = en()
-      ? 'Save a layout preset first'
-      : '先にレイアウトを保存してください';
+    p.textContent = target() === 'icons'
+      ? (en() ? 'Create an icon mode first' : '先にアイコンのモードを作ってください')
+      : (en() ? 'Save a layout preset first' : '先にレイアウトを保存してください');
     buttons.appendChild(p);
     return;
   }
@@ -51,7 +63,7 @@ function render() {
     if (name === current) b.classList.add('active');
     b.addEventListener('click', async () => {
       if (name === current) return;
-      const ok = await window.fw.applyLayout(name);
+      const ok = await SRC[target()].apply(name);
       if (ok) { current = name; render(); }
     });
     buttons.appendChild(b);
@@ -60,11 +72,12 @@ function render() {
 
 // options.items が指定されていればその順で、無ければ保存済み全部
 async function refresh() {
-  const all = await window.fw.listLayouts();
+  const src = SRC[target()];
+  const all = (await src.list()) || [];
   const want = ((widget && widget.options && widget.options.items) || [])
     .map(s => String(s || '').trim()).filter(Boolean);
   names = want.length ? want.filter(n => all.includes(n)) : all;
-  current = await window.fw.currentLayout();
+  current = (await src.now()) || '';
   render();
 }
 

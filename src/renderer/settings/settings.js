@@ -82,7 +82,12 @@ const JA_EN = {
   '→ このレイアウトへ': 'switch to this layout:',
   '→ アイコンは': 'and desktop icons:', '(アイコンは触らない)': "(don't touch icons)",
   // v5.9 切り替えボタン
-  '切り替えボタン': 'Layout switcher',
+  '切り替えボタン': 'Switcher',
+  '呼び名': 'Label', ' (空欄なら種類名)': ' (blank = type name)',
+  'いまは隠しています。押すと出します': 'Hidden. Click to show',
+  '押すと隠します (設定は残ります)': 'Click to hide (settings are kept)',
+  '切り替えるもの': 'Switches', 'レイアウト': 'Layout', 'アイコンのモード': 'Icon mode',
+  '並べるモード': 'Modes to show',
   '並べるレイアウト': 'Layouts to show',
   '空欄 = 保存済みすべて / 例: 通常, 仕事用, ゲーム用': 'Blank = all saved / e.g. Normal, Work, Gaming',
   '並び': 'Direction', '縦に並べる': 'Stack vertically',
@@ -129,6 +134,16 @@ const JA_EN = {
   '保存しました': 'Saved', '適用しました': 'Applied', '隠した: ': 'hidden: ',
   '今の並びを覚え直す': 'Re-capture positions', '今の並びを覚えました (': 'Positions captured (',
   'このモードを削除します: ': 'Delete this mode: ',
+  'モードの名前': 'Mode name', '名前を変える': 'Rename', '名前を変えました': 'Renamed',
+  'デスクトップのアイコン': 'Desktop icons', 'ウィジェット': 'Widgets', 'ウィジェット ': 'widgets ',
+  'このモードでウィジェットも切り替える': 'Switch widgets with this mode too',
+  '連動しません': 'not linked', '出す ': 'shown ',
+  'すべて出す': 'Show all', 'すべてしまう': 'Hide all',
+  'ウィジェットがまだありません。': 'No widgets yet.',
+  '切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。':
+    'Hiding the switcher means you cannot press it in that mode (you can still switch back from settings).',
+  '呼び名を付ける (デスクトップの名前は変わりません)': 'Give it a label (your desktop is not renamed)',
+  'モニタ': 'Monitor',
   'モード一覧を表示できませんでした: ': 'Could not show the mode list: ',
   '作成しました。開いて隠すアイコンを選んでください。': 'Created. Open it and tick the icons to hide.',
   '全部で ': 'Total ',
@@ -1302,7 +1317,12 @@ function typeOptionsUI(w) {
     wrap.appendChild(noteEl('タイムゾーン名の例: Asia/Tokyo ・ America/New_York ・ America/Los_Angeles ・ Europe/London ・ Europe/Paris ・ Australia/Sydney'));
 
   } else if (w.type === 'switcher') {
-    wrap.appendChild(ctlRow('並べるレイアウト', mkText((o.items || []).join(', '),
+    const forIcons = o.target === 'icons';
+    wrap.appendChild(ctlRow('切り替えるもの', mkSelect(
+      [['layout', 'レイアウト'], ['icons', 'アイコンのモード']],
+      forIcons ? 'icons' : 'layout',
+      v => { patchWidget(w.id, { options: { target: v } }); renderWidgetList(); })));
+    wrap.appendChild(ctlRow(forIcons ? '並べるモード' : '並べるレイアウト', mkText((o.items || []).join(', '),
       '空欄 = 保存済みすべて / 例: 通常, 仕事用, ゲーム用',
       v => patchWidget(w.id, { options: { items: v.split(',').map(x => x.trim()).filter(Boolean) } }))));
     wrap.appendChild(ctlRow('並び', mkCheck('縦に並べる', !!o.vertical,
@@ -1317,7 +1337,9 @@ function typeOptionsUI(w) {
       val.textContent = Math.round((o.bgOpacity ?? 0.55) * 100) + '%';
       wrap.appendChild(ctlRow('背景の濃さ', r, val));
     }
-    wrap.appendChild(noteEl('デスクトップ上のボタンでレイアウトを切り替えられます。いま当たっているレイアウトのボタンが光ります。シーンが「状況で自動」なら、こちらは「手で今すぐ」です。'));
+    wrap.appendChild(noteEl(forIcons
+      ? 'デスクトップ上のボタンでアイコンのモードを切り替えられます。いま当たっているモードのボタンが光ります。モードにウィジェットを連動させていれば、ウィジェットも一緒に入れ替わります。'
+      : 'デスクトップ上のボタンでレイアウトを切り替えられます。いま当たっているレイアウトのボタンが光ります。シーンが「状況で自動」なら、こちらは「手で今すぐ」です。'));
   } else if (w.type === 'todo') {
     wrap.appendChild(ctlRow('タイトル', mkText(o.title, '例: ToDo / 買い物リスト', v => patchWidget(w.id, { options: { title: v } }))));
     for (const [key, label, min, max, def] of [['w', '幅', 170, 600, 250], ['h', '高さ', 120, 600, 220]]) {
@@ -1504,7 +1526,7 @@ const NO_SHADOW_TYPES = new Set(['line']);
 function widgetCard(w) {
   const meta = TYPES[w.type] || { icon: 'i-widgets', label: w.type };
   const card = document.createElement('div');
-  card.className = 'widget-card' + (expanded.has(w.id) ? ' open' : '');
+  card.className = 'widget-card' + (expanded.has(w.id) ? ' open' : '') + (w.off ? ' is-off' : '');
 
   const head = document.createElement('div');
   head.className = 'wc-head';
@@ -1513,7 +1535,8 @@ function widgetCard(w) {
   glyph.appendChild(svgIcon(meta.icon));
   const title = document.createElement('span');
   title.className = 'wc-title';
-  title.textContent = T(meta.label);
+  // 呼び名を付けていればそれを見出しにする (同じ種類が並ぶと見分けが付かないため)
+  title.textContent = w.name || T(meta.label);
   const sub = document.createElement('span');
   sub.className = 'wc-sub';
   const dispLabel = displays.length > 1 ? ` ・ モニタ${(w.display || 0) + 1}` : '';
@@ -1528,6 +1551,18 @@ function widgetCard(w) {
   head.appendChild(title);
   head.appendChild(sub);
   head.appendChild(spacer);
+  // 消さずにしまう / 出す
+  const offBtn = document.createElement('button');
+  offBtn.className = 'wc-off' + (w.off ? ' on' : '');
+  offBtn.title = T(w.off ? 'いまは隠しています。押すと出します' : '押すと隠します (設定は残ります)');
+  offBtn.appendChild(svgIcon('i-power'));
+  offBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    patchWidget(w.id, { off: !w.off });
+    renderWidgetList();
+  });
+  head.appendChild(offBtn);
+
   head.appendChild(mkDelBtn(async (e) => {
     e.stopPropagation();
     expanded.delete(w.id);
@@ -1547,6 +1582,9 @@ function widgetCard(w) {
   body.className = 'wc-body';
   const grid = document.createElement('div');
   grid.className = 'wc-grid';
+
+  grid.appendChild(ctlRow('呼び名', mkText(w.name, T(meta.label) + T(' (空欄なら種類名)'),
+    v => { patchWidget(w.id, { name: v.trim().slice(0, 24) }); renderWidgetList(); })));
 
   if (displays.length > 1) {
     grid.appendChild(ctlRow('モニタ', mkSelect(
@@ -2210,11 +2248,13 @@ function scnRuleCard(rule, i) {
 // 実座標のまま縮小すると、アイコン間隔 127px が 13px ほどになって名前が重なる
 // (実測)。位置を正確に写すより名前が読めることを優先し、モニタごとの区画の中で
 // 元の並び順のままグリッドに整列させる。
-// モードごとに「どのアイコンを隠すか」をチェックで決める。
-// 各モードは折りたたみ、開くとデスクトップの全アイコンが名前とアイコン画像つきで並ぶ。
+// モードごとに「どのアイコンを隠すか」「どのウィジェットを出すか」をチェックで決める。
+// 各モードは折りたたみ、開くとデスクトップの全アイコンが名前と絵つきで並ぶ。
 const icOpenModes = new Set();      // 開いているモード名
-const icDraft = new Map();          // モード名 -> Set(隠す名前)  未保存の編集
-let icImgCache = new Map();         // 名前 -> dataURL | null
+const icDraft = new Map();          // モード名 -> Set(隠すアイコン名)     未保存の編集
+const icWDraft = new Map();         // モード名 -> {link, on:Set(widgetId)} 未保存の編集
+let icImgCache = new Map();         // アイコン名 -> dataURL | null
+let icAlias = {};                   // アイコン名 -> 画面に出す呼び名
 
 async function iconImageFor(name) {
   if (icImgCache.has(name)) return icImgCache.get(name);
@@ -2225,6 +2265,105 @@ async function iconImageFor(name) {
 }
 
 const CHECK_SVG = '<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>';
+const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
+
+function widgetLabel(w) {
+  const meta = TYPES[w.type] || { label: w.type };
+  const disp = displays.length > 1 ? ' ・ ' + T('モニタ') + ((w.display || 0) + 1) : '';
+  return (w.name || T(meta.label)) + disp;
+}
+
+function mkLabelSpan(text) {
+  const el = document.createElement('span');
+  el.className = 'ic-inline-label';
+  el.textContent = T(text);
+  return el;
+}
+
+function mkSubHead(text, right) {
+  const h = document.createElement('div');
+  h.className = 'ic-sub-head';
+  const a = document.createElement('span');
+  a.textContent = text;
+  const b = document.createElement('span');
+  b.className = 'ic-sub-meta';
+  b.textContent = right || '';
+  h.append(a, b);
+  return h;
+}
+
+function mkNote(text) {
+  const el = document.createElement('p');
+  el.className = 'foot-note';
+  el.textContent = text;
+  return el;
+}
+
+// アイコン 1 行 (クリックで隠す / 鉛筆で呼び名を付ける)
+function icItem(name, hideSet) {
+  const row = document.createElement('div');
+  row.className = 'ic-item' + (hideSet.has(name) ? ' hidden-on' : '');
+  row.title = name;
+
+  const ph = document.createElement('span');
+  ph.className = 'ph';
+  row.appendChild(ph);
+  iconImageFor(name).then((url) => {
+    if (!url) return;
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    ph.replaceWith(img);
+  });
+
+  const label = document.createElement('span');
+  label.className = 'nm' + (icAlias[name] ? ' aliased' : '');
+  label.textContent = icAlias[name] || name;
+  row.appendChild(label);
+
+  // 呼び名を付ける。デスクトップの実際の名前は変えない
+  // (変えてしまうと、その名前で覚えている保存済みモードが全部迷子になる)
+  const pen = document.createElement('button');
+  pen.className = 'ic-edit';
+  pen.title = T('呼び名を付ける (デスクトップの名前は変わりません)');
+  pen.innerHTML = PEN_SVG;
+  pen.onclick = (e) => {
+    e.stopPropagation();
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'ic-alias-in';
+    inp.value = icAlias[name] || '';
+    inp.placeholder = name;
+    inp.maxLength = 40;
+    let done = false;
+    const save = async () => {
+      if (done) return;
+      done = true;
+      const r = await window.api.setIconAlias(name, inp.value);
+      if (r && r.ok) {
+        if (r.label) icAlias[name] = r.label; else delete icAlias[name];
+      }
+      renderIconPicker();
+    };
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') save();
+      if (ev.key === 'Escape') { done = true; renderIconPicker(); }
+    });
+    inp.addEventListener('blur', save);
+    inp.addEventListener('click', (ev) => ev.stopPropagation());
+    label.replaceWith(inp);
+    inp.focus();
+    inp.select();
+  };
+  row.appendChild(pen);
+  row.insertAdjacentHTML('beforeend', CHECK_SVG);
+
+  row.onclick = () => {
+    if (hideSet.has(name)) hideSet.delete(name); else hideSet.add(name);
+    renderIconPicker();
+  };
+  return row;
+}
 
 // 1 モードぶんのカード
 function icModeCard(snap, allNames) {
@@ -2233,23 +2372,30 @@ function icModeCard(snap, allNames) {
     || new Set(Array.isArray(snap.hidden) ? snap.hidden : []);
   icDraft.set(snap.name, hideSet);
 
+  const wd = icWDraft.get(snap.name)
+    || { link: !!snap.linkWidgets, on: new Set(snap.widgetsOn || []) };
+  icWDraft.set(snap.name, wd);
+
+  const allWidgets = cfg.widgets || [];
+  // 消えたショートカットが hidden に残っていても数に混ぜない
+  const hideNow = allNames.filter(n => hideSet.has(n)).length;
+  const wOn = allWidgets.filter(w => wd.on.has(w.id)).length;
+
   const card = document.createElement('div');
   card.className = 'ic-mode' + (open ? ' open' : '');
 
-  // --- 見出し ---
   const head = document.createElement('div');
   head.className = 'ic-mode-head';
   head.innerHTML = '<svg class="ic-mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
   const nm = document.createElement('span');
   nm.className = 'ic-mode-name';
   nm.textContent = snap.name;
-  // 消えたショートカットが hidden に残っていても数に混ぜない
-  const hideNow = allNames.filter(n => hideSet.has(n)).length;
   const meta = document.createElement('span');
   meta.className = 'ic-mode-meta';
   meta.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
     + T('隠す ') + hideNow + T(' 個') + ' ・ '
-    + T('見えるのは ') + (allNames.length - hideNow) + T(' 個');
+    + T('見えるのは ') + (allNames.length - hideNow) + T(' 個')
+    + (wd.link ? ' ・ ' + T('ウィジェット ') + wOn + '/' + allWidgets.length : '');
   head.append(nm, meta);
   head.onclick = () => {
     if (open) icOpenModes.delete(snap.name); else icOpenModes.add(snap.name);
@@ -2259,12 +2405,9 @@ function icModeCard(snap, allNames) {
 
   if (!open) return card;
 
-  // --- 中身 ---
   const body = document.createElement('div');
   body.className = 'ic-mode-body';
 
-  const tools = document.createElement('div');
-  tools.className = 'ic-mode-tools';
   const mkBtn = (label, fn, cls) => {
     const b = document.createElement('button');
     b.className = 'btn' + (cls ? ' ' + cls : '');
@@ -2272,6 +2415,34 @@ function icModeCard(snap, allNames) {
     b.onclick = fn;
     return b;
   };
+
+  // 名前は作ってから付け直せる
+  const nameRow = document.createElement('div');
+  nameRow.className = 'ic-mode-tools';
+  const nameIn = document.createElement('input');
+  nameIn.type = 'text';
+  nameIn.value = snap.name;
+  nameIn.style.flex = '1';
+  nameIn.maxLength = 40;
+  const doRename = async () => {
+    const to = nameIn.value.trim();
+    if (!to || to === snap.name) return;
+    const r = await window.api.renameIconMode(snap.name, to);
+    if (!r.ok) { $('#ic-status').textContent = r.msg; nameIn.value = snap.name; return; }
+    // 編集中の下書きも新しい名前へ引っ越す
+    if (icDraft.has(snap.name)) { icDraft.set(r.name, icDraft.get(snap.name)); icDraft.delete(snap.name); }
+    if (icWDraft.has(snap.name)) { icWDraft.set(r.name, icWDraft.get(snap.name)); icWDraft.delete(snap.name); }
+    if (icOpenModes.delete(snap.name)) icOpenModes.add(r.name);
+    $('#ic-status').textContent = T('名前を変えました');
+    cfg = (await window.api.getConfig()).config;
+    renderIconLayouts();
+  };
+  nameIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRename(); });
+  nameRow.append(mkLabelSpan('モードの名前'), nameIn, mkBtn('名前を変える', doRename));
+  body.appendChild(nameRow);
+
+  const tools = document.createElement('div');
+  tools.className = 'ic-mode-tools';
   tools.append(
     mkBtn('すべて表示', () => { hideSet.clear(); renderIconPicker(); }),
     mkBtn('すべて隠す', () => { for (const n of allNames) hideSet.add(n); renderIconPicker(); }),
@@ -2284,9 +2455,12 @@ function icModeCard(snap, allNames) {
       // 位置は触らずチェックだけ更新する (今いる場所で上書きしないため)
       const r = await window.api.setIconHidden(snap.name, [...hideSet]);
       if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+      await window.api.setIconWidgets(snap.name, wd.link, [...wd.on]);
       $('#ic-status').textContent = T('保存しました') + ' ・ '
-        + T('隠す ') + r.hidden + T(' 個');
+        + T('隠す ') + r.hidden + T(' 個')
+        + (wd.link ? ' ・ ' + T('ウィジェット ') + wd.on.size : '');
       icDraft.delete(snap.name);
+      icWDraft.delete(snap.name);
       renderIconLayouts();
     }),
     mkBtn('このモードを適用', async () => {
@@ -2294,7 +2468,10 @@ function icModeCard(snap, allNames) {
       if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
       let m = T('適用しました');
       if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
+      if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
       $('#ic-status').textContent = m;
+      cfg = (await window.api.getConfig()).config;
+      renderWidgetList();
       renderIconLayouts();
     }),
     // 並べ直したあとに、今のデスクトップの位置でこのモードを更新する
@@ -2310,43 +2487,73 @@ function icModeCard(snap, allNames) {
       await window.api.removeIconSnapshot(snap.name);
       icOpenModes.delete(snap.name);
       icDraft.delete(snap.name);
+      icWDraft.delete(snap.name);
       renderIconLayouts();
     }, 'danger'),
   );
   body.appendChild(tools);
 
-  // アイコン一覧 (チェックで隠す)
+  // --- デスクトップアイコン (チェックで隠す) ---
+  body.appendChild(mkSubHead(T('デスクトップのアイコン'),
+    T('隠す ') + hideNow + ' / ' + allNames.length));
   const list = document.createElement('div');
   list.className = 'ic-list';
-  for (const name of allNames) {
-    const row = document.createElement('div');
-    row.className = 'ic-item' + (hideSet.has(name) ? ' hidden-on' : '');
-    row.title = hideSet.has(name) ? T('クリックで表示に戻す') : T('クリックで隠す');
-
-    const ph = document.createElement('span');
-    ph.className = 'ph';
-    row.appendChild(ph);
-    iconImageFor(name).then((url) => {
-      if (!url) return;
-      const img = document.createElement('img');
-      img.src = url;
-      img.alt = '';
-      ph.replaceWith(img);
-    });
-
-    const label = document.createElement('span');
-    label.className = 'nm';
-    label.textContent = name;
-    row.appendChild(label);
-    row.insertAdjacentHTML('beforeend', CHECK_SVG);
-
-    row.onclick = () => {
-      if (hideSet.has(name)) hideSet.delete(name); else hideSet.add(name);
-      renderIconPicker();
-    };
-    list.appendChild(row);
-  }
+  for (const name of allNames) list.appendChild(icItem(name, hideSet));
   body.appendChild(list);
+
+  // --- ウィジェット ---
+  body.appendChild(mkSubHead(T('ウィジェット'),
+    wd.link ? T('出す ') + wOn + ' / ' + allWidgets.length : T('連動しません')));
+
+  const linkRow = document.createElement('div');
+  linkRow.className = 'ic-mode-tools';
+  linkRow.appendChild(mkCheck('このモードでウィジェットも切り替える', wd.link, (v) => {
+    wd.link = v;
+    // 初めてオンにしたら「いま出ているもの」を初期値にする
+    if (v && !wd.on.size) for (const w of allWidgets) if (!w.off) wd.on.add(w.id);
+    renderIconPicker();
+  }));
+  body.appendChild(linkRow);
+
+  if (wd.link) {
+    if (!allWidgets.length) {
+      body.appendChild(mkNote(T('ウィジェットがまだありません。')));
+    } else {
+      const wtools = document.createElement('div');
+      wtools.className = 'ic-mode-tools';
+      wtools.append(
+        mkBtn('すべて出す', () => { for (const w of allWidgets) wd.on.add(w.id); renderIconPicker(); }),
+        mkBtn('すべてしまう', () => { wd.on.clear(); renderIconPicker(); }),
+      );
+      body.appendChild(wtools);
+
+      const wlist = document.createElement('div');
+      wlist.className = 'ic-list';
+      for (const w of allWidgets) {
+        const row = document.createElement('div');
+        // ウィジェットは「出す」側にチェックが付く (アイコンとは逆の意味)
+        row.className = 'ic-item w-item' + (wd.on.has(w.id) ? ' on' : '');
+        const ph = document.createElement('span');
+        ph.className = 'ph glyph';
+        ph.appendChild(svgIcon((TYPES[w.type] || { icon: 'i-widgets' }).icon));
+        const label = document.createElement('span');
+        label.className = 'nm';
+        label.textContent = widgetLabel(w);
+        row.append(ph, label);
+        row.insertAdjacentHTML('beforeend', CHECK_SVG);
+        row.onclick = () => {
+          if (wd.on.has(w.id)) wd.on.delete(w.id); else wd.on.add(w.id);
+          renderIconPicker();
+        };
+        wlist.appendChild(row);
+      }
+      body.appendChild(wlist);
+      if (allWidgets.some(w => w.type === 'switcher' && !wd.on.has(w.id))) {
+        body.appendChild(mkNote(T('切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。')));
+      }
+    }
+  }
+
   card.appendChild(body);
   return card;
 }
@@ -2358,20 +2565,15 @@ async function renderIconPicker() {
   const names = await window.api.iconNames();
   const res = await window.api.iconSnapshots();
   const snaps = (res && res.saved) || [];
+  try { icAlias = (await window.api.iconAliases()) || {}; } catch (_) { icAlias = {}; }
 
   wrap.innerHTML = '';
   if (!names.length) {
-    const p = document.createElement('p');
-    p.className = 'foot-note';
-    p.textContent = T('デスクトップアイコンにアクセスできません');
-    wrap.appendChild(p);
+    wrap.appendChild(mkNote(T('デスクトップアイコンにアクセスできません')));
     return;
   }
   if (!snaps.length) {
-    const p = document.createElement('p');
-    p.className = 'foot-note';
-    p.textContent = T('まだモードがありません。下で名前を付けて作成してください。');
-    wrap.appendChild(p);
+    wrap.appendChild(mkNote(T('まだモードがありません。下で名前を付けて作成してください。')));
     return;
   }
   for (const snap of snaps) wrap.appendChild(icModeCard(snap, names));

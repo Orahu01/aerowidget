@@ -92,7 +92,10 @@ function defaults() {
       },
       // デスクトップアイコンの配置の保存 / 復元。
       // 保存は読むだけ。復元だけが書き込みで、押したときのみ動く。
-      iconLayouts: [],             // [{name, savedAt, icons:[{name,x,y}]}]
+      iconLayouts: [],             // [{name, savedAt, icons:[{name,x,y}], hidden:[名前],
+                                   //   linkWidgets:bool, widgetsOn:[widgetId]}]
+      iconAlias: {},               // デスクトップの名前 -> 画面に出す呼び名
+      currentIconMode: '',         // いま当たっているアイコンモード (切り替えボタンの点灯用)
       iconAutoRestore: '',         // 解像度変更で自動復元するスナップ名 ('' = オフ・既定)
       iconHome: {},                // アイコン名 -> 最後に画面で見えていた位置 (帰り先)
     },
@@ -168,6 +171,7 @@ function load() {
     if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];
     if (!Array.isArray(cfg.settings.iconLayouts)) cfg.settings.iconLayouts = [];
     if (!cfg.settings.iconHome || typeof cfg.settings.iconHome !== 'object') cfg.settings.iconHome = {};
+    if (!cfg.settings.iconAlias || typeof cfg.settings.iconAlias !== 'object') cfg.settings.iconAlias = {};
     cfg.settings.hotkeys = Object.assign(
       { enabled: false, overlay: 'Ctrl+Alt+A', toggleWidgets: 'Ctrl+Alt+W', toggleIcons: 'Ctrl+Alt+D', nextLayout: 'Ctrl+Alt+L', pomoToggle: 'Ctrl+Alt+P' },
       (parsed.settings || {}).hotkeys || {},
@@ -246,6 +250,8 @@ function newWidget(type) {
   const id = 'w' + Date.now().toString(36) + (seq++).toString(36);
   const base = {
     id, type, display: 0, x: 50, y: 70,
+    name: '',            // 手で付けた呼び名 (空なら種類名で表示)
+    off: false,          // 消さずに一時的にしまっておく
     font: 'Segoe UI', size: 32, weight: 400, color: '#ffffff',
     opacity: 1, shadow: 'soft', letterSpacing: 1, options: {},
   };
@@ -357,7 +363,9 @@ function newWidget(type) {
       return {
         ...base, x: 50, y: 92, size: 13, weight: 500, letterSpacing: 1, shadow: 'none',
         options: {
-          // 並べるレイアウト名 (空なら保存済みレイアウトを全部)
+          // 何を切り替えるか: 'layout' = レイアウト / 'icons' = アイコンのモード
+          target: 'layout',
+          // 並べる名前 (空なら保存済みのものを全部)
           items: [], w: 300, h: 46, bgOpacity: 0.55, vertical: false,
         },
       };

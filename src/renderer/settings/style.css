@@ -906,3 +906,52 @@ input[type="text"].bad {
 .ic-item .mark { width: 15px; height: 15px; flex: none; color: var(--acc); opacity: 0; }
 .ic-item.hidden-on .mark { opacity: 1; }
 .ic-item.hidden-on .nm { color: var(--dim); text-decoration: line-through; }
+.ic-item .nm.aliased { font-style: italic; }
+
+/* 呼び名を付ける鉛筆 (ホバーで出す) */
+.ic-edit {
+  width: 20px; height: 20px; flex: none; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 5px; background: none;
+  color: var(--dim); cursor: pointer; opacity: 0;
+}
+.ic-edit svg { width: 13px; height: 13px; }
+.ic-item:hover .ic-edit { opacity: 1; }
+.ic-edit:hover { background: var(--bg3); color: var(--text); }
+.ic-alias-in {
+  flex: 1; min-width: 0; font-size: 12.5px;
+  padding: 1px 5px; border-radius: 5px;
+  border: 1px solid var(--acc); background: var(--bg0); color: var(--text);
+}
+
+/* ウィジェット側はチェックが「出す」の意味 */
+.ic-item.w-item.on { background: var(--bg3); border-color: var(--line-strong); }
+.ic-item.w-item.on .mark { opacity: 1; }
+.ic-item.w-item:not(.on) .nm { color: var(--dim); }
+.ic-item .ph.glyph { display: inline-flex; align-items: center; justify-content: center; background: none; color: var(--dim); }
+.ic-item .ph.glyph svg { width: 15px; height: 15px; }
+.ic-item.w-item.on .ph.glyph { color: var(--acc); }
+
+/* モード内の小見出し */
+.ic-sub-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 14px 0 7px;
+  font-size: 11px; letter-spacing: .1em; color: var(--dim);
+  border-top: 1px solid var(--line); padding-top: 11px;
+}
+.ic-sub-head .ic-sub-meta { margin-left: auto; letter-spacing: 0; }
+.ic-inline-label { font-size: 12.5px; color: var(--dim); flex: none; }
+
+/* ---- ウィジェットの しまう/出す ---- */
+.wc-off {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: none;
+  border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--dim); cursor: pointer;
+}
+.wc-off:hover { background: var(--bg2); color: var(--text); }
+.wc-off.on { color: var(--acc); border-color: var(--acc); background: var(--acc-dim); }
+.widget-card.is-off .wc-title,
+.widget-card.is-off .wc-sub,
+.widget-card.is-off .wc-glyph { opacity: .45; }
+.widget-card.is-off .wc-title { text-decoration: line-through; }

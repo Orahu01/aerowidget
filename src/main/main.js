@@ -1671,15 +1671,41 @@ function saveIconSnapshot(name, hidden) {
   return { ok: true, count: rows.length, name: clean };
 }
 
+// 指定したウィジェットだけ出す。消さずに off にするので、戻せば元通り。
+function applyWidgetSet(ids) {
+  const on = new Set(ids || []);
+  let shown = 0;
+  config.update(cfg => {
+    for (const w of (cfg.widgets || [])) {
+      w.off = !on.has(w.id);
+      if (!w.off) shown++;
+    }
+  });
+  return shown;
+}
+
 // スナップを適用する共通処理。書き込む前に必ず今の並びを退避する。
+
 function applyIconSnapshot(name) {
   const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
   if (!snap) return { ok: false, msg: 'その配置が見つかりません' };
   rememberHome();                       // 隠す前の住所を控える
   saveIconSnapshot(ICON_BACKUP_NAME);
+  // ウィジェットまで動かすなら、退避にも今の出し入れを含めておく (でないと戻し切れない)
+  if (snap.linkWidgets) {
+    const nowOn = (config.get().widgets || []).filter(w => !w.off).map(w => w.id);
+    config.update(cfg => {
+      const b = (cfg.settings.iconLayouts || []).find(l => l.name === ICON_BACKUP_NAME);
+      if (b) { b.linkWidgets = true; b.widgetsOn = nowOn; }
+    });
+  }
   const r = icons.apply(snap.icons, snap.hidden || []);
   if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
-  return { ok: true, ...r };
+  const widgets = snap.linkWidgets ? applyWidgetSet(snap.widgetsOn || []) : 0;
+  if (name !== ICON_BACKUP_NAME) {
+    config.update(cfg => { cfg.settings.currentIconMode = name; });
+  }
+  return { ok: true, ...r, widgets };
 }
 
 ipcMain.handle('icons:available', () => icons.available());
@@ -1716,6 +1742,30 @@ function desktopPathByName() {
   return out;
 }
 
+// フォルダを app.getFileIcon に渡すと、Windows は黄色いフォルダではなく
+// ドライブのアイコンを返してくる。フォルダだけは自前の絵に差し替える。
+const FOLDER_ICON = 'data:image/svg+xml;base64,' + Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+  + '<path d="M2.5 8.2A2.7 2.7 0 0 1 5.2 5.5h6.5c.8 0 1.5.35 2 .95l1.6 1.9h11.5a2.7 2.7 0 0 1 2.7 2.7v13.2'
+  + 'a2.7 2.7 0 0 1-2.7 2.7H5.2a2.7 2.7 0 0 1-2.7-2.7z" fill="#d9a13c"/>'
+  + '<path d="M2.5 12.4h27v11.85a2.7 2.7 0 0 1-2.7 2.7H5.2a2.7 2.7 0 0 1-2.7-2.7z" fill="#f0c463"/>'
+  + '</svg>').toString('base64');
+
+// その名前がフォルダを指しているか (ショートカットなら飛び先を見る)
+function pointsToFolder(target) {
+  const fs = require('fs');
+  try {
+    if (fs.statSync(target).isDirectory()) return true;
+  } catch (_) { return false; }
+  if (!/\.lnk$/i.test(target)) return false;
+  try {
+    const link = shell.readShortcutLink(target).target;
+    return !!link && fs.statSync(link).isDirectory();
+  } catch (_) {
+    return false;
+  }
+}
+
 // アイコン画像 (dataURL)。デスクトップ上のものだけに限る
 const deskIconCache = new Map();
 ipcMain.handle('icons:image', async (e, name) => {
@@ -1723,8 +1773,9 @@ ipcMain.handle('icons:image', async (e, name) => {
   const p2 = desktopPathByName().get(String(name || ''));
   if (!p2) return null;
   try {
-    const img = await resolveIcon(p2);
-    const url = img ? img.toDataURL() : null;
+    const url = pointsToFolder(p2)
+      ? FOLDER_ICON
+      : await resolveIcon(p2).then(img => (img ? img.toDataURL() : null));
     deskIconCache.set(name, url);
     return url;
   } catch (_) {
@@ -1744,7 +1795,13 @@ ipcMain.handle('icons:showAll', () => {
 ipcMain.handle('icons:snapshots', () => {
   const all = (config.get().settings.iconLayouts || [])
     // hidden は名前の配列のまま返す。個数だけにすると受け取り側で復元できない
-    .map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length, hidden: (l.hidden || []).slice() }));
+    .map(l => ({
+      name: l.name, savedAt: l.savedAt,
+      count: (l.icons || []).length,
+      hidden: (l.hidden || []).slice(),
+      linkWidgets: !!l.linkWidgets,
+      widgetsOn: (l.widgetsOn || []).slice(),
+    }));
   return {
     saved: all.filter(l => l.name !== ICON_BACKUP_NAME),
     auto: all.find(l => l.name === ICON_BACKUP_NAME) || null,
@@ -1754,6 +1811,55 @@ ipcMain.handle('icons:snapshots', () => {
 ipcMain.handle('icons:save', (e, name, hidden) => saveIconSnapshot(name, hidden));
 
 ipcMain.handle('icons:restore', (e, name) => applyIconSnapshot(name));
+
+// モードの名前を変える。名前で参照している設定も一緒に付け替える
+ipcMain.handle('icons:rename', (e, from, to) => {
+  const clean = String(to || '').trim().slice(0, 40);
+  if (!clean) return { ok: false, msg: '名前を入れてください' };
+  if (clean === ICON_BACKUP_NAME) return { ok: false, msg: 'その名前は使えません' };
+  const all = config.get().settings.iconLayouts || [];
+  if (!all.some(l => l.name === from)) return { ok: false, msg: 'そのモードが見つかりません' };
+  if (clean !== from && all.some(l => l.name === clean)) {
+    return { ok: false, msg: '同じ名前のモードがあります' };
+  }
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === from);
+    if (l) l.name = clean;
+    if (cfg.settings.iconAutoRestore === from) cfg.settings.iconAutoRestore = clean;
+    if (cfg.settings.currentIconMode === from) cfg.settings.currentIconMode = clean;
+    const sc = cfg.settings.scenes || {};
+    if (sc.defaultIcons === from) sc.defaultIcons = clean;
+    for (const r of (sc.rules || [])) if (r.icons === from) r.icons = clean;
+  });
+  return { ok: true, name: clean };
+});
+
+// モードにウィジェットの表示状態を結び付ける
+ipcMain.handle('icons:setWidgets', (e, name, link, ids) => {
+  const on = Array.isArray(ids) ? ids.filter(Boolean) : [];
+  let found = false;
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
+    if (!l) return;
+    found = true;
+    l.linkWidgets = !!link;
+    l.widgetsOn = on;
+  });
+  return found ? { ok: true, count: on.length } : { ok: false, msg: 'そのモードが見つかりません' };
+});
+
+// デスクトップの名前に、画面に出す呼び名を付ける (実ファイルの名前は変えない)
+ipcMain.handle('icons:setAlias', (e, name, label) => {
+  const key = String(name || '');
+  if (!key) return { ok: false };
+  const txt = String(label || '').trim().slice(0, 40);
+  config.update(cfg => {
+    const a = cfg.settings.iconAlias || (cfg.settings.iconAlias = {});
+    if (txt) a[key] = txt; else delete a[key];
+  });
+  return { ok: true, label: txt };
+});
+ipcMain.handle('icons:aliases', () => ({ ...(config.get().settings.iconAlias || {}) }));
 
 // モードの「隠すアイコン」だけを差し替える。並び位置には触らない。
 // いま死角に退避しているアイコンは、控えてある元位置に直してから保存する。
@@ -1781,6 +1887,7 @@ ipcMain.handle('icons:capacity', () => {
 ipcMain.handle('icons:remove', (e, name) => {
   config.update(cfg => {
     cfg.settings.iconLayouts = (cfg.settings.iconLayouts || []).filter(l => l.name !== name);
+    if (cfg.settings.currentIconMode === name) cfg.settings.currentIconMode = '';
   });
   return (config.get().settings.iconLayouts || []).map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length }));
 });
@@ -1809,6 +1916,15 @@ ipcMain.handle('switcher:current', () => {
   const hit = (c.settings.layouts || []).find(l => JSON.stringify({ w: l.wallpapers, g: l.widgets }) === cur);
   return hit ? hit.name : '';
 });
+
+// アイコンモード側 (切り替えウィジェットの target: 'icons')
+ipcMain.handle('switcher:iconModes', () =>
+  (config.get().settings.iconLayouts || [])
+    .filter(l => l.name !== ICON_BACKUP_NAME).map(l => l.name));
+
+ipcMain.handle('switcher:currentIcons', () => config.get().settings.currentIconMode || '');
+
+ipcMain.handle('switcher:applyIcons', (e, name) => !!applyIconSnapshot(name).ok);
 
 ipcMain.handle('switcher:apply', (e, name) => {
   const idx = (config.get().settings.layouts || []).findIndex(l => l.name === name);

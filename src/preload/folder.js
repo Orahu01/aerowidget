@@ -31,5 +31,8 @@ contextBridge.exposeInMainWorld('fw', {
   listLayouts: () => ipcRenderer.invoke('switcher:layouts'),
   currentLayout: () => ipcRenderer.invoke('switcher:current'),
   applyLayout: (name) => ipcRenderer.invoke('switcher:apply', name),
+  listIconModes: () => ipcRenderer.invoke('switcher:iconModes'),
+  currentIconMode: () => ipcRenderer.invoke('switcher:currentIcons'),
+  applyIconMode: (name) => ipcRenderer.invoke('switcher:applyIcons', name),
   onPomoToggle: (cb) => ipcRenderer.on('pomo-toggle', () => cb()),
 });
