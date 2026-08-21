@@ -661,6 +661,12 @@ function createTray() {
       { label: t('レイアウトを編集', 'Edit layout'), click: () => enterEditMode() },
       { label: t('レイアウトプリセット', 'Layout presets'), submenu: layoutItems },
       { label: t('天気を更新', 'Refresh weather'), click: () => { const w = weatherWidget(); if (w) weather.refresh(w.options); } },
+      {
+        // しまってあるものがあるときだけ出す最後の逃げ道
+        label: t('しまったウィジェットを全部出す', 'Show all parked widgets'),
+        visible: (config.get().widgets || []).some(w => w.off),
+        click: () => showAllWidgets(),
+      },
       { type: 'separator' },
       {
         label: t('デスクトップアイコンを表示', 'Show desktop icons'), type: 'checkbox',
@@ -1202,13 +1208,15 @@ ipcMain.handle('widget:remove', (e, id) => config.update(c => {
 }));
 
 // 逃げ道: しまってあるウィジェットを全部出す
-ipcMain.handle('widgets:showAll', () => {
+function showAllWidgets() {
   let n = 0;
   config.update(cfg => {
     for (const w of (cfg.widgets || [])) if (w.off) { w.off = false; n++; }
   });
-  return { ok: true, shown: n };
-});
+  return n;
+}
+ipcMain.handle('widgets:showAll', () => ({ ok: true, shown: showAllWidgets() }));
+ipcMain.handle('widgets:parked', () => (config.get().widgets || []).filter(w => w.off).length);
 
 ipcMain.handle('widget:update', (e, id, patch) => config.update(c => {
   const w = c.widgets.find(x => x.id === id);
@@ -1709,6 +1717,12 @@ function applyIconSnapshot(name) {
   // ここで applyWidgetSet([]) を走らせると、ウィジェットが全部消えてしまう。
   const wantWidgets = !!snap.linkWidgets && (snap.widgetsOn || []).length > 0;
 
+  // どこか 1 つでも連動を使っているなら、ウィジェットの出し入れはモードの持ち物。
+  // 連動していないモードへ切り替えたときに前のモードが隠したままだと、
+  // 「切り替えたのに戻ってこない」ことになるので、そこで全部出す。
+  const linkUsed = (config.get().settings.iconLayouts || [])
+    .some(l => l.linkWidgets && (l.widgetsOn || []).length);
+
   // ウィジェットまで動かすなら、退避にも今の出し入れを含めておく (でないと戻し切れない)
   if (wantWidgets) {
     const nowOn = (config.get().widgets || []).filter(w => !w.off).map(w => w.id);
@@ -1719,11 +1733,14 @@ function applyIconSnapshot(name) {
   }
   const r = icons.apply(snap.icons, snap.hidden || []);
   if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
-  const widgets = wantWidgets ? applyWidgetSet(snap.widgetsOn) : 0;
+  let widgets = 0;            // このモードで出したウィジェットの数
+  let widgetsRestored = 0;    // 連動していないモードで、しまってあったものを出した数
+  if (wantWidgets) widgets = applyWidgetSet(snap.widgetsOn);
+  else if (linkUsed && name !== ICON_BACKUP_NAME) widgetsRestored = showAllWidgets();
   if (name !== ICON_BACKUP_NAME) {
     config.update(cfg => { cfg.settings.currentIconMode = name; });
   }
-  return { ok: true, ...r, widgets };
+  return { ok: true, ...r, widgets, widgetsRestored };
 }
 
 ipcMain.handle('icons:available', () => icons.available());

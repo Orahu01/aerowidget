@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
 
   addWidget: (type) => ipcRenderer.invoke('widget:add', type),
   showAllWidgets: () => ipcRenderer.invoke('widgets:showAll'),
+  parkedWidgets: () => ipcRenderer.invoke('widgets:parked'),
   removeWidget: (id) => ipcRenderer.invoke('widget:remove', id),
   updateWidget: (id, patch) => ipcRenderer.invoke('widget:update', id, patch),
 

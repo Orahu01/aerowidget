@@ -138,6 +138,7 @@ const JA_EN = {
   'ひとつも選んでいないので、このモードではウィジェットに触りません。':
     'Nothing is selected, so this mode leaves widgets alone.',
   'しまってあるウィジェット: ': 'Parked widgets: ',
+  'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
   'モードの名前': 'Mode name', '名前を変える': 'Rename', '名前を変えました': 'Renamed',
   'デスクトップのアイコン': 'Desktop icons', 'ウィジェット': 'Widgets', 'ウィジェット ': 'widgets ',
   'このモードでウィジェットも切り替える': 'Switch widgets with this mode too',
@@ -2494,6 +2495,7 @@ function icModeCard(snap, allNames) {
       let m = T('適用しました');
       if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
       if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
+      if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
       $('#ic-status').textContent = m;
       cfg = (await window.api.getConfig()).config;
       renderWidgetList();
@@ -2651,6 +2653,29 @@ async function renderIconLayouts() {
       }
       renderIconLayouts();
     };
+  }
+
+  // ウィジェットがしまわれていたら、このページからも戻せるようにする
+  const parkedBox = $('#ic-parked');
+  if (parkedBox) {
+    const parked = await window.api.parkedWidgets();
+    parkedBox.innerHTML = '';
+    parkedBox.style.display = parked ? '' : 'none';
+    if (parked) {
+      const nm = document.createElement('span');
+      nm.className = 'gf-name';
+      nm.textContent = T('しまってあるウィジェット: ') + parked + T(' 個');
+      const btn = document.createElement('button');
+      btn.className = 'btn primary';
+      btn.textContent = T('すべて出す');
+      btn.onclick = async () => {
+        await window.api.showAllWidgets();
+        cfg = (await window.api.getConfig()).config;
+        renderWidgetList();
+        renderIconLayouts();
+      };
+      parkedBox.append(nm, btn);
+    }
   }
 
   // 隠せるか (死角の数) を正直に伝える

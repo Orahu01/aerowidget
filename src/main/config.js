@@ -185,10 +185,10 @@ function load() {
       if (typeof w.display !== 'number') w.display = 0;
       if (!w.options) w.options = {};
     }
-    // 5.9.5 では off が描画に効いていなかったため、そのとき書かれた off は
-    // 「隠したい」という意思とは限らない。そのまま持ち越すと更新した瞬間に
-    // ウィジェットが消えて見えるので、一度だけ全部戻す。
-    if (parsed.appVersion === '5.9.5') {
+    // 5.9.5 は off が描画に効かず、5.9.6 は連動していないモードへ切り替えても
+    // しまったままで戻せなかった。どちらで書かれた off も「隠したい」という
+    // 意思とは限らないので、その設定から上げてきたときは一度だけ全部戻す。
+    if (parsed.appVersion === '5.9.5' || parsed.appVersion === '5.9.6') {
       for (const w of cfg.widgets) w.off = false;
     }
     delete cfg.backupReason;                    // バックアップ側の目印は持ち歩かない
