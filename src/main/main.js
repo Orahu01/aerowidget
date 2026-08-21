@@ -1960,9 +1960,31 @@ ipcMain.handle('icons:setAlias', (e, name, label) => {
 });
 ipcMain.handle('icons:aliases', () => ({ ...(config.get().settings.iconAlias || {}) }));
 
-// モードの「隠すアイコン」だけを差し替える。並び位置には触らない。
-// いま死角に退避しているアイコンは、控えてある元位置に直してから保存する。
-// そうしないと退避先の座標が「元の場所」として固まってしまう。
+// モードの「隠すアイコン」と「ウィジェット連動」をひとまとめに差し替える。
+// 並び位置には触らない。2 回に分けると config の変更通知が 2 回飛び、
+// そのたびに設定画面が作り直されて編集中のクリックを取りこぼすため。
+ipcMain.handle('icons:updateMode', (e, name, patch) => {
+  const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
+  if (!snap) return { ok: false, msg: 'そのモードが見つかりません' };
+  const p2 = patch || {};
+  const hide = Array.isArray(p2.hidden) ? p2.hidden.filter(Boolean) : (snap.hidden || []);
+  rememberHome();
+  const fixed = unpark(snap.icons, snap.origin);   // 保存時の原点から今の原点へ引き直す
+  const o = icons.origin();
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
+    if (!l) return;
+    l.hidden = hide;
+    l.icons = [...fixed];
+    l.origin = { x: o.x, y: o.y };
+    l.savedAt = Date.now();
+    if ('linkWidgets' in p2) l.linkWidgets = !!p2.linkWidgets;
+    if (Array.isArray(p2.widgetsOn)) l.widgetsOn = p2.widgetsOn.filter(Boolean);
+  });
+  return { ok: true, count: fixed.length, hidden: hide.length, repaired: fixed.repaired };
+});
+
+// (旧 API。設定画面は icons:updateMode を使う)
 ipcMain.handle('icons:setHidden', (e, name, hidden) => {
   const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
   if (!snap) return { ok: false, msg: 'そのモードが見つかりません' };

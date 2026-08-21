@@ -144,7 +144,10 @@ const JA_EN = {
   'しまってあった ': 'restored ', ' 個を出しました': ' parked widgets',
   '画面に無い保存位置だった {n} 個は前の場所へ': '{n} kept their previous on-screen spot',
   '行き先の分からない {n} 個は空きへ': '{n} placed in empty cells',
-  '作成できませんでした: ': 'Could not create: ', '並び替えを保存できませんでした': 'Could not save the order',
+  '作成できませんでした: ': 'Could not create: ', '保存できませんでした: ': 'Could not save: ',
+  'いま適用中は「': 'The active mode is "', '」です。「': '". Overwrite "',
+  '」の並びを、今のデスクトップの並びで上書きします。よろしいですか?':
+    '" with the current desktop arrangement?', '並び替えを保存できませんでした': 'Could not save the order',
   'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
     'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モード切替ボタン': 'Mode switch button',
@@ -2131,7 +2134,24 @@ function renderLayouts() {
     list.appendChild(row);
   }
   renderScenes();   // シーンのレイアウト選択肢も追従させる
-  renderIconLayouts();
+}
+
+// 設定がどこかで変わったとき、アイコンのページを開いていれば追従する。
+// ただし編集中 (touch 直後) と連続変更中は巻き込まない:
+// 保存のたびに全体を作り直すと、その最中のクリックが食われて
+// 「上書きが不安定」に見えるため。
+let icFollowTimer = null;
+function followIconTab() {
+  const active = document.querySelector('#tab-icons.active');
+  if (!active) return;
+  clearTimeout(icFollowTimer);
+  const tick = () => {
+    // 編集中 (touch 直後) なら、その手が止まるまで待ってから 1 回だけ読む
+    const wait = suppressUntil - Date.now();
+    if (wait > 0) { icFollowTimer = setTimeout(tick, wait + 100); return; }
+    renderIconLayouts();
+  };
+  icFollowTimer = setTimeout(tick, 400);
 }
 
 // ---- シーン (状況でレイアウトを自動切替) ----
@@ -2494,6 +2514,7 @@ function icItem(name, hideSet, onToggle) {
   row.insertAdjacentHTML('beforeend', CHECK_SVG);
 
   row.onclick = () => {
+    touch();                       // 編集中は外からの作り直しを待たせる
     if (hideSet.has(name)) hideSet.delete(name); else hideSet.add(name);
     row.classList.toggle('hidden-on', hideSet.has(name));
     if (onToggle) onToggle();
@@ -2612,7 +2633,7 @@ function icModeCard(snap, allNames) {
     const b = document.createElement('button');
     b.className = 'btn' + (cls ? ' ' + cls : '');
     b.textContent = T(label);
-    b.onclick = fn;
+    b.onclick = (ev) => fn(ev);
     return b;
   };
 
@@ -2657,39 +2678,60 @@ function icModeCard(snap, allNames) {
   grow.className = 'grow';
   tools.appendChild(grow);
   tools.append(
-    mkBtn('この内容で保存', async () => {
-      // 位置は触らずチェックだけ更新する (今いる場所で上書きしないため)
-      const r = await window.api.setIconHidden(snap.name, [...hideSet]);
-      if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
-      await window.api.setIconWidgets(snap.name, wd.link, [...wd.on]);
-      $('#ic-status').textContent = T('保存しました') + ' ・ '
-        + T('隠す ') + r.hidden + T(' 個')
-        + (wd.link ? ' ・ ' + T('ウィジェット ') + wd.on.size : '');
-      icDraft.delete(snap.name);
-      icWDraft.delete(snap.name);
-      renderIconLayouts();
+    mkBtn('この内容で保存', async (ev) => {
+      const btn = ev.currentTarget;
+      if (btn.disabled) return;
+      btn.disabled = true;
+      touch();                                   // 保存の通知で画面を作り直させない
+      try {
+        // 位置は触らずチェックと連動だけ、1 回の書き込みで更新する
+        const r = await window.api.updateIconMode(snap.name,
+          { hidden: [...hideSet], linkWidgets: wd.link, widgetsOn: [...wd.on] });
+        if (!r.ok) { icStatus(r.msg); return; }
+        icStatus(T('保存しました') + ' ・ ' + T('隠す ') + r.hidden + T(' 個')
+          + (wd.link ? ' ・ ' + T('ウィジェット ') + wd.on.size : ''));
+        // 下書きは捨てない (保存内容と同じものが入っている)。
+        // ここで捨てて作り直すと、その一瞬のクリックが消える
+      } catch (err) {
+        icStatus(T('保存できませんでした: ') + ((err && err.message) || err));
+      } finally {
+        btn.disabled = false;
+      }
     }),
     mkBtn('このモードを適用', async () => {
       const r = await window.api.restoreIcons(snap.name);
-      if (!r.ok) { $('#ic-status').textContent = r.msg; return; }
+      if (!r.ok) { icStatus(r.msg); return; }
       let m = T('適用しました');
       if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
       if (r.rescued) m += ' ・ ' + T('画面に無い保存位置だった {n} 個は前の場所へ').replace('{n}', r.rescued);
       if (r.celled) m += ' ・ ' + T('行き先の分からない {n} 個は空きへ').replace('{n}', r.celled);
       if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
       if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
-      $('#ic-status').textContent = m;
+      icStatus(m);
       cfg = (await window.api.getConfig()).config;
       renderWidgetList();
       renderIconLayouts();
     }),
     // 並べ直したあとに、今のデスクトップの位置でこのモードを更新する
-    mkBtn('今の並びを覚え直す', async () => {
-      const r = await window.api.saveIcons(snap.name, [...hideSet]);
-      $('#ic-status').textContent = r.ok
-        ? T('今の並びを覚えました (') + r.count + T(' 個)') : r.msg;
-      icDraft.delete(snap.name);
-      renderIconLayouts();
+    mkBtn('今の並びを覚え直す', async (ev) => {
+      const btn = ev.currentTarget;
+      if (btn.disabled) return;
+      // 別のモードが当たっているなら、その並びで上書きしていいか確かめる
+      const curMode = (cfg.settings || {}).currentIconMode || '';
+      if (curMode && curMode !== snap.name) {
+        if (!confirm(T('いま適用中は「') + curMode + T('」です。「') + snap.name
+          + T('」の並びを、今のデスクトップの並びで上書きします。よろしいですか?'))) return;
+      }
+      btn.disabled = true;
+      touch();
+      try {
+        const r = await window.api.saveIcons(snap.name, [...hideSet]);
+        icStatus(r.ok ? T('今の並びを覚えました (') + r.count + T(' 個)') : r.msg);
+      } catch (err) {
+        icStatus(T('保存できませんでした: ') + ((err && err.message) || err));
+      } finally {
+        btn.disabled = false;
+      }
     }),
     mkBtn('削除', async () => {
       if (!confirm(T('このモードを削除します: ') + snap.name)) return;
@@ -2764,6 +2806,7 @@ function icModeCard(snap, allNames) {
         row.append(ph, label);
         row.insertAdjacentHTML('beforeend', CHECK_SVG);
         row.onclick = () => {
+          touch();
           if (wd.on.has(w.id)) wd.on.delete(w.id); else wd.on.add(w.id);
           row.classList.toggle('on', wd.on.has(w.id));
           updateCounts();
@@ -3269,6 +3312,7 @@ window.api.onConfig((env) => {
   renderWallpaperTab();
   renderGeneral();
   if (Date.now() > suppressUntil) renderWidgetList();
+  followIconTab();
 });
 
 window.api.onWeather((w) => updateWeatherStatus(w));

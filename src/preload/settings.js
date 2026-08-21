@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('api', {
   showAllIcons: () => ipcRenderer.invoke('icons:showAll'),
   restoreIcons: (name) => ipcRenderer.invoke('icons:restore', name),
   setIconHidden: (name, hidden) => ipcRenderer.invoke('icons:setHidden', name, hidden),
+  updateIconMode: (name, patch) => ipcRenderer.invoke('icons:updateMode', name, patch),
   renameIconMode: (from, to) => ipcRenderer.invoke('icons:rename', from, to),
   reorderIconModes: (names) => ipcRenderer.invoke('icons:reorder', names),
   setIconWidgets: (name, link, ids) => ipcRenderer.invoke('icons:setWidgets', name, link, ids),
