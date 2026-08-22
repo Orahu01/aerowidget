@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('api', {
   iconImage: (name) => ipcRenderer.invoke('icons:image', name),
   flushIconImages: () => ipcRenderer.invoke('icons:flushImages'),
   audioDevices: () => ipcRenderer.invoke('audio:devices'),
+  getUrlIcon: (u) => ipcRenderer.invoke('icon:forUrl', u),
   showAllIcons: () => ipcRenderer.invoke('icons:showAll'),
   restoreIcons: (name) => ipcRenderer.invoke('icons:restore', name),
   setIconHidden: (name, hidden) => ipcRenderer.invoke('icons:setHidden', name, hidden),

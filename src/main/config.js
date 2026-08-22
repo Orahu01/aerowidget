@@ -295,7 +295,7 @@ function newWidget(type) {
     case 'folder':
       return {
         ...base, x: 18, y: 78, size: 12, color: '#e8ecf4', opacity: 1, shadow: 'none',
-        options: { items: [], columns: 0, iconSize: 34, showLabels: true, title: 'アプリ', bgOpacity: 0.55 },
+        options: { items: [], layout: 'grid', columns: 0, iconSize: 34, showLabels: true, title: 'アプリ', bgOpacity: 0.55 },
       };
     case 'image':
       return {

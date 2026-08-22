@@ -1031,3 +1031,15 @@ input[type="text"].bad {
 /* ビジュアライザーの出力選択 */
 .vis-devs { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .vis-dev { display: flex; align-items: center; gap: 4px; font-size: 12.5px; }
+
+/* フォルダの項目: 並び替えとリンク表示 */
+.fitem { cursor: grab; }
+.fitem:active { cursor: grabbing; }
+.fitem.dragging { opacity: .45; }
+.fitem.drop-before { box-shadow: 0 -2px 0 0 var(--acc); }
+.fitem.drop-after { box-shadow: 0 2px 0 0 var(--acc); }
+.fi-grip { color: var(--faint); font-size: 11px; letter-spacing: -2px; flex: none; }
+.fi-tag {
+  flex: none; font-size: 10px; padding: 1px 6px; border-radius: 999px;
+  color: var(--acc); background: var(--acc-dim); border: 1px solid var(--acc);
+}

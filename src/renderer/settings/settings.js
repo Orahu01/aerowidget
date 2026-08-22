@@ -142,6 +142,10 @@ const JA_EN = {
   'ここへドラッグでも追加できます (複数まとめて OK)': 'Or drag files here (multiple at once is fine)',
   '{n} 個を追加しました': 'Added {n} item(s)',
   'ファイルのパスを取得できませんでした': 'Could not resolve the dropped file paths',
+  'リンク': 'Link', 'リンクを追加': 'Add link', 'リンクを追加しました': 'Link added',
+  '名前 (省略可)': 'Name (optional)', 'URL が正しくありません': 'That URL looks wrong',
+  'もう入っています': 'Already in the list',
+  '並べ方': 'Layout', '格子': 'Grid', '円形': 'Circle',
   '反応する出力': 'React to outputs',
   'チェックした出力が既定のときだけ動きます。何も選ばなければ、どの出力でも動きます。':
     'Runs only while a checked output is the default device. Leave all unchecked to react to any output.',
@@ -1527,24 +1531,84 @@ function typeOptionsUI(w) {
     const list = document.createElement('div');
     list.className = 'fitem-list';
 
+    const keyOf = (it) => it.url || it.path;
+    const labelOf = (it) => it.name || keyOf(it);
+
     const renderItems = () => {
       list.innerHTML = '';
       for (const [i, it] of (o.items || []).entries()) {
         const row = document.createElement('div');
         row.className = 'fitem';
+        row.draggable = true;                      // つまんで順番を変えられる
+        row.dataset.idx = String(i);
+
+        const grip = document.createElement('span');
+        grip.className = 'fi-grip';
+        grip.textContent = '⋮⋮';
+        row.appendChild(grip);
+
         const img = document.createElement('img');
-        window.api.getIcon(it.path).then(u => { if (u) img.src = u; });
+        (it.url ? window.api.getUrlIcon(it.url) : window.api.getIcon(it.path))
+          .then(u => { if (u) img.src = u; })
+          .catch(() => {});
         const name = document.createElement('span');
         name.className = 'fi-name';
-        name.textContent = it.name || it.path;
-        name.title = it.path;
-        row.appendChild(img);
-        row.appendChild(name);
+        name.textContent = labelOf(it);
+        name.title = keyOf(it);
+        row.append(img, name);
+        if (it.url) {
+          const tag = document.createElement('span');
+          tag.className = 'fi-tag';
+          tag.textContent = T('リンク');
+          row.appendChild(tag);
+        }
         row.appendChild(mkDelBtn(() => {
           o.items.splice(i, 1);
           patchWidget(w.id, { options: { items: o.items } });
           renderItems();
         }));
+
+        // --- 並び替え ---
+        row.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/ww-fitem', String(i));
+          e.dataTransfer.effectAllowed = 'move';
+          row.classList.add('dragging');
+        });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', (e) => {
+          if (![...e.dataTransfer.types].includes('text/ww-fitem')) return;
+          e.preventDefault();
+          e.stopPropagation();                     // 下の「追加」ドロップに渡さない
+          e.dataTransfer.dropEffect = 'move';
+          const rc = row.getBoundingClientRect();
+          const before = e.clientY < rc.top + rc.height / 2;
+          row.classList.toggle('drop-before', before);
+          row.classList.toggle('drop-after', !before);
+        });
+        row.addEventListener('dragleave', (e) => {
+          if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+          row.classList.remove('drop-before', 'drop-after');
+        });
+        row.addEventListener('drop', (e) => {
+          const raw = e.dataTransfer.getData('text/ww-fitem');
+          if (raw === '') return;
+          e.preventDefault();
+          e.stopPropagation();
+          const rc = row.getBoundingClientRect();
+          const before = e.clientY < rc.top + rc.height / 2;
+          row.classList.remove('drop-before', 'drop-after');
+          const from = Number(raw);
+          if (Number.isNaN(from) || from === i) return;
+          const arr = o.items.slice();
+          const [moved] = arr.splice(from, 1);
+          let at = arr.indexOf(o.items[i]);
+          if (at < 0) at = i;
+          arr.splice(before ? at : at + 1, 0, moved);
+          o.items = arr;
+          patchWidget(w.id, { options: { items: o.items } });
+          renderItems();
+        });
+
         list.appendChild(row);
       }
     };
@@ -1557,16 +1621,70 @@ function typeOptionsUI(w) {
     });
     wrap.appendChild(ctlRow('アイテム', addBtn));
 
+    // リンク (既定のブラウザで開く)
+    {
+      const urlIn = document.createElement('input');
+      urlIn.type = 'text';
+      urlIn.placeholder = 'https://example.com';
+      urlIn.style.flex = '1';
+      const nameIn = document.createElement('input');
+      nameIn.type = 'text';
+      nameIn.placeholder = T('名前 (省略可)');
+      nameIn.style.width = '120px';
+      const go = document.createElement('button');
+      go.className = 'btn';
+      go.textContent = T('リンクを追加');
+      const addLink = () => {
+        let u = urlIn.value.trim();
+        if (!u) return;
+        if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        let host = '';
+        try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (_) {
+          toast(T('URL が正しくありません'));
+          return;
+        }
+        if ((o.items || []).some(x => x.url === u)) { toast(T('もう入っています')); return; }
+        o.items = [...(o.items || []), { url: u, name: nameIn.value.trim() || host }];
+        patchWidget(w.id, { options: { items: o.items } });
+        urlIn.value = '';
+        nameIn.value = '';
+        renderItems();
+        toast(T('リンクを追加しました'));
+      };
+      go.addEventListener('click', addLink);
+      for (const el of [urlIn, nameIn]) {
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') addLink(); });
+      }
+      const ctl = document.createElement('div');
+      ctl.className = 'ctl gf-ctl';
+      ctl.append(urlIn, nameIn, go);
+      const row2 = document.createElement('div');
+      row2.className = 'row';
+      const lab = document.createElement('label');
+      lab.textContent = T('リンク');
+      row2.append(lab, ctl);
+      wrap.appendChild(row2);
+    }
+
     // エクスプローラーからのドラッグ&ドロップでも追加できる (複数まとめて可)
     const dz = document.createElement('div');
     dz.className = 'fitem-drop';
     dz.textContent = T('ここへドラッグでも追加できます (複数まとめて OK)');
     const addPaths = (paths) => {
       if (!paths.length) return;
-      const have = new Set((o.items || []).map(x => x.path));
-      const add = paths
-        .filter(p2 => !have.has(p2))
-        .map(p2 => ({ path: p2, name: p2.split(/[\\/]/).pop().replace(/\.(lnk|exe|url|bat)$/i, '') }));
+      const have = new Set((o.items || []).map(x => x.url || x.path));
+      const add = [];
+      for (const p2 of paths) {
+        if (have.has(p2)) continue;
+        have.add(p2);
+        if (/^https?:\/\//i.test(p2)) {
+          let host = p2;
+          try { host = new URL(p2).hostname.replace(/^www\./, ''); } catch (_) {}
+          add.push({ url: p2, name: host });
+        } else {
+          add.push({ path: p2, name: p2.split(/[\\/]/).pop().replace(/\.(lnk|exe|url|bat)$/i, '') });
+        }
+      }
       if (!add.length) return;
       o.items = [...(o.items || []), ...add];
       patchWidget(w.id, { options: { items: o.items } });
@@ -1581,11 +1699,15 @@ function typeOptionsUI(w) {
       // FileList のままでは contextBridge を渡れない。File の配列にして渡す
       const files = [...(e.dataTransfer.files || [])];
       const paths = window.api.droppedPaths(files);
-      if (files.length && !paths.length) {
+      // ブラウザからのリンクドロップも受ける
+      const uri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+      const links = String(uri || '').split(/\r?\n/)
+        .map(x => x.trim()).filter(x => /^https?:\/\//i.test(x));
+      if (files.length && !paths.length && !links.length) {
         toast(T('ファイルのパスを取得できませんでした'));
         return;
       }
-      addPaths(paths);
+      addPaths([...paths, ...links]);
     };
     for (const el of [dz, list]) {
       el.addEventListener('dragover', (e) => {
@@ -1604,11 +1726,17 @@ function typeOptionsUI(w) {
     wrap.appendChild(list);
     renderItems();
 
-    wrap.appendChild(ctlRow('列数', mkSelect([
-      ['0', '自動'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6'],
-    ], String(o.columns || 0), v => patchWidget(w.id, { options: { columns: +v } }))));
+    wrap.appendChild(ctlRow('並べ方', mkSelect(
+      [['grid', '格子'], ['circle', '円形']],
+      o.layout === 'circle' ? 'circle' : 'grid',
+      v => { patchWidget(w.id, { options: { layout: v } }); renderWidgetList(); })));
+    if (o.layout !== 'circle') {
+      wrap.appendChild(ctlRow('列数', mkSelect([
+        ['0', '自動'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6'],
+      ], String(o.columns || 0), v => patchWidget(w.id, { options: { columns: +v } }))));
+    }
     {
-      const [r, val, show] = mkRange(20, 72, 2, o.iconSize ?? 34, v => { show(v + 'px'); patchWidget(w.id, { options: { iconSize: v } }, { debounce: true }); });
+      const [r, val, show] = mkRange(20, 160, 2, o.iconSize ?? 34, v => { show(v + 'px'); patchWidget(w.id, { options: { iconSize: v } }, { debounce: true }); });
       val.textContent = (o.iconSize ?? 34) + 'px';
       wrap.appendChild(ctlRow('アイコンサイズ', r, val));
     }
@@ -1621,7 +1749,7 @@ function typeOptionsUI(w) {
     row.className = 'chk-row';
     row.appendChild(mkCheck('名前を表示', o.showLabels !== false, v => patchWidget(w.id, { options: { showLabels: v } })));
     wrap.appendChild(row);
-    wrap.appendChild(noteEl('.exe だけでなく .lnk (ショートカット) や .url もアイコン付きで追加できます。スマホのフォルダのようにまとめて、クリックで起動。'));
+    wrap.appendChild(noteEl('.exe だけでなく .lnk (ショートカット) や .url もアイコン付きで追加できます。リンクは既定のブラウザで開きます (アイコンはそのサイトから取得し、取れないときは頭文字のタイルになります)。一覧はつまんで並び替えられ、デスクトップのウィジェットへ直接ドロップしても追加できます。'));
   }
   return wrap;
 }

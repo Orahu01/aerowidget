@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('fw', {
   id: wid,
   getState: () => ipcRenderer.invoke('folder:state', wid),
   getIcon: (p) => ipcRenderer.invoke('icon:get', p),
+  getUrlIcon: (u) => ipcRenderer.invoke('icon:forUrl', u),
   launch: (p) => ipcRenderer.send('folder:launch', wid, p),
   droppedPaths: (files) => {
     const out = [];

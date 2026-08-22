@@ -10,6 +10,7 @@ html, body {
 }
 
 #card {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -59,9 +60,46 @@ html, body {
 .item:hover { background: rgba(255, 255, 255, 0.10); }
 .item:active { transform: scale(0.94); }
 
+.item .ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+}
 .item img {
   object-fit: contain;
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+}
+
+/* favicon が取れないリンクの頭文字タイル */
+.item .tile {
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+/* 円形レイアウト */
+#card.round { border-radius: 50%; }
+/* 円形のときタイトルは真ん中 (円の内側は空くので、そこが定位置) */
+#card.round #title {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  pointer-events: none;
+  opacity: 0.75;
+}
+#grid.circle {
+  display: block;
+  position: relative;
+  padding: 6px;
+}
+#grid.circle .item {
+  position: absolute;
+  width: auto;
+  padding: 2px;
 }
 
 .item .name {

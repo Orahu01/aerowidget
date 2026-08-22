@@ -1,7 +1,7 @@
 // AeroWidget — メインプロセス (v2: マルチモニタ / フォルダウィジェット / 省電力)
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, powerMonitor, nativeImage, session, shell, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, powerMonitor, nativeImage, session, shell, desktopCapturer, net } = require('electron');
 const path = require('path');
 const brand = require('../shared/brand');
 const migrate = require('./migrate');
@@ -111,10 +111,21 @@ function round2(v) { return Math.round(v * 100) / 100; }
 // フォルダウィジェットの寸法 (レンダラ側 folder.js と同じ式)
 function folderDims(o) {
   const n = Math.max(1, (o.items || []).length);
-  const cols = o.columns > 0 ? o.columns : Math.min(4, Math.max(1, Math.ceil(Math.sqrt(n))));
-  const rows = Math.ceil(n / cols);
   const icon = o.iconSize || 34;
   const labels = o.showLabels !== false;
+
+  if (o.layout === 'circle') {
+    // 円周に等間隔で並べる。隣と重ならない半径は「1 個ぶんの幅 x 個数 / 円周率x2」。
+    // カードは真円にするので、四角いボタンの角 (半対角 = cell x 0.71) まで
+    // 円の内側に入る大きさにする。タイトルは円の真ん中へ置くので高さは足さない
+    const cell = Math.max(46, icon + (labels ? 30 : 10));
+    const r = n <= 1 ? 0 : Math.max(cell * 0.6, (n * cell) / (2 * Math.PI));
+    const size = Math.round(2 * (r + cell * 0.71) + 14);
+    return { cols: n, rows: 1, w: size, h: size };
+  }
+
+  const cols = o.columns > 0 ? o.columns : Math.min(4, Math.max(1, Math.ceil(Math.sqrt(n))));
+  const rows = Math.ceil(n / cols);
   const cellW = Math.max(58, icon + 30);
   const cellH = icon + (labels ? 34 : 12);
   return { cols, rows, w: 20 + cols * cellW, h: 16 + (o.title ? 28 : 0) + rows * cellH };
@@ -1327,10 +1338,15 @@ ipcMain.handle('folder:addItems', (e, wid, paths) => {
     if (!w) return;
     if (!w.options) w.options = {};
     const items = w.options.items || (w.options.items = []);
-    const have = new Set(items.map(i => i.path));
+    const have = new Set(items.map(i => i.url || i.path));
     for (const p2 of clean) {
       if (have.has(p2)) continue;
-      items.push({ path: p2, name: path.basename(p2).replace(/\.(lnk|exe|url|bat)$/i, '') });
+      have.add(p2);
+      if (isWebUrl(p2)) {
+        items.push({ url: p2, name: new URL(p2).hostname.replace(/^www\./, '') });
+      } else {
+        items.push({ path: p2, name: path.basename(p2).replace(/\.(lnk|exe|url|bat)$/i, '') });
+      }
       added++;
     }
   });
@@ -1354,10 +1370,62 @@ function folderItemPaths() {
   const set = new Set();
   for (const w of config.get().widgets) {
     if (w.type !== 'folder') continue;
-    for (const it of w.options.items || []) set.add(it.path);
+    for (const it of w.options.items || []) if (it.path) set.add(it.path);
   }
   return set;
 }
+
+// フォルダウィジェットに入っているリンク (これ以外へは取りに行かない / 開かない)
+function folderItemUrls() {
+  const set = new Set();
+  for (const w of config.get().widgets) {
+    if (w.type !== 'folder') continue;
+    for (const it of w.options.items || []) if (it.url) set.add(it.url);
+  }
+  return set;
+}
+
+function isWebUrl(u) {
+  try {
+    const x = new URL(String(u));
+    return x.protocol === 'http:' || x.protocol === 'https:';
+  } catch (_) {
+    return false;
+  }
+}
+
+// リンクのアイコン。ユーザーが自分で追加したサイトにだけ、その場所の
+// favicon を取りに行く (第三者のサービスは経由しない)。取れなければ null で、
+// 受け取った側が頭文字のタイルを描く
+const urlIconCache = new Map();
+async function fetchIcon(u, timeoutMs = 4000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await net.fetch(u, { signal: ctl.signal, redirect: 'follow' });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!buf.length || buf.length > 512 * 1024) return null;
+    const img = nativeImage.createFromBuffer(buf);
+    return (img && !img.isEmpty()) ? img.toDataURL() : null;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+ipcMain.handle('icon:forUrl', async (e, u) => {
+  if (!folderItemUrls().has(u)) return null;
+  if (urlIconCache.has(u)) return urlIconCache.get(u);
+  let out = null;
+  try {
+    const origin = new URL(u).origin;
+    out = await fetchIcon(origin + '/favicon.ico') || await fetchIcon(origin + '/favicon.png');
+  } catch (_) { out = null; }
+  urlIconCache.set(u, out);
+  return out;
+});
 
 // .lnk / .url はリンク自体でなく「指し先」のアイコンを解決する
 // (getFileIcon をショートカットに直接使うと汎用アイコンになることがある)
@@ -1406,7 +1474,16 @@ ipcMain.handle('icon:get', async (e, p) => {
 
 ipcMain.on('folder:launch', (e, id, p) => {
   const w = config.get().widgets.find(x => x.id === id && x.type === 'folder');
-  if (!w || !(w.options.items || []).some(it => it.path === p)) return;
+  if (!w) return;
+
+  // リンクは既定のブラウザへ。http/https 以外は開かない
+  const link = (w.options.items || []).find(it => it.url && it.url === p);
+  if (link) {
+    if (isWebUrl(link.url)) shell.openExternal(link.url).catch(() => {});
+    return;
+  }
+
+  if (!(w.options.items || []).some(it => it.path === p)) return;
 
   shell.openPath(p).then(err => {
     if (!err) return;
