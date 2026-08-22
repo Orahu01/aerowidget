@@ -103,6 +103,7 @@ npm run dist     # インストーラ / ポータブル版を生成</code></pre>
       <div class="list mt-l">
         <div class="item"><span class="t">更新のしかた</span><span class="d">インストーラ版なら、新しい版が出たときに設定画面で通知されます。「更新を確認」からその場で適用でき、再起動すると新しい版になります。</span></div>
         <div class="item"><span class="t">PC の温度を表示するには</span><span class="d">ハードウェアモニタの温度表示には <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">Libre Hardware Monitor</a> が必要です。管理者として起動し、設定で「Remote Web Server」を有効にしてください。使用率とメモリだけなら、なくても表示されます。</span></div>
+        <div class="item"><span class="t">コード署名について</span><span class="d">AeroWidget は、<a href="https://signpath.org/">SignPath Foundation</a> による OSS 向けの無償コード署名プログラムに<b>申請中</b>です。承認され次第、配布するインストーラは <a href="https://signpath.io/">SignPath.io</a> によって署名され、証明書は SignPath Foundation が発行します。<b>現時点の配布物は署名されていない</b>ため、初回起動時に Windows SmartScreen の警告が出ます。「詳細情報」→「実行」で進めるか、<a href="https://github.com/Orahu01/aerowidget">ソースから自分でビルド</a>してください。</span></div>
         <div class="item"><span class="t">設定の保存場所</span><span class="d"><code>%APPDATA%\aerowidget\config.json</code> です。設定画面の「書き出し」から、この構成をファイルにまとめて別の PC へ持っていけます。</span></div>
         <div class="item"><span class="t">調子が悪いとき</span><span class="d">設定画面の「一般」タブに<b>修復</b>ボタンがあります。壁紙が消えた、ウィジェットが出てこないといったときは、まずこれを押してください。</span></div>
         <div class="item"><span class="t">アンインストール</span><span class="d">Windows の「アプリと機能」から、または設定画面の「一般」タブのアンインストールボタンから。デスクトップアイコンを隠していた場合も、終了時に必ず元へ戻ります。</span></div>
