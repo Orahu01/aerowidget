@@ -167,7 +167,7 @@ const JA_EN = {
   'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
     'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モード切替ボタン': 'Mode switch button',
-  'モード': 'Modes', '重ね': 'Overlay', '効いています': 'active', 'このモードの動作': 'This mode',
+  'モード': 'Modes', '内部エラー: ': 'Internal error: ', '重ね': 'Overlay', '効いています': 'active', 'このモードの動作': 'This mode',
   '「{a}」をオンにしたので「{b}」をオフにしました': 'Turned off "{b}" because "{a}" was turned on',
   'シーンとレイアウトプリセットは「アイコン」のモードに統合されました。壁紙・ウィジェットの表示・アイコンをモードごとに覚えて、手動または条件 (アプリが前面など) で切り替えられます。これまでのプリセットとルールは自動でモードに変換済みです。':
     'Scenes and layout presets have been merged into Modes on the Icons page. A mode remembers the wallpaper, which widgets are shown, and the icon arrangement, switched manually or by a condition. Your existing presets and rules were converted automatically.',
@@ -361,6 +361,31 @@ function svgIcon(id, cls = 'ic') {
 
 function touch() { suppressUntil = Date.now() + 1500; }
 
+// ---- 安全網 ----
+// 巨大な 1 ファイルの宿命として、どこか 1 か所の例外が後続の配線を全部殺す。
+// 例外は必ず画面に出す (無反応に見せない)。多発時は 1 回だけ知らせる
+let lastErrToast = 0;
+function reportError(kind, err) {
+  const msg = (err && (err.message || err.reason && err.reason.message)) || String(err);
+  console.error('[settings]', kind, err);
+  if (Date.now() - lastErrToast > 4000 && typeof toast === 'function') {
+    lastErrToast = Date.now();
+    try { toast(T('内部エラー: ') + String(msg).slice(0, 80)); } catch (_) {}
+  }
+}
+window.addEventListener('error', (e) => reportError('error', e.error || e));
+window.addEventListener('unhandledrejection', (e) => reportError('rejection', e.reason || e));
+
+// 描画関数を「転んでも他を巻き込まない」形で呼ぶ
+function safeRender(name, fn) {
+  try {
+    const r = fn();
+    if (r && typeof r.catch === 'function') r.catch(err => reportError(name, err));
+  } catch (err) {
+    reportError(name, err);
+  }
+}
+
 // 設定画面が編集するのは常に「土台」。モードの重ねが乗った結果ではない
 async function baseConfig() {
   const env = await window.api.getConfig();
@@ -524,11 +549,10 @@ function renderLivePreview() {
 $$('.nav-item').forEach(btn => btn.addEventListener('click', () => {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b === btn));
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + btn.dataset.tab));
-  if (btn.dataset.tab === 'themes') renderThemes();
-  if (btn.dataset.tab === 'wallpaper') renderLivePreview();
+  if (btn.dataset.tab === 'themes') safeRender('themes', () => renderThemes());
+  if (btn.dataset.tab === 'wallpaper') safeRender('preview', () => renderLivePreview());
   // 開くたびに実際のデスクトップを読み直す (取り残しの検出を最新に)
-  if (btn.dataset.tab === 'icons') renderIconLayouts();
-  if (btn.dataset.tab === 'scenes') { renderLayouts(); renderScenes(); }
+  if (btn.dataset.tab === 'icons') safeRender('icons', () => renderIconLayouts());
 }));
 
 $('#btn-min').addEventListener('click', () => window.api.minimize());
@@ -3672,10 +3696,10 @@ window.api.onConfig((env) => {
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
   if (env.brand) BRAND = env.brand;
-  renderWallpaperTab();
-  renderGeneral();
-  if (Date.now() > suppressUntil) renderWidgetList();
-  followIconTab();
+  safeRender('wallpaper', () => renderWallpaperTab());
+  safeRender('general', () => renderGeneral());
+  if (Date.now() > suppressUntil) safeRender('widgets', () => renderWidgetList());
+  safeRender('icons', () => followIconTab());
 });
 
 window.api.onWeather((w) => updateWeatherStatus(w));
@@ -3698,13 +3722,13 @@ window.api.onFontsChanged(() => injectFonts());
     Object.assign(cb, clone(cfg.wallpapers.default.value));
   }
   applyI18n();
-  renderAddRow();
-  renderWallpaperTab();
-  renderCustomBuilder();
-  renderWidgetList();
-  renderGeneral();
-  injectFonts();
-  loadFonts();
+  safeRender('add-row', () => renderAddRow());
+  safeRender('wallpaper', () => renderWallpaperTab());
+  safeRender('custom', () => renderCustomBuilder());
+  safeRender('widgets', () => renderWidgetList());
+  safeRender('general', () => renderGeneral());
+  safeRender('fonts', () => injectFonts());
+  safeRender('fonts-list', () => loadFonts());
   document.addEventListener('pointerdown', () => loadFonts(), { once: true });
 
   // 開発用: ?tab=widgets などで初期タブを指定

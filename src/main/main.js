@@ -110,12 +110,23 @@ function activeModes() {
   return modeList().filter(m => m.on === true || (m.trigger && scenes.matches(m.trigger)));
 }
 
-// 土台に、効いているモードを重ねた結果。壁紙は「最初に壁紙を持つモード」が勝つ
+// 土台に、効いているモードを重ねた結果。
+// 壁紙・ウィジェット表示とも「一覧の上にある、それを覚えているモード」が勝つ。
+// 土台 (config) は一切書き換えない — ここが安定性の要
 function effectiveConfig() {
   const base = config.get();
-  const wp = activeModes().find(m => m.wallpapers);
-  if (!wp) return base;
-  return { ...base, wallpapers: JSON.parse(JSON.stringify(wp.wallpapers)) };
+  const act = activeModes();
+  const wp = act.find(m => m.wallpapers);
+  const wv = act.find(m => m.linkWidgets && (m.widgetsOn || []).length);
+  if (!wp && !wv) return base;
+  const out = { ...base };
+  if (wp) out.wallpapers = JSON.parse(JSON.stringify(wp.wallpapers));
+  if (wv) {
+    const show = new Set(wv.widgetsOn);
+    // 表示だけ差し替える。位置・設定は土台のまま
+    out.widgets = base.widgets.map(w => ({ ...w, off: !show.has(w.id) }));
+  }
+  return out;
 }
 
 function configEnvelope() {
@@ -135,7 +146,10 @@ function configEnvelope() {
 let lastOverlayKey = '';
 function refreshOverlay() {
   let key = '';
-  try { key = JSON.stringify(effectiveConfig().wallpapers) + '|' + activeModes().map(m => m.name).join(','); }
+  try {
+    const eff = effectiveConfig();
+    key = JSON.stringify(eff.wallpapers) + '|' + eff.widgets.map(w => (w.off ? 1 : 0)).join('') + '|' + activeModes().map(m => m.name).join(',');
+  }
   catch (_) { return; }
   if (key === lastOverlayKey) return;
   lastOverlayKey = key;
@@ -539,7 +553,7 @@ function placeFolder(id) {
 }
 
 function syncFolders() {
-  const inters = config.get().widgets.filter(w => INTERACTIVE_TYPES.has(w.type) && !w.off && pairForWidget(w));
+  const inters = effectiveConfig().widgets.filter(w => INTERACTIVE_TYPES.has(w.type) && !w.off && pairForWidget(w));
   for (const [id, win] of [...folderWins]) {
     if (!inters.find(w => w.id === id)) {
       try { attach.detach(getHwnd(win)); } catch (_) {}
@@ -652,7 +666,7 @@ function exitEditMode() {
     attachWall(idx);
   }
   placedKey.clear(); // 編集で位置が変わった可能性があるため全対話ウィジェットを配置し直す
-  for (const w of config.get().widgets.filter(x => INTERACTIVE_TYPES.has(x.type) && !x.off && pairForWidget(x))) {
+  for (const w of effectiveConfig().widgets.filter(x => INTERACTIVE_TYPES.has(x.type) && !x.off && pairForWidget(x))) {
     const win = folderWins.get(w.id);
     if (win && !win.isDestroyed()) {
       win.showInactive();
@@ -1337,6 +1351,72 @@ function onReady() {
   screen.on('display-removed', onDisplayChanged);
 
   // ---- 開発用セルフテストフック ----
+  // WW_SELFTEST: 本物の main プロセスで設計の不変条件を検証して終了する。
+  // scripts/apptest.js が砂場の userData と決まった config を与えて起動する。
+  // デスクトップのアイコンには一切触れない (設定の読み書きと合成だけ)
+  if (process.env.WW_SELFTEST) {
+    setTimeout(() => {
+      let stPass = 0, stFail = 0;
+      const chk = (label, cond, detail) => {
+        if (cond) { stPass++; return; }
+        stFail++;
+        console.log('SELFTEST FAIL: ' + label + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 200) : ''));
+      };
+      try {
+        const st = config.get().settings;
+        const modes = st.iconLayouts || [];
+
+        // 1. マイグレーション: 印・プリセットの変換・シーンの引退
+        chk('統合の印が立つ', st.modesUnified === true);
+        const day = modes.find(m => m.name === '昼プリセット');
+        chk('プリセットがモードになる', !!day);
+        chk('プリセットの壁紙を引き継ぐ', !!(day && day.wallpapers));
+        chk('シーンのルールが条件になる', !!(day && day.trigger && day.trigger.type === 'app'), day && day.trigger);
+        chk('シーン自体は引退する', !(st.scenes && st.scenes.enabled));
+
+        // 2. 矛盾の掃除: on と trigger の両立ちは条件が主
+        const both = modes.find(m => m.name === '矛盾モード');
+        chk('on+条件の両立ちは掃除される', !!(both && both.trigger && both.on === false), both && { on: both.on, trg: !!both.trigger });
+
+        // 3. 土台の不変: effectiveConfig は config を 1 バイトも書き換えない
+        const before = JSON.stringify(config.get());
+        effectiveConfig();
+        chk('合成しても土台は不変', JSON.stringify(config.get()) === before);
+
+        // 4. 手動オン: 条件が消え、合成に壁紙とウィジェット表示が乗る
+        const rOn = setModeOn('壁紙モードA', true);
+        chk('オンにできる', !!(rOn && rOn.ok), rOn);
+        const a = (config.get().settings.iconLayouts || []).find(m => m.name === '壁紙モードA');
+        chk('手動オンで条件は消える', !!(a && a.on === true && !a.trigger));
+        const eff = effectiveConfig();
+        chk('壁紙が重なる', JSON.stringify(eff.wallpapers) === JSON.stringify(a.wallpapers));
+        chk('土台の壁紙はそのまま', JSON.stringify(config.get().wallpapers) !== JSON.stringify(eff.wallpapers));
+        const wOn = new Set(a.widgetsOn || []);
+        chk('ウィジェット表示が重なる', eff.widgets.every(w => w.off === !wOn.has(w.id)),
+          eff.widgets.map(w => w.id + ':' + (w.off ? 'off' : 'on')));
+        chk('土台のウィジェットはそのまま', config.get().widgets.every(w => !w.off));
+
+        // 5. 排他: 同じ持ち物のモードは同時にオンにならず、名指しで返る
+        const rB = setModeOn('壁紙モードB', true);
+        chk('排他で前のモードがオフ', !!(rB && rB.turnedOff && rB.turnedOff.includes('壁紙モードA')), rB);
+        const a2 = (config.get().settings.iconLayouts || []).find(m => m.name === '壁紙モードA');
+        chk('オフが保存される', !!(a2 && a2.on === false));
+
+        // 6. オフで土台へ戻る
+        setModeOn('壁紙モードB', false);
+        const eff2 = effectiveConfig();
+        chk('全オフなら土台そのもの', JSON.stringify(eff2.wallpapers) === JSON.stringify(config.get().wallpapers));
+
+        // 7. 窓が実際に立っている
+        chk('壁紙の窓がある', wallWins.size >= 1, wallWins.size);
+      } catch (err) {
+        stFail++;
+        console.log('SELFTEST FAIL: 例外 :: ' + (err && err.stack || err));
+      }
+      console.log(stFail ? `SELFTEST: ${stFail} 件失敗 / ${stPass + stFail} 件` : `SELFTEST: 全 ${stPass} 件 PASS`);
+      app.exit(stFail ? 1 : 0);
+    }, 4000);
+  }
   if (process.env.WW_TEST_EDIT) {
     setTimeout(() => enterEditMode(), 4000);
     setTimeout(() => exitEditMode(), 7500);

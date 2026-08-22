@@ -1,0 +1,426 @@
+// 設定画面の「全操作」を実際にクリックして回す検査。
+//
+//   実行: npx electron scripts/uicheck.js
+//
+// 目的は網羅であって深さではない: 各タブのすべての主要操作について
+//   1. レンダラで例外が 1 件も起きないこと
+//   2. 操作が対応する IPC 呼び出しまで到達すること
+//   3. 目に見える結果 (カードの増減・表示切替) が起きること
+// を確かめる。5.9.26 のように「変えていない操作」が壊れるのを出荷前に捕まえる。
+//
+// デスクトップにも実設定にも一切触れない (API は全部この中の偽物)。
+'use strict';
+
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+
+const ROOT = path.join(__dirname, '..');
+let pass = 0, fail = 0;
+const bad = [];
+const ok = (label, cond, detail) => {
+  if (cond) { pass++; return true; }
+  fail++;
+  bad.push(label + (detail ? ' :: ' + JSON.stringify(detail).slice(0, 200) : ''));
+  console.log('✗', label, detail !== undefined ? JSON.stringify(detail).slice(0, 200) : '');
+  return false;
+};
+
+// ---------------- 偽 API (プリロード) を settings.js の実際の使用面から生成 ----------------
+function buildPreload() {
+  const src = fs.readFileSync(path.join(ROOT, 'src/renderer/settings/settings.js'), 'utf8');
+  const names = [...new Set([...src.matchAll(/window\.api\.([a-zA-Z]+)/g)].map(m => m[1]))];
+  const lines = names.map(n => n.startsWith('on')
+    ? `  ${n}: () => {},`
+    : `  ${n}: (...a) => { log('${n}', a); return (O.${n} ? O.${n}(...a) : Promise.resolve([])); },`);
+  const body = `
+'use strict';
+const { contextBridge } = require('electron');
+
+// ---- 検査用の器: 呼ばれた IPC を全部記録する ----
+const calls = [];
+function log(name, args) {
+  let s = name;
+  try { s += '(' + args.map(a => JSON.stringify(a)).join(',').slice(0, 120) + ')'; } catch (_) {}
+  calls.push(s);
+}
+
+// ---- 代表的な構成 (実データは使わない。CI でも同じ結果になるように) ----
+const CFG = {
+  wallpapers: { default: { type: 'custom', value: { kind: 'solid', colors: ['#141821'] }, dim: 0, blur: 0 }, byDisplay: {} },
+  widgets: [
+    { id: 'w-clock', type: 'clock', display: 0, x: 50, y: 30, size: 96, weight: 200, color: '#fff', opacity: 1, shadow: 'soft', letterSpacing: 3, font: 'Segoe UI', options: {} },
+    { id: 'w-folder', type: 'folder', display: 0, x: 20, y: 70, size: 12, color: '#fff', opacity: 1, shadow: 'none', letterSpacing: 0, font: 'Segoe UI', options: { items: [{ path: 'C:/x/App.lnk', name: 'App' }], layout: 'grid', iconSize: 34, showLabels: true, title: 'アプリ', bgOpacity: 0.5 } },
+    { id: 'w-vis', type: 'visualizer', display: 0, x: 50, y: 90, size: 14, color: '#e3a94f', opacity: 1, shadow: 'none', letterSpacing: 0, font: 'Segoe UI', options: { bars: 48, wPct: 40, hPx: 90, mirror: true } },
+    { id: 'w-off', type: 'date', display: 0, x: 80, y: 20, size: 24, weight: 300, color: '#fff', opacity: 1, shadow: 'soft', letterSpacing: 4, font: 'Segoe UI', off: true, options: { style: 'ja-long' } },
+    { id: 'w-note', type: 'note', display: 0, x: 82, y: 82, size: 14, color: '#e6e7ea', shadow: 'none', opacity: 1, letterSpacing: 0, font: 'Segoe UI', options: { title: 'メモ', text: '', w: 240, h: 180, bgOpacity: 0.6 } },
+    { id: 'w-sw', type: 'modeswitch', display: 0, x: 50, y: 92, size: 13, weight: 500, color: '#fff', opacity: 1, shadow: 'none', letterSpacing: 1, font: 'Segoe UI', options: { items: [], w: 300, h: 46, bgOpacity: 0.55, vertical: false } },
+  ],
+  settings: {
+    language: 'ja', googleFonts: [], customPresets: [], layouts: [],
+    scenes: { enabled: false, rules: [] },
+    iconLayouts: [
+      { name: 'モードA', savedAt: 1, count: 4, hidden: ['Icon2'], linkWidgets: true, widgetsOn: ['w-clock'], hasWallpaper: true, trigger: { type: 'app', apps: ['chrome.exe'] }, on: false },
+      { name: 'モードB', savedAt: 2, count: 4, hidden: [], linkWidgets: false, widgetsOn: [], hasWallpaper: false, trigger: null, on: false },
+    ],
+    iconAutoRestore: '', currentIconMode: '',
+    hotkeys: { enabled: false }, overlay: {}, schedule: { enabled: false, weekly: {} },
+  },
+};
+const ICON_NAMES = ['Icon1', 'Icon2', 'Icon3', 'ごみ箱'];
+
+const snapshotsOut = () => ({
+  saved: CFG.settings.iconLayouts.map(l => ({ ...l, hidden: (l.hidden || []).slice(), widgetsOn: (l.widgetsOn || []).slice() })),
+  auto: { name: '復元前 (自動)', savedAt: 3, count: 4 },
+});
+
+const O = {
+  getConfig: async () => ({ config: CFG, base: CFG, activeModes: [], wallpapers: [], presets: [] }),
+  getFontsCss: async () => '',
+  listThemes: async () => [],
+  listDisplays: async () => [
+    { index: 0, id: '1', key: 'MON-A|100x100', name: 'MON-A', label: 'モニタ1 MON-A (2560×1440・メイン)', primary: true },
+    { index: 1, id: '2', key: 'MON-B|200x200', name: 'MON-B', label: 'モニタ2 MON-B (1440×2560)', primary: false },
+  ],
+  getVersion: async () => '0.0.0-test',
+  getUpdateStatus: async () => ({ state: 'idle' }),
+  failedHotkeys: async () => [],
+  listBackups: async () => [],
+  getAutostart: async () => ({ enabled: false, supported: false }),
+  getHw: async () => ({}),
+  getWeather: async () => null,
+  getIcon: async () => null,
+  getUrlIcon: async () => null,
+  iconsAvailable: async () => true,
+  iconsCurrent: async () => ICON_NAMES.length,
+  iconCapacity: async () => 120,
+  iconAutoArrange: async () => false,
+  strandedIcons: async () => [],
+  parkedWidgets: async () => CFG.widgets.filter(w => w.off).length,
+  iconNames: async () => ICON_NAMES,
+  iconAliases: async () => ({}),
+  iconImage: async () => null,
+  iconSnapshots: async () => snapshotsOut(),
+  audioDevices: async () => ({ current: 'devA', devices: [{ id: 'devA', name: 'スピーカー' }, { id: 'devB', name: 'ヘッドホン' }] }),
+  droppedPaths: () => [],
+  flushIconImages: async () => true,
+
+  // ---- 書き込み系: 偽の器の中で本当に反映する (再描画の確認のため) ----
+  addWidget: async (type) => {
+    const w = { id: 'w-new-' + type, type, display: 0, x: 50, y: 50, size: 20, color: '#fff', opacity: 1, shadow: 'none', letterSpacing: 0, font: 'Segoe UI', options: {} };
+    CFG.widgets.push(w);
+    return w;
+  },
+  removeWidget: async (id) => { CFG.widgets = CFG.widgets.filter(w => w.id !== id); return true; },
+  updateWidget: async (id, patch) => {
+    const w = CFG.widgets.find(x => x.id === id);
+    if (w) { const { options, ...rest } = patch || {}; Object.assign(w, rest); if (options) Object.assign(w.options = w.options || {}, options); }
+    return true;
+  },
+  saveIcons: async (name) => {
+    const clean = name || '無名';
+    if (!CFG.settings.iconLayouts.some(l => l.name === clean)) {
+      CFG.settings.iconLayouts.push({ name: clean, savedAt: 9, count: ICON_NAMES.length, hidden: [], linkWidgets: false, widgetsOn: [], hasWallpaper: false, trigger: null, on: false });
+    }
+    return { ok: true, count: ICON_NAMES.length, name: clean };
+  },
+  renameIconMode: async (from, to) => {
+    const l = CFG.settings.iconLayouts.find(x => x.name === from);
+    if (!l) return { ok: false, msg: 'なし' };
+    l.name = to;
+    return { ok: true, name: to };
+  },
+  removeIconSnapshot: async (name) => {
+    CFG.settings.iconLayouts = CFG.settings.iconLayouts.filter(l => l.name !== name);
+    return { ok: true };
+  },
+  updateIconMode: async (name, patch) => {
+    const l = CFG.settings.iconLayouts.find(x => x.name === name);
+    if (l && patch) { if (patch.hidden) l.hidden = patch.hidden; if ('linkWidgets' in patch) l.linkWidgets = patch.linkWidgets; if (patch.widgetsOn) l.widgetsOn = patch.widgetsOn; }
+    return { ok: true, count: ICON_NAMES.length, hidden: (patch && patch.hidden || []).length, repaired: 0 };
+  },
+  setIconTrigger: async (name, trigger) => {
+    const l = CFG.settings.iconLayouts.find(x => x.name === name);
+    if (l) l.trigger = trigger;
+    return { ok: true };
+  },
+  setIconModeOn: async (name, on) => {
+    const l = CFG.settings.iconLayouts.find(x => x.name === name);
+    if (l) { l.on = !!on; if (on) l.trigger = null; }
+    return { ok: true, on: !!on, turnedOff: [] };
+  },
+  setIconWallpaper: async (name, remember) => {
+    const l = CFG.settings.iconLayouts.find(x => x.name === name);
+    if (l) l.hasWallpaper = !!remember;
+    return { ok: true, remembered: !!remember };
+  },
+  restoreIcons: async () => ({ ok: true, moved: 4, hidden: 1, skipped: 0, rescued: 0, celled: 0, widgets: 0, widgetsRestored: 0, turnedOff: [] }),
+  reorderIconModes: async () => ({ ok: true }),
+  setIconAlias: async () => ({ ok: true, label: '' }),
+  showAllWidgets: async () => { for (const w of CFG.widgets) w.off = false; return { ok: true, shown: 1 }; },
+  showAllIcons: async () => ({ ok: true, restored: 0, placed: 0 }),
+  setSettings: async (patch) => { Object.assign(CFG.settings, patch); return true; },
+  saveLayout: async () => [],
+  applyLayout: async () => true,
+  checkUpdate: async () => ({ state: 'idle' }),
+};
+
+contextBridge.exposeInMainWorld('__test', {
+  calls: () => calls.slice(),
+  reset: () => { calls.length = 0; },
+  find: (needle) => calls.filter(c => c.includes(needle)),
+});
+`;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aw-uicheck-'));
+  const file = path.join(dir, 'preload.js');
+  fs.writeFileSync(file, body + '\nconst api = {\n' + lines.join('\n') + '\n};\ncontextBridge.exposeInMainWorld(\'api\', api);\n');
+  return file;
+}
+
+// ---------------- 操作の実行 ----------------
+app.on('window-all-closed', () => {});
+setTimeout(() => { console.log('TIMEOUT'); app.exit(2); }, 120000).unref();
+
+app.whenReady().then(async () => {
+  const win = new BrowserWindow({
+    width: 1100, height: 900, show: false,
+    webPreferences: { preload: buildPreload(), contextIsolation: true },
+  });
+  const pageErrors = [];
+  win.webContents.on('console-message', (e, level, message) => {
+    if (level >= 3 || /Uncaught|TypeError|ReferenceError|内部エラー/.test(String(message))) pageErrors.push(String(message).slice(0, 160));
+  });
+  await win.loadFile(path.join(ROOT, 'src/renderer/settings/index.html'));
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  // step(): 1 手順 = 1 ページ内スクリプト。中で例外が出ても検査全体は続ける。
+  // ページ側には wf() (条件が満たされるまで待つ) を渡す — 固定 sleep のタイミング勝負にしない
+  const step = async (label, code) => {
+    try {
+      return await win.webContents.executeJavaScript(`(async () => {
+        const wf = async (fn, ms = 6000) => {
+          const t0 = Date.now();
+          for (;;) {
+            let v; try { v = fn(); } catch (_) {}
+            if (v) return v;
+            if (Date.now() - t0 > ms) throw new Error('待ちきれず: ' + fn.toString().slice(0, 90));
+            await new Promise(r => setTimeout(r, 100));
+          }
+        };
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        ${code}
+      })()`);
+    } catch (err) {
+      ok(label, false, String(err && err.message || err).slice(0, 180));
+      return undefined;
+    }
+  };
+  const reset = () => win.webContents.executeJavaScript('window.__test.reset()');
+  const fired = async (needle) => (await win.webContents.executeJavaScript(`window.__test.find(${JSON.stringify(needle)})`)).length > 0;
+  const tab = async (name) => {
+    await step('タブ ' + name, `
+      (await wf(() => document.querySelector('.nav-item[data-tab="${name}"]'))).click();
+      await wf(() => document.querySelector('#tab-${name}.active'));
+      return true;`);
+    await sleep(400);
+  };
+
+  await sleep(1000);
+  await step('ようこそを閉じる', `
+    const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim() === '自分でゼロから作る');
+    if (b) b.click(); return true;`);
+
+  // ================= モードタブ =================
+  await tab('icons');
+  ok('モードタブが描けた', !!await step('モード一覧', `
+    return await wf(() => document.querySelectorAll('#ic-modes .ic-mode').length >= 2);`));
+
+  // 1. 新規作成 (ボタン)
+  await reset();
+  await step('作成', `
+    (await wf(() => document.getElementById('ic-name'))).value = '新モード';
+    document.getElementById('ic-save').click();
+    await wf(() => [...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === '新モード'));
+    return true;`);
+  ok('作成: saveIcons が飛ぶ', await fired('saveIcons("新モード"'));
+  ok('作成: カードが増える', !!await step('作成の反映', `
+    return [...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === '新モード');`));
+
+  // 2. Enter でも作成
+  await reset();
+  await step('作成(Enter)', `
+    const i = document.getElementById('ic-name');
+    i.value = 'Enterモード';
+    i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wf(() => [...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === 'Enterモード'));
+    return true;`);
+  ok('作成(Enter): saveIcons が飛ぶ', await fired('saveIcons("Enterモード"'));
+
+  // 開いているカードを対象に操作するヘルパ (閉じていたら開く)
+  const inCard = (name, code) => `
+    let card = [...document.querySelectorAll('.ic-mode.open')]
+      .find(c => c.querySelector('.ic-mode-name').textContent === '${name}');
+    if (!card) {
+      (await wf(() => [...document.querySelectorAll('.ic-mode-head')]
+        .find(h => h.querySelector('.ic-mode-name').textContent === '${name}'))).click();
+      card = await wf(() => [...document.querySelectorAll('.ic-mode.open')]
+        .find(c => c.querySelector('.ic-mode-name').textContent === '${name}'));
+    }
+    ${code}`;
+
+  // 3. カードを開く
+  ok('カードが開く', !!await step('カードを開く', inCard('モードA', 'return true;')));
+
+  // 4. 名前の変更
+  await reset();
+  await step('名前変更', inCard('モードA', `
+    [...card.querySelectorAll('input[type=text]')][0].value = 'モードA改';
+    [...card.querySelectorAll('.btn')].find(b => b.textContent === '名前を変える').click();
+    await wf(() => [...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === 'モードA改'));
+    return true;`));
+  ok('名前変更: renameIconMode が飛ぶ', await fired('renameIconMode("モードA","モードA改")'));
+  ok('名前変更: 見出しが変わる', !!await step('名前の反映', `
+    return [...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === 'モードA改');`));
+
+  // 5. 動作の切り替え (常に -> アプリ条件)
+  await reset();
+  await step('動作=常に', inCard('モードA改', `
+    const sel = [...card.querySelectorAll('select')].find(x => [...x.options].some(o => o.value === 'always'));
+    sel.value = 'always'; sel.dispatchEvent(new Event('change'));
+    await sleep(500); return true;`));
+  ok('動作=常に: setOn(true)', await fired('setIconModeOn("モードA改",true)'));
+  await reset();
+  await step('動作=アプリ条件', inCard('モードA改', `
+    const sel = [...card.querySelectorAll('select')].find(x => [...x.options].some(o => o.value === 'always'));
+    sel.value = 'app'; sel.dispatchEvent(new Event('change'));
+    await sleep(500); return true;`));
+  ok('動作=アプリ条件: setTrigger(app)', await fired('setIconTrigger("モードA改",{"type":"app"'));
+  ok('アプリ名の入力欄が出る', !!await step('アプリ名欄', inCard('モードA改', `
+    return await wf(() => [...card.querySelectorAll('input[type=text]')]
+      .find(i => i.placeholder && i.placeholder.includes('chrome')));`)));
+
+  // 6. アプリ名の入力
+  await reset();
+  await step('アプリ名を入れる', inCard('モードA改', `
+    const i = await wf(() => [...card.querySelectorAll('input[type=text]')]
+      .find(x => x.placeholder && x.placeholder.includes('chrome')));
+    i.value = 'game.exe'; i.dispatchEvent(new Event('change'));
+    await sleep(500); return true;`));
+  ok('アプリ名: setTrigger に入る', await fired('game.exe'));
+
+  // 7. 壁紙も覚える
+  await reset();
+  await step('壁紙も覚える', inCard('モードA改', `
+    const lab = await wf(() => [...card.querySelectorAll('label')].find(l => l.textContent.includes('壁紙も覚える')));
+    lab.querySelector('input').click();
+    await sleep(500); return true;`));
+  ok('壁紙も覚える: setIconWallpaper', await fired('setIconWallpaper("モードA改"'));
+
+  // 8. アイコンのチェック (行を作り直さずその場で切り替わるか)
+  const flip = await step('チェック切替', inCard('モードA改', `
+    const row = await wf(() => [...card.querySelectorAll('.ic-item:not(.w-item)')].find(r => !r.classList.contains('hidden-on')));
+    row.dataset.p = '1';
+    row.click();
+    await sleep(300);
+    const same = document.querySelector('[data-p="1"]');
+    return { same: !!same, flipped: !!same && same.classList.contains('hidden-on') };`));
+  ok('チェック: 同じ行のまま切り替わる', !!(flip && flip.same && flip.flipped), flip);
+
+  // 9. この内容で保存
+  await reset();
+  await step('この内容で保存', inCard('モードA改', `
+    [...card.querySelectorAll('.btn')].find(b => b.textContent === 'この内容で保存').click();
+    await sleep(600); return true;`));
+  ok('保存: updateIconMode が飛ぶ', await fired('updateIconMode("モードA改"'));
+
+  // 10. このモードを適用
+  await reset();
+  await step('このモードを適用', inCard('モードA改', `
+    [...card.querySelectorAll('.btn')].find(b => b.textContent === 'このモードを適用').click();
+    await sleep(600); return true;`));
+  ok('適用: restoreIcons が飛ぶ', await fired('restoreIcons("モードA改"'));
+
+  // 11. 削除 (confirm は自動で承認)
+  await reset();
+  await step('削除', 'window.confirm = () => true;' + inCard('Enterモード', `
+    [...card.querySelectorAll('.btn')].find(b => b.textContent === '削除').click();
+    await wf(() => ![...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === 'Enterモード'));
+    return true;`));
+  ok('削除: removeIconSnapshot が飛ぶ', await fired('removeIconSnapshot("Enterモード")'));
+  ok('削除: カードが消える', !!await step('削除の反映', `
+    return ![...document.querySelectorAll('.ic-mode-name')].some(n => n.textContent === 'Enterモード');`));
+
+  // ================= ウィジェットタブ =================
+  await tab('widgets');
+  const cardCount = await step('ウィジェット一覧', `
+    await wf(() => document.querySelectorAll('#widget-list .widget-card').length >= 5);
+    return document.querySelectorAll('#widget-list .widget-card').length;`);
+  ok('ウィジェット一覧が描けた', !!cardCount, cardCount);
+
+  // 12. 追加
+  await reset();
+  await step('追加', `
+    (await wf(() => document.querySelector('#add-row .add-btn'))).click();
+    await wf(() => document.querySelectorAll('#widget-list .widget-card').length > ${cardCount || 0});
+    return true;`);
+  ok('追加: addWidget が飛ぶ', await fired('addWidget('));
+  ok('追加: カードが増える', !!await step('追加の反映', `
+    return document.querySelectorAll('#widget-list .widget-card').length > ${cardCount || 0};`));
+
+  // 13. しまう (電源ボタン)
+  await reset();
+  await step('しまう', `
+    (await wf(() => document.querySelector('#widget-list .widget-card .wc-off'))).click();
+    await sleep(500); return true;`);
+  ok('しまう: updateWidget({off}) が飛ぶ', await fired('"off":'));
+
+  // 14. 名前 (鉛筆)
+  await reset();
+  await step('呼び名', `
+    const card = await wf(() => document.querySelector('#widget-list .widget-card'));
+    card.querySelector('.wc-pen').click();
+    const i = await wf(() => card.querySelector('.wc-name-in'));
+    i.value = '呼び名テスト';
+    i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(500); return true;`);
+  ok('呼び名: updateWidget({name}) が飛ぶ', await fired('呼び名テスト'));
+
+  // 15. 絞り込み
+  const shown = await step('絞り込み', `
+    const f = await wf(() => document.getElementById('widget-filter'));
+    f.value = 'メモ'; f.dispatchEvent(new Event('input'));
+    await sleep(300);
+    const n = [...document.querySelectorAll('#widget-list .widget-card')].filter(c => c.style.display !== 'none').length;
+    f.value = ''; f.dispatchEvent(new Event('input'));
+    return n;`);
+  ok('絞り込み: 1 件になる', shown === 1, shown);
+
+  // 16. フォルダのリンク追加
+  await reset();
+  await step('リンク追加', `
+    const folder = await wf(() => [...document.querySelectorAll('#widget-list .widget-card')]
+      .find(c => c.textContent.includes('フォルダ')));
+    if (!folder.classList.contains('open')) folder.querySelector('.wc-head').click();
+    const inp = await wf(() => [...document.querySelectorAll('#widget-list input')].find(i => i.placeholder === 'https://example.com'));
+    inp.value = 'github.com';
+    [...document.querySelectorAll('#widget-list .btn')].find(b => b.textContent === 'リンクを追加').click();
+    await sleep(400); return true;`);
+  ok('リンク追加: items が更新される', await fired('"url":"https://github.com'));
+
+  // ================= 他タブが素で描けるか =================
+  await tab('wallpaper');
+  ok('壁紙タブが描けた', !!await step('壁紙タブ', `return !!document.querySelector('#tab-wallpaper.active');`));
+  await tab('scenes');
+  ok('シーンタブは案内だけ', !!await step('シーンタブ', `
+    return document.querySelector('#tab-scenes').textContent.includes('統合されました');`));
+  await tab('general');
+  ok('設定タブが描けた', !!await step('設定タブ', `return !!document.querySelector('#tab-general.active');`));
+
+  // ================= 総合: レンダラ例外ゼロ =================
+  ok('レンダラ例外ゼロ', pageErrors.length === 0, pageErrors.slice(0, 4));
+
+  console.log(fail ? `\n${fail} 件失敗 / ${pass + fail} 件` : `UI 検査: 全 ${pass} 件 PASS`);
+  if (bad.length) for (const b of bad) console.log('  -', b);
+  app.exit(fail ? 1 : 0);
+}).catch((e) => { console.error('BOOT ERR', e); app.exit(3); });
