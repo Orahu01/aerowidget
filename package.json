@@ -3,7 +3,12 @@
   "version": "5.9.21",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
-  "author": "PoohS",
+  "author": "Orahu01",
+  "homepage": "https://orahu01.github.io/aerowidget/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Orahu01/aerowidget.git"
+  },
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -13,6 +18,7 @@
   "build": {
     "appId": "com.orahu01.aerowidget",
     "productName": "AeroWidget",
+    "copyright": "Copyright © 2026 Orahu01",
     "compression": "maximum",
     "afterPack": "scripts/afterPack.js",
     "publish": [
