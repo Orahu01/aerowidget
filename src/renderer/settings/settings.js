@@ -1762,10 +1762,11 @@ let widgetQuery = '';               // ウィジェットの絞り込み文字�
 // 名前を付ける鉛筆 (ウィジェットの見出しとアイコン一覧で共用)
 const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
 
-// そのウィジェットのモニタが、いま外れているか
+// そのウィジェットのモニタが、いま外れているか。
+// 判定は鍵 (再起動で変わらない) だけで行う。displayId は再起動で変わるので使わない
 function orphanDisplay(w) {
-  if (!w.displayId) return false;
-  return !displays.some(d => String(d.id) === String(w.displayId));
+  if (!w.displayKey) return false;
+  return !displays.some(d => d.key === w.displayKey);
 }
 
 function widgetCard(w) {
@@ -1882,7 +1883,7 @@ function widgetCard(w) {
     grid.appendChild(ctlRow('モニタ', mkSelect(opts, value, v => {
       if (v === '__gone') return;         // そのまま待つ選択
       const d = displays.find(x => String(x.index) === v);
-      patchWidget(w.id, { display: +v, displayId: (d && d.id) || '' });
+      patchWidget(w.id, { display: +v, displayKey: (d && d.key) || '', displayId: (d && d.id) || '' });
       renderWidgetList();
     })));
   }

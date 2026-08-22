@@ -3,6 +3,7 @@
 
 const DISPLAY = Number(new URLSearchParams(location.search).get('display') || 0);
 const DISPLAY_ID = new URLSearchParams(location.search).get('did') || '';
+const DISPLAY_KEY = new URLSearchParams(location.search).get('dkey') || '';
 // 同じレンダラを「壁紙」と「呼び出せるダッシュボード」の両方で使う。
 // 違いは暗幕・閉じる操作・編集不可の 3 点だけ。
 const OVERLAY = new URLSearchParams(location.search).get('overlay') === '1';
@@ -114,12 +115,17 @@ function myWallpaper() {
   return (w.byDisplay || {})[String(DISPLAY)] || w.default || { type: 'preset', value: 'aurora', dim: 0, blur: 0 };
 }
 
+// このウィジェットが、この画面の担当か。
+// 鍵 (機種名+解像度。再起動で変わらない) を最優先。
+// 鍵が無ければ番号で判定する。displayId は再起動で変わるため単独では使わない
+function mine(w) {
+  if (w.displayKey) return w.displayKey === DISPLAY_KEY;
+  return (w.display || 0) === DISPLAY;
+}
+
 function myWidgets() {
-  // off はしまってあるだけ。設定には残るが描かない。
-  // 居場所はモニタ固有 id で照合する (id を持たない古いデータだけ番号で)。
-  // id が今どのモニタとも一致しない = そのモニタは外れている -> どこにも描かない
-  return (config.widgets || []).filter(w => !w.off && (
-    w.displayId ? String(w.displayId) === DISPLAY_ID : (w.display || 0) === DISPLAY));
+  // off はしまってあるだけ。設定には残るが描かない
+  return (config.widgets || []).filter(w => !w.off && mine(w));
 }
 
 function customCss(v) {

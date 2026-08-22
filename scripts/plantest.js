@@ -187,5 +187,33 @@ function mkEnv(origin) {
   eq('再接続: C もサブの保存位置へ帰る', { x: at2('C').x, y: at2('C').y }, { x: 1500, y: 300 });
 }
 
+// ================================================================
+// 13. モニタの取り違え: display.id は再起動で振り直される。
+//     鍵 (機種名+解像度) で判定していれば、再起動しても消えないこと。
+//     5.9.18 は id だけで判定していたため、再起動で全ウィジェットが消えた。
+{
+  // 壁紙レンダラの mine() と同じ判定
+  const mine = (w, DISPLAY, DISPLAY_KEY) => {
+    if (w.displayKey) return w.displayKey === DISPLAY_KEY;
+    return (w.display || 0) === DISPLAY;
+  };
+  const KEY0 = 'PX7 Prime|2328x1310';
+  const KEY1 = 'DELL P2418D|1048x1863';
+
+  // 再起動前に保存されたウィジェット
+  const a = { displayKey: KEY0, display: 0, displayId: '3576360390' };  // メイン
+  const b = { displayKey: KEY1, display: 1, displayId: '3301086848' };  // サブ
+  const old = { display: 0 };                                          // 鍵も id も無い旧データ
+
+  // 再起動後: id は別物に振り直されたが、鍵は同じ
+  eq('再起動後もメインの担当', mine(a, 0, KEY0), true);
+  eq('再起動後もサブの担当', mine(b, 1, KEY1), true);
+  eq('メインの画面はサブの分を描かない', mine(b, 0, KEY0), false);
+  eq('鍵の無い旧データは番号で拾う', mine(old, 0, KEY0), true);
+
+  // 本当に外したモニタは、やはり表示されない
+  eq('未接続のモニタの分は描かれない', mine(b, 0, KEY0) || mine(b, 1, 'その他|1x1'), false);
+}
+
 console.log(fail ? `\n${fail} 件失敗 / ${pass + fail} 件` : `全 ${pass} 件 PASS`);
 process.exit(fail ? 1 : 0);

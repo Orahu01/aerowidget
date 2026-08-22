@@ -185,7 +185,7 @@ function createOverlayWindow(pair) {
   win.setVisibleOnAllWorkspaces(true);
 
   win.loadFile(RENDERER(path.join('wallpaper', 'index.html')),
-    { query: { display: String(pair.index), did: pair.id, overlay: '1' } });
+    { query: { display: String(pair.index), did: pair.id, dkey: pair.key, overlay: '1' } });
 
   win.once('ready-to-show', () => {
     if (win.isDestroyed()) return;
@@ -275,7 +275,7 @@ function createWallWindow(pair) {
     });
   }
 
-  win.loadFile(RENDERER(path.join('wallpaper', 'index.html')), { query: { display: String(pair.index), did: pair.id } });
+  win.loadFile(RENDERER(path.join('wallpaper', 'index.html')), { query: { display: String(pair.index), did: pair.id, dkey: pair.key } });
 
   win.once('ready-to-show', () => {
     win.showInactive();
@@ -419,10 +419,25 @@ function resizeLocked(win, w, h) {
 
 // 配置キー: これが変わった時だけ再配置する。
 // (以前は設定のどんな変更でも SetParent + 収束ループが走り直し、サイズがふらつく原因だった)
-// ウィジェットの居場所のモニタ。displayId (固有 id) を優先し、無ければ従来の番号。
-// つながっていなければ null を返す — 勝手に別のモニタへ出さないことが大事
+// ウィジェットの居場所のモニタ。
+// displayKey (機種名+解像度。再起動で変わらない) を最優先。
+// 次に displayId — ただしこれは起動中しか有効でないので、一致しなければ無視する。
+// どちらでも決まらなければ従来の番号へ落とす。
+//
+// 5.9.18 の教訓: displayId だけで判定すると、再起動で id が振り直された瞬間に
+// 全ウィジェットが「未接続のモニタ」扱いになって消える。番号への復帰は必須。
 function pairForWidget(w) {
-  if (w.displayId) return displayPairs.find(p => p.id === String(w.displayId)) || null;
+  if (w.displayKey) {
+    const hit = displayPairs.find(p => p.key === w.displayKey);
+    if (hit) return hit;
+    // 鍵で見つからない = そのモニタは本当に繋がっていない
+    return null;
+  }
+  if (w.displayId) {
+    const hit = displayPairs.find(p => p.id === String(w.displayId));
+    if (hit) return hit;
+    // 古い id は再起動で無効になっている可能性がある。番号で拾い直す
+  }
   return displayPairs.find(p => p.index === (w.display || 0)) || null;
 }
 
@@ -1110,13 +1125,20 @@ function onReady() {
 
   rebuildWallWindows();
 
-  // 既存ウィジェットに、いま居るモニタの固有 id を一度だけ覚えさせる。
-  // これまでの「番号」はモニタの抜き差しでずれるため、以後は id で追う
+  // 既存ウィジェットに、再起動でも変わらないモニタの鍵を覚えさせる。
+  // 5.9.18 が書いた displayId は再起動で無効になるため、ここで鍵へ移行する。
+  // 対応するモニタが見つからない displayId は捨てる (残すと永久に非表示になる)
   config.update(c => {
     for (const w of (c.widgets || [])) {
-      if (w.displayId) continue;
-      const pair = displayPairs.find(p => p.index === (w.display || 0));
-      if (pair) w.displayId = pair.id;
+      if (w.displayKey && displayPairs.some(p => p.key === w.displayKey)) continue;
+      const pair = pairForWidget(w) || displayPairs.find(p => p.index === (w.display || 0));
+      if (pair) {
+        w.displayKey = pair.key;
+        w.display = pair.index;
+        w.displayId = pair.id;
+      } else if (w.displayId && !displayPairs.some(p => p.id === String(w.displayId))) {
+        delete w.displayId;      // 使えない id は残さない
+      }
     }
   });
 

@@ -46,13 +46,28 @@ function pair(screen) {
   const nPrim = native.find(m => m.primary) || native[0] || { x: 0, y: 0, w: 1920, h: 1080, primary: true };
   const nRest = native.filter(m => m !== nPrim).sort((a, b) => a.x - b.x || a.y - b.y);
 
-  // id はモニタ固有 (Electron が EDID 等から作る)。接続順が変わっても変わらないので、
-  // 「どのモニタのウィジェットか」はこの id で覚える (番号は表示用)
-  const out = [{ index: 0, display: prim, native: nPrim, id: String(prim.id) }];
-  rest.forEach((d, i) => {
-    out.push({ index: i + 1, display: d, native: nRest[i] || nPrim, id: String(d.id) });
-  });
-  return out;
+  // 「どのモニタか」を覚えるための鍵。
+  // display.id は再起動すると変わる (実測: 3576360390 -> 2466824423) ので使えない。
+  // label はモニタの機種名 (例 "DELL P2418D") で再起動しても変わらないため、
+  // これに解像度を足したものを鍵にする。同じ機種を複数繋いでいる場合に備えて
+  // 重複したら連番を付ける。
+  const key = (d) => {
+    const name = (d.label || '').trim();
+    const size = `${d.size.width}x${d.size.height}`;
+    return name ? `${name}|${size}` : `display|${size}`;
+  };
+  const list = [{ index: 0, display: prim, native: nPrim }]
+    .concat(rest.map((d, i) => ({ index: i + 1, display: d, native: nRest[i] || nPrim })));
+
+  const seen = new Map();
+  for (const p2 of list) {
+    const base = key(p2.display);
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    p2.key = n > 1 ? `${base}#${n}` : base;
+    p2.id = String(p2.display.id);          // 起動中だけ有効な id (後方互換のため残す)
+  }
+  return list;
 }
 
 // 設定画面用の一覧
@@ -60,7 +75,9 @@ function describe(screen) {
   return pair(screen).map(p => ({
     index: p.index,
     id: p.id,
-    label: `モニタ${p.index + 1} (${p.native.w}×${p.native.h}${p.index === 0 ? '・メイン' : ''})`,
+    key: p.key,
+    name: (p.display.label || '').trim(),
+    label: `モニタ${p.index + 1}${(p.display.label || '').trim() ? ' ' + p.display.label.trim() : ''} (${p.native.w}×${p.native.h}${p.index === 0 ? '・メイン' : ''})`,
     primary: p.index === 0,
   }));
 }
