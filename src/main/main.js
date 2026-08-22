@@ -969,7 +969,23 @@ const SCENE_BACKUP_NAME = 'シーン切替前 (自動)';
 function applySceneLayout(name) {
   const c = config.get();
   const layouts = c.settings.layouts || [];
-  if (!layouts.some(l => l.name === name)) return false;
+  const target = layouts.find(l => l.name === name);
+  if (!target) return false;
+
+  // 既定では壁紙だけ差し替える。レイアウトはウィジェット一式の写しなので、
+  // まるごと当てると「そのレイアウトを保存した後に足したウィジェット」が
+  // 画面から消える。背景を変えたいだけの用途でそれが起きるのは事故なので、
+  // ウィジェットまで入れ替えるのは明示的に選んだときだけにする。
+  if ((c.settings.scenes || {}).wallpaperOnly !== false) {
+    const same = JSON.stringify(c.wallpapers) === JSON.stringify(target.wallpapers);
+    if (!same) {
+      config.update(cfg => {
+        cfg.wallpapers = JSON.parse(JSON.stringify(target.wallpapers));
+      });
+      placedKey.clear();
+    }
+    return true;
+  }
 
   const cur = JSON.stringify({ w: c.wallpapers, g: c.widgets });
   const isSaved = layouts.some(l => JSON.stringify({ w: l.wallpapers, g: l.widgets }) === cur);

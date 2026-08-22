@@ -81,6 +81,11 @@ function defaults() {
       // 既存のレイアウトプリセットを指すだけ (万一の暴走でも配置は無傷)。
       scenes: {
         enabled: false,
+        // 既定は「壁紙だけ差し替える」。レイアウトはウィジェット一式の写しなので、
+        // まるごと当てると、そのレイアウトを保存した後に足したウィジェットが
+        // 画面から消える (保存時点の顔ぶれに戻るため)。背景だけ変えたい人が
+        // 大半なので、そちらを既定にする
+        wallpaperOnly: true,
         defaultLayout: '',         // どのルールにも当てはまらない通常時のレイアウト名
         defaultIcons: '',          // 通常時に戻すアイコン配置の名前 ('' = 触らない)
         rules: [],                 // [{id, name, enabled, trigger, layout, icons}]
@@ -165,7 +170,7 @@ function load() {
     );
     if (!Array.isArray(cfg.settings.layouts)) cfg.settings.layouts = [];
     cfg.settings.scenes = Object.assign(
-      { enabled: false, defaultLayout: '', defaultIcons: '', rules: [] },
+      { enabled: false, wallpaperOnly: true, defaultLayout: '', defaultIcons: '', rules: [] },
       (parsed.settings || {}).scenes || {},
     );
     if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];

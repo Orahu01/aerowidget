@@ -68,6 +68,11 @@ const JA_EN = {
   'ゲームが前面のときはゲーム用、仕事の時間帯は仕事用——のように、上のレイアウトプリセットを状況で切り替えます。ルールは上から順に評価され、最初に当てはまったものが使われます。シーンが切り替える直前、未保存の配置は「シーン切替前 (自動)」レイアウトに退避されるので、作業が消えることはありません。':
     'Game layout while a game is focused, work layout during work hours - scenes switch between the layout presets above based on context. Rules are checked top to bottom and the first match wins. Right before a scene switches, any unsaved arrangement is saved aside as the "Before scene switch (auto)" layout, so nothing is ever lost.',
   '通常時 (どれにも当てはまらないとき)': 'Normally (when nothing matches)',
+  '壁紙だけ切り替える (ウィジェットはそのまま)': 'Switch only the wallpaper (leave widgets alone)',
+  '切り替わるのは背景だけです。ウィジェットは置いたまま残ります。':
+    'Only the background changes. Your widgets stay where they are.',
+  'レイアウトごと入れ替えます。そのレイアウトを保存したあとに足したウィジェットは、切り替えた瞬間に画面から消えます (設定には残ります)。':
+    'The whole layout is swapped in. Widgets added after that layout was saved disappear from the screen the moment it switches (they remain in your settings).',
   'ルールを追加': 'Add rule',
   'アプリが前面のとき': 'When an app is in front',
   'フルスクリーン中': 'While fullscreen',
@@ -2394,7 +2399,7 @@ const SCN_TRIGGERS = [
 ];
 
 function scenesCfg() {
-  if (!cfg.settings.scenes) cfg.settings.scenes = { enabled: false, defaultLayout: '', rules: [] };
+  if (!cfg.settings.scenes) cfg.settings.scenes = { enabled: false, wallpaperOnly: true, defaultLayout: '', rules: [] };
   if (!Array.isArray(cfg.settings.scenes.rules)) cfg.settings.scenes.rules = [];
   return cfg.settings.scenes;
 }
@@ -2455,6 +2460,22 @@ function renderScenes() {
   defSel.id = 'scn-default';
   defSel.style.minWidth = '220px';
   oldSel.replaceWith(defSel);
+
+  // 壁紙だけにするか、ウィジェットまで入れ替えるか
+  const woBox = $('#scn-wallpaper-only');
+  if (woBox) {
+    woBox.innerHTML = '';
+    woBox.appendChild(mkCheck('壁紙だけ切り替える (ウィジェットはそのまま)',
+      sc.wallpaperOnly !== false,
+      (v) => { sc.wallpaperOnly = v; pushScenes(); renderScenes(); }));
+    const note = document.createElement('p');
+    note.className = 'foot-note';
+    note.textContent = sc.wallpaperOnly !== false
+      ? T('切り替わるのは背景だけです。ウィジェットは置いたまま残ります。')
+      : T('レイアウトごと入れ替えます。そのレイアウトを保存したあとに足したウィジェットは、切り替えた瞬間に画面から消えます (設定には残ります)。');
+    note.style.color = sc.wallpaperOnly !== false ? '' : '#ffb27a';
+    woBox.appendChild(note);
+  }
 
   const list = $('#scn-rules');
   list.innerHTML = '';
