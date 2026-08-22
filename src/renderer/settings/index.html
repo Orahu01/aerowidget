@@ -480,39 +480,9 @@
       </section>
 
       <section class="tab" id="tab-scenes">
-        <h1 data-i18n="scn.pageTitle">シーン</h1>
-        <h2>レイアウトプリセット</h2>
+        <h1 data-i18n="scn.title">シーン</h1>
         <div class="group">
-          <div class="row">
-            <label>現在の構成を保存</label>
-            <div class="ctl gf-ctl">
-              <input type="text" id="layout-name" placeholder="例: 作業用 / 配信用 / シンプル">
-              <button class="btn" id="layout-save"><svg class="ic"><use href="#i-layers"/></svg>保存</button>
-            </div>
-          </div>
-          <p class="foot-note">壁紙とウィジェット配置をまるごと保存し、ワンクリック (またはトレイメニュー) で切り替えられます。</p>
-          <div id="layout-list"></div>
-        </div>
-        <h2 data-i18n="scn.title">シーン (状況で自動切り替え)</h2>
-        <div class="group">
-          <div class="row">
-            <label data-i18n="scn.enable">状況に合わせてレイアウトを自動で切り替える</label>
-            <div class="ctl">
-              <label class="switch"><input type="checkbox" id="scn-on"><span class="knob"></span></label>
-            </div>
-          </div>
-          <p class="foot-note" data-i18n="scn.note">ゲームが前面のときはゲーム用、仕事の時間帯は仕事用——のように、上のレイアウトプリセットを状況で切り替えます。ルールは上から順に評価され、最初に当てはまったものが使われます。シーンが切り替える直前、未保存の配置は「シーン切替前 (自動)」レイアウトに退避されるので、作業が消えることはありません。</p>
-          <div class="row">
-            <label data-i18n="scn.default">通常時 (どれにも当てはまらないとき)</label>
-            <div class="ctl"><select id="scn-default" style="min-width:220px"></select></div>
-          </div>
-          <div id="scn-wallpaper-only"></div>
-          <div id="scn-rules"></div>
-          <div class="row">
-            <label></label>
-            <div class="ctl"><button class="btn" id="scn-add"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="scn.add">ルールを追加</span></button></div>
-          </div>
-          <p class="foot-note" id="scn-status"></p>
+          <p class="foot-note" data-i18n="scn.retired">シーンとレイアウトプリセットは「モード」に統合されました。壁紙・ウィジェットの表示・アイコンをモードごとに覚えて、手動または条件 (アプリが前面など) で切り替えられます。これまでのプリセットとルールは自動でモードに変換済みです。</p>
         </div>
       </section>
     </main>

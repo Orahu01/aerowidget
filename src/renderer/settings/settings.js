@@ -2360,8 +2360,10 @@ $('#sched-week-clear').addEventListener('click', () => {
   pushSched({ weekly });
 });
 
-// ---- レイアウトプリセット ----
+// ---- レイアウトプリセット (モードへ統合済み。呼び出し互換のため空で残す) ----
 function renderLayouts() {
+  return;
+  // 以下は旧実装 (到達しない)
   const list = $('#layout-list');
   list.innerHTML = '';
   const layouts = cfg.settings.layouts || [];
@@ -2485,15 +2487,7 @@ function scnLayoutSelect(value, onChange) {
 }
 
 function renderScenes() {
-  // シーンはモードへ統合された。タブには案内だけを出す
-  const tab = document.getElementById('tab-scenes');
-  if (tab && !tab.dataset.retired) {
-    tab.dataset.retired = '1';
-    tab.innerHTML = '<h1>' + T('シーン') + '</h1>'
-      + '<div class="group"><p class="foot-note">'
-      + T('シーンとレイアウトプリセットは「アイコン」のモードに統合されました。壁紙・ウィジェットの表示・アイコンをモードごとに覚えて、手動または条件 (アプリが前面など) で切り替えられます。これまでのプリセットとルールは自動でモードに変換済みです。')
-      + '</p></div>';
-  }
+  // シーンはモードへ統合済み。タブの中身は index.html の案内だけ
   return;
   // 以下は旧実装 (到達しない)
   const sc = scenesCfg();
@@ -3407,13 +3401,6 @@ function icStatus(text) {
   toast(text);
 }
 
-$('#layout-save').addEventListener('click', async () => {
-  touch();
-  cfg.settings.layouts = await window.api.saveLayout($('#layout-name').value.trim());
-  $('#layout-name').value = '';
-  renderLayouts();
-});
-$('#layout-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#layout-save').click(); });
 
 // ---- バックアップ ----
 $('#btn-export').addEventListener('click', async () => {
