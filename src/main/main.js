@@ -92,14 +92,55 @@ function broadcast(channel, payload) {
   for (const w of allWindows()) w.webContents.send(channel, payload);
 }
 
+// ---------------------------------------------------------------- モードの重ね
+//
+// 設定は「土台」で、手で変えたものは必ずそこに入る。
+// モードは土台の上に重なるフィルタで、土台を書き換えない。
+// 条件から外れたらフィルタが剥がれ、自動的に土台へ戻る。
+//
+// これまで「切り替え = 保存済みの写しで上書き」だったため、
+// 写しを取ったあとに足したものが消える事故が何度も起きた。
+// 重ねる方式なら、土台に触らないので構造的に起きない。
+function modeList() {
+  return (config.get().settings.iconLayouts || []).filter(l => l.name !== ICON_BACKUP_NAME);
+}
+
+// いま効いているモード (一覧の上から順に優先)
+function activeModes() {
+  return modeList().filter(m => m.on === true || (m.trigger && scenes.matches(m.trigger)));
+}
+
+// 土台に、効いているモードを重ねた結果。壁紙は「最初に壁紙を持つモード」が勝つ
+function effectiveConfig() {
+  const base = config.get();
+  const wp = activeModes().find(m => m.wallpapers);
+  if (!wp) return base;
+  return { ...base, wallpapers: JSON.parse(JSON.stringify(wp.wallpapers)) };
+}
+
 function configEnvelope() {
   return {
-    config: config.get(),
+    config: effectiveConfig(),          // 描画側は重ねた結果を見る
+    base: config.get(),                 // 設定画面は土台を編集する
+    activeModes: activeModes().map(m => m.name),
     systemWallpaper: attach.getSystemWallpaperPath(),
     onlineWallpaper: onlinewall.getCurrent(),
     osLocale: app.getLocale() || 'ja',
     brand: brand.NAME,
   };
+}
+
+// 条件の成立状況が変わったとき、重ねた結果が変わっていれば描き直す。
+// 設定ファイルには一切書き込まない (土台は不変)
+let lastOverlayKey = '';
+function refreshOverlay() {
+  let key = '';
+  try { key = JSON.stringify(effectiveConfig().wallpapers) + '|' + activeModes().map(m => m.name).join(','); }
+  catch (_) { return; }
+  if (key === lastOverlayKey) return;
+  lastOverlayKey = key;
+  if (process.env.WW_DEBUG) console.log('[modes] 重ねが変わった -> ' + activeModes().map(m => m.name).join(', '));
+  try { broadcast('config', configEnvelope()); } catch (_) {}
 }
 
 function weatherWidget() {
@@ -855,6 +896,7 @@ function syncServices() {
 
   // シーン (文脈でレイアウトを自動切替)
   scenes.sync(c.settings.scenes);
+  refreshOverlay();                     // モードの条件・オンオフの変更を反映
 
   // 視差効果 (オプトイン時のみ 15Hz でカーソルを配信。heartbeat 集約の例外)
   syncParallax(wallpapersAll.some(w => w && w.parallax));
@@ -1234,6 +1276,7 @@ function onReady() {
   fullscreen.on('foreground', (exe) => scenes.setForeground(exe));
 
   // シーンエンジン起動。バッテリー状態も最初に読んでおく
+  scenes.watchModes(() => refreshOverlay());
   scenes.init((name, iconsName) => {
     const ok = name ? applySceneLayout(name) : true;
     // アイコンはレイアウトと独立。指定が無ければ触らない
@@ -1909,9 +1952,12 @@ function saveIconSnapshot(name, hidden) {
     const entry = {
       name: clean, savedAt: Date.now(), icons: [...rows], hidden: hide,
       origin: { x: o.x, y: o.y },                  // どのモニタ構成で覚えたか
-      // 同じ名前を上書きするときは、ウィジェットの連動を持ち越す
+      // 同じ名前を上書きするときは、連動・壁紙・条件・オンオフを持ち越す
       linkWidgets: !!(prev && prev.linkWidgets),
       widgetsOn: (prev && prev.widgetsOn) ? prev.widgetsOn.slice() : [],
+      wallpapers: (prev && prev.wallpapers) ? JSON.parse(JSON.stringify(prev.wallpapers)) : null,
+      trigger: (prev && prev.trigger) ? JSON.parse(JSON.stringify(prev.trigger)) : null,
+      on: !!(prev && prev.on),
     };
     // 上書きは同じ場所に置く。末尾へ移すと、編集のたびに一覧の並びが崩れる
     const idx = arr.findIndex(l => l.name === clean);
@@ -2072,6 +2118,9 @@ ipcMain.handle('icons:snapshots', () => {
       hidden: (l.hidden || []).slice(),
       linkWidgets: !!l.linkWidgets,
       widgetsOn: (l.widgetsOn || []).slice(),
+      hasWallpaper: !!l.wallpapers,
+      trigger: l.trigger ? JSON.parse(JSON.stringify(l.trigger)) : null,
+      on: l.on === true,
     }));
   return {
     saved: all.filter(l => l.name !== ICON_BACKUP_NAME),
@@ -2173,6 +2222,46 @@ ipcMain.handle('icons:updateMode', (e, name, patch) => {
     if (Array.isArray(p2.widgetsOn)) l.widgetsOn = p2.widgetsOn.filter(Boolean);
   });
   return { ok: true, count: fixed.length, hidden: hide.length, repaired: fixed.repaired };
+});
+
+// モードに「いまの壁紙」を覚えさせる / 忘れさせる
+ipcMain.handle('icons:setWallpaper', (e, name, remember) => {
+  let found = false;
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
+    if (!l) return;
+    found = true;
+    // 土台の壁紙を写して覚える。以後このモードが効いている間だけ重なる
+    l.wallpapers = remember ? JSON.parse(JSON.stringify(cfg.wallpapers)) : null;
+  });
+  refreshOverlay();
+  return found ? { ok: true, remembered: !!remember } : { ok: false, msg: 'そのモードが見つかりません' };
+});
+
+// モードが自動で効く条件 (null なら手動のオンオフだけ)
+ipcMain.handle('icons:setTrigger', (e, name, trigger) => {
+  let found = false;
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
+    if (!l) return;
+    found = true;
+    l.trigger = trigger ? JSON.parse(JSON.stringify(trigger)) : null;
+  });
+  refreshOverlay();
+  return found ? { ok: true } : { ok: false, msg: 'そのモードが見つかりません' };
+});
+
+// モードを手でオン / オフする
+ipcMain.handle('icons:setOn', (e, name, on) => {
+  let found = false;
+  config.update(cfg => {
+    const l = (cfg.settings.iconLayouts || []).find(x => x.name === name);
+    if (!l) return;
+    found = true;
+    l.on = !!on;
+  });
+  refreshOverlay();
+  return found ? { ok: true, on: !!on } : { ok: false, msg: 'そのモードが見つかりません' };
 });
 
 // (旧 API。設定画面は icons:updateMode を使う)

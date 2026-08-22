@@ -21,6 +21,7 @@ let paused = false;        // 編集モード中は評価しない
 let lastTarget = null;     // 直近に適用を指示したレイアウト名
 let lastIcons = null;      // 直近に適用を指示したアイコン配置名
 let lastKey = '';          // cfg の変化検出
+let modeWatch = null;      // 条件の成立状況が変わりうるたびに呼ぶ (モードの重ね用)
 
 const state = {
   foreground: '',          // 前面 exe 名 (小文字、デスクトップなら '')
@@ -100,16 +101,19 @@ function evaluate(reason) {
 
 function setForeground(exe) {
   state.foreground = String(exe || '').toLowerCase();
+  if (modeWatch) modeWatch();
   evaluate('foreground');
 }
 
 function setFullscreen(index, on) {
   if (on) state.fsMonitors.add(index); else state.fsMonitors.delete(index);
+  if (modeWatch) modeWatch();
   evaluate('fullscreen');
 }
 
 function setBattery(on) {
   state.onBattery = !!on;
+  if (modeWatch) modeWatch();
   evaluate('battery');
 }
 
@@ -140,11 +144,23 @@ function sync(scenesCfg) {
 function init(apply) {
   applyFn = apply;
   // 時間帯トリガーのために毎分見る (heartbeat 集約)
-  heartbeat.register('scenes-tick', 60 * 1000, () => evaluate('tick'));
+  heartbeat.register('scenes-tick', 60 * 1000, () => {
+    if (modeWatch) modeWatch();
+    evaluate('tick');
+  });
 }
 
 function status() {
   return { lastTarget, foreground: state.foreground, fullscreen: state.fsMonitors.size > 0, onBattery: state.onBattery };
 }
 
-module.exports = { init, sync, setForeground, setFullscreen, setBattery, setPaused, evaluate, status, on: (...a) => emitter.on(...a) };
+// モードの重ね: 条件が成立しているかだけを判定して返す (適用はしない)
+function matches(trigger) {
+  return trigger ? ruleMatches({ trigger }) : false;
+}
+
+function watchModes(fn) { modeWatch = fn; }
+
+module.exports = {
+  init, sync, setForeground, setFullscreen, setBattery, setPaused,
+  evaluate, status, matches, watchModes, on: (...a) => emitter.on(...a) };

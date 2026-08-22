@@ -167,6 +167,17 @@ const JA_EN = {
   'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
     'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モード切替ボタン': 'Mode switch button',
+  '重ね': 'Overlay', '効いています': 'active',
+  '壁紙を覚えています': 'remembers a wallpaper', '壁紙は覚えていません': 'no wallpaper remembered',
+  'このモードを今すぐ効かせる': 'Turn this mode on now', '壁紙も覚える': 'Remember the wallpaper too',
+  'いまの壁紙を覚えました': 'Current wallpaper remembered', '壁紙を忘れました': 'Wallpaper forgotten',
+  '自動で効く条件': 'Turn on automatically when', 'なし (手動だけ)': 'Never (manual only)',
+  'アプリが前面': 'An app is in front', '全画面のアプリがある': 'An app is fullscreen',
+  'バッテリー駆動': 'On battery', '時間帯': 'Time of day', 'アプリ名': 'App name',
+  '前面のアプリの実行ファイル名です。タスクマネージャーの「詳細」タブで確認できます。':
+    'The executable name of the foreground app. You can find it on the Details tab of Task Manager.',
+  '効いている間だけ、覚えたものが上に重なります。条件から外れると自動で元へ戻ります。設定そのものは書き換わりません。':
+    'While a mode is on, what it remembers is layered on top. When the condition stops matching it peels off by itself. Your own settings are never overwritten.',
   'モードの名前': 'Mode name', '名前を変える': 'Rename', '名前を変えました': 'Renamed',
   'デスクトップのアイコン': 'Desktop icons', 'ウィジェット': 'Widgets', 'ウィジェット ': 'widgets ',
   'このモードでウィジェットも切り替える': 'Switch widgets with this mode too',
@@ -341,6 +352,12 @@ function svgIcon(id, cls = 'ic') {
 }
 
 function touch() { suppressUntil = Date.now() + 1500; }
+
+// 設定画面が編集するのは常に「土台」。モードの重ねが乗った結果ではない
+async function baseConfig() {
+  const env = await window.api.getConfig();
+  return env.base || env.config;
+}
 
 function debounced(key, ms, fn) {
   clearTimeout(debTimers.get(key));
@@ -971,7 +988,7 @@ function renderAddRow() {
       const created = await window.api.addWidget(type);
       if (created) expanded.add(created.id);
       widgetQuery = '';              // 絞り込み中でも、作ったものは必ず見えるように
-      cfg = (await window.api.getConfig()).config;
+      cfg = await baseConfig();
       renderWidgetList();
     });
     row.appendChild(b);
@@ -1763,6 +1780,7 @@ function typeOptionsUI(w) {
 const NO_FONT_TYPES = new Set(['line', 'image', 'analog']);
 const NO_SHADOW_TYPES = new Set(['line']);
 
+let activeModeNames = [];           // いま効いている (重なっている) モード名
 let widgetQuery = '';               // ウィジェットの絞り込み文字列
 // 名前を付ける鉛筆 (ウィジェットの見出しとアイコン一覧で共用)
 const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
@@ -1858,7 +1876,7 @@ function widgetCard(w) {
     e.stopPropagation();
     expanded.delete(w.id);
     await window.api.removeWidget(w.id);
-    cfg = (await window.api.getConfig()).config;
+    cfg = await baseConfig();
     renderWidgetList();
   }));
   head.appendChild(chev);
@@ -2005,7 +2023,7 @@ function renderWidgetList() {
     btn.textContent = T('すべて出す');
     btn.onclick = async () => {
       await window.api.showAllWidgets();
-      cfg = (await window.api.getConfig()).config;
+      cfg = await baseConfig();
       renderWidgetList();
     };
     row.append(nm, btn);
@@ -2089,7 +2107,7 @@ function themeCard(theme, onApplied) {
   card.addEventListener('click', async () => {
     touch();
     await window.api.applyTheme(theme.id);
-    cfg = (await window.api.getConfig()).config;
+    cfg = await baseConfig();
     renderWallpaperTab();
     renderWidgetList();
     renderLayouts();
@@ -2344,7 +2362,7 @@ function renderLayouts() {
     apply.addEventListener('click', async () => {
       touch();
       await window.api.applyLayout(i);
-      cfg = (await window.api.getConfig()).config;
+      cfg = await baseConfig();
       renderWallpaperTab();
       renderWidgetList();
       renderLayouts();
@@ -2801,6 +2819,13 @@ function icModeCard(snap, allNames) {
   nm.className = 'ic-mode-name';
   nm.textContent = snap.name;
   head.append(nm);
+  if (activeModeNames.includes(snap.name)) {
+    const live = document.createElement('span');
+    live.className = 'ic-now';
+    live.textContent = T('効いています');
+    head.appendChild(live);
+    card.classList.add('is-now');
+  }
   if (snap.name === (cfg.settings || {}).currentIconMode) {
     const now = document.createElement('span');
     now.className = 'ic-now';
@@ -2907,12 +2932,72 @@ function icModeCard(snap, allNames) {
     if (icWDraft.has(snap.name)) { icWDraft.set(r.name, icWDraft.get(snap.name)); icWDraft.delete(snap.name); }
     if (icOpenModes.delete(snap.name)) icOpenModes.add(r.name);
     $('#ic-status').textContent = T('名前を変えました');
-    cfg = (await window.api.getConfig()).config;
+    cfg = await baseConfig();
     renderIconLayouts();
   };
   nameIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRename(); });
   nameRow.append(mkLabelSpan('モードの名前'), nameIn, mkBtn('名前を変える', doRename));
   body.appendChild(nameRow);
+
+  // --- 重ね (このモードが効いている間だけ、上に乗るもの) ---
+  body.appendChild(mkSubHead(T('重ね'), snap.hasWallpaper ? T('壁紙を覚えています') : T('壁紙は覚えていません')));
+
+  const ovRow = document.createElement('div');
+  ovRow.className = 'ic-mode-tools';
+  ovRow.appendChild(mkCheck('このモードを今すぐ効かせる', !!snap.on, async (v) => {
+    await window.api.setIconModeOn(snap.name, v);
+    renderIconLayouts();
+  }));
+  ovRow.appendChild(mkCheck('壁紙も覚える', !!snap.hasWallpaper, async (v) => {
+    const r = await window.api.setIconWallpaper(snap.name, v);
+    icStatus(r.ok ? (v ? T('いまの壁紙を覚えました') : T('壁紙を忘れました')) : r.msg);
+    renderIconLayouts();
+  }));
+  body.appendChild(ovRow);
+
+  // 自動で効く条件
+  const trg = snap.trigger || null;
+  const trRow = document.createElement('div');
+  trRow.className = 'ic-mode-tools';
+  trRow.appendChild(mkLabelSpan('自動で効く条件'));
+  const setTrigger = async (t) => {
+    await window.api.setIconTrigger(snap.name, t);
+    renderIconLayouts();
+  };
+  trRow.appendChild(mkSelect(
+    [['', 'なし (手動だけ)'], ['app', 'アプリが前面'], ['fullscreen', '全画面のアプリがある'],
+     ['battery', 'バッテリー駆動'], ['time', '時間帯']],
+    (trg && trg.type) || '',
+    (v) => {
+      if (!v) return setTrigger(null);
+      if (v === 'app') return setTrigger({ type: 'app', apps: (trg && trg.apps) || [] });
+      if (v === 'time') return setTrigger({ type: 'time', from: (trg && trg.from) || '22:00', to: (trg && trg.to) || '06:00' });
+      return setTrigger({ type: v });
+    }));
+  body.appendChild(trRow);
+
+  if (trg && trg.type === 'app') {
+    const appRow = document.createElement('div');
+    appRow.className = 'ic-mode-tools';
+    appRow.appendChild(mkLabelSpan('アプリ名'));
+    appRow.appendChild(mkText((trg.apps || []).join(', '), 'chrome.exe, valorant.exe',
+      (v) => setTrigger({ type: 'app', apps: v.split(',').map(x => x.trim()).filter(Boolean) })));
+    body.appendChild(appRow);
+    body.appendChild(mkNote(T('前面のアプリの実行ファイル名です。タスクマネージャーの「詳細」タブで確認できます。')));
+  }
+  if (trg && trg.type === 'time') {
+    const tRow = document.createElement('div');
+    tRow.className = 'ic-mode-tools';
+    tRow.appendChild(mkLabelSpan('時間帯'));
+    const from = mkText(trg.from || '22:00', '22:00', (v) => setTrigger({ ...trg, from: v.trim() }));
+    const to = mkText(trg.to || '06:00', '06:00', (v) => setTrigger({ ...trg, to: v.trim() }));
+    from.style.width = '80px'; from.style.flex = 'none';
+    to.style.width = '80px'; to.style.flex = 'none';
+    tRow.append(from, mkLabelSpan('〜'), to);
+    body.appendChild(tRow);
+  }
+
+  body.appendChild(mkNote(T('効いている間だけ、覚えたものが上に重なります。条件から外れると自動で元へ戻ります。設定そのものは書き換わりません。')));
 
   const tools = document.createElement('div');
   tools.className = 'ic-mode-tools';
@@ -2960,7 +3045,7 @@ function icModeCard(snap, allNames) {
       if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
       if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
       icStatus(m);
-      cfg = (await window.api.getConfig()).config;
+      cfg = await baseConfig();
       renderWidgetList();
       renderIconLayouts();
     }),
@@ -2996,7 +3081,7 @@ function icModeCard(snap, allNames) {
   );
   body.appendChild(tools);
 
-  // --- デスクトップアイコン (チェックで隠す) ---
+  // --- デスクトップアイコン (適用ボタンで実際に動かす。重ねとは別) ---
   const iconsSub = mkSubHead(T('デスクトップのアイコン'), '');
   iconsSubMeta = iconsSub.querySelector('.ic-sub-meta');
   body.appendChild(iconsSub);
@@ -3186,7 +3271,7 @@ async function renderIconLayouts() {
       btn.textContent = T('すべて出す');
       btn.onclick = async () => {
         await window.api.showAllWidgets();
-        cfg = (await window.api.getConfig()).config;
+        cfg = await baseConfig();
         renderWidgetList();
         renderIconLayouts();
       };
@@ -3301,7 +3386,7 @@ $('#btn-import').addEventListener('click', async () => {
   const r = await window.api.importConfig();
   $('#backup-status').textContent = r.msg;
   if (r.ok) {
-    cfg = (await window.api.getConfig()).config;
+    cfg = await baseConfig();
     renderWallpaperTab();
     renderWidgetList();
     renderGeneral();
@@ -3397,7 +3482,7 @@ async function renderBackups() {
       const r = await window.api.restoreBackup(b.file);
       $('#backup-status').textContent = r.msg;
       if (r.ok) {
-        cfg = (await window.api.getConfig()).config;
+        cfg = await baseConfig();
         renderWallpaperTab();
         renderWidgetList();
         renderGeneral();
@@ -3475,7 +3560,7 @@ $('#gf-add').addEventListener('click', async () => {
   if (r.ok) {
     status.textContent = `「${r.family}」を追加しました。フォント選択で G バッジ付きで表示されます。`;
     inp.value = '';
-    cfg = (await window.api.getConfig()).config;
+    cfg = await baseConfig();
     renderGfList();
   } else {
     status.textContent = `追加できませんでした: ${r.msg}`;
@@ -3519,7 +3604,7 @@ async function refreshAll() {
     icWDraft.clear();
     try { await window.api.flushIconImages(); } catch (_) {}   // main 側の画像キャッシュも
     const env = await window.api.getConfig();
-    cfg = env.config;
+    cfg = env.base || env.config;   // 設定画面は土台を編集する
     sysWall = env.systemWallpaper || '';
     if (env.osLocale) osLocale = env.osLocale;
     displays = await window.api.listDisplays();
@@ -3557,7 +3642,8 @@ document.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- 初期化・購読
 window.api.onConfig((env) => {
-  cfg = env.config;
+  cfg = env.base || env.config;   // 設定画面は土台を編集する
+  if (Array.isArray(env.activeModes)) activeModeNames = env.activeModes;
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
   if (env.brand) BRAND = env.brand;
@@ -3573,7 +3659,8 @@ window.api.onFontsChanged(() => injectFonts());
 
 (async () => {
   const env = await window.api.getConfig();
-  cfg = env.config;
+  cfg = env.base || env.config;   // 設定画面は土台を編集する
+  if (Array.isArray(env.activeModes)) activeModeNames = env.activeModes;
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
   if (env.brand) BRAND = env.brand;
