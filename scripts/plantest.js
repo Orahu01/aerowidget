@@ -134,5 +134,58 @@ function mkEnv(origin) {
     [{ name: 'A', x: 60, y: 100 }]);
 }
 
+// ================================================================
+// 11. モニタ切断シナリオ: メインとサブ両方にアイコンを置いたモードを、
+//     サブを外した状態で適用するとどうなるか
+{
+  // 接続中: モニタ1 (0,0)-(1000,800) + モニタ2 (1000,0)-(2000,800)。原点 (0,0)
+  // 切断後: モニタ1 だけ。モニタ2 の領域 (x>=1000) は全部死角になる
+  const envDisconnected = {
+    origin: { x: 0, y: 0 },
+    isOff: (sx, sy) => !(sx >= 0 && sx < 1000 && sy >= 0 && sy < 800),
+    slots: (n) => Array.from({ length: n }, (_, i) => ({ x: 1200 + i * 130, y: 0 })),
+    freeCells: (n, taken) => {
+      const out = [];
+      for (let y = 0; y < 800 && out.length < n; y += 126) {
+        for (let x = 0; x < 1000 && out.length < n; x += 130) {
+          const k = Math.round(x / 130) + ',' + Math.round(y / 126);
+          if (taken && taken.has(k)) continue;
+        if (taken) taken.add(k);
+          out.push({ x, y });
+        }
+      }
+      return out;
+    },
+  };
+  // モード: メインに A、サブに B と C (保存時は両モニタ接続、原点 (0,0))
+  const mode = [
+    { name: 'A', x: 100, y: 100 },     // メイン
+    { name: 'B', x: 1200, y: 100 },    // サブ (いまは死角)
+    { name: 'C', x: 1500, y: 300 },    // サブ (いまは死角)
+  ];
+  // B は最後にメインで見えていたことがある (home あり)。C の home もサブ -> 使えない
+  const home = {
+    B: { x: 300, y: 500, ox: 0, oy: 0 },
+    C: { x: 1400, y: 200, ox: 0, oy: 0 },
+  };
+  const plan = icons.planMoves(mode, [], { x: 0, y: 0 }, home, [], envDisconnected);
+  const at = (n) => plan.moves.find(m => m.name === n);
+  eq('切断: メインの A はそのまま', { x: at('A').x, y: at('A').y }, { x: 100, y: 100 });
+  eq('切断: B は最後に見えていたメインの場所へ', { x: at('B').x, y: at('B').y }, { x: 300, y: 500 });
+  eq('切断: C はメインの空きセルへ (消えない)', envDisconnected.isOff(at('C').x, at('C').y), false);
+  eq('切断: 全員どこかに見える', plan.moves.length, 3);
+
+  // 12. サブをつなぎ直して同じモードを適用 -> B も C もサブの元の位置へ帰る
+  const envReconnected = {
+    ...envDisconnected,
+    isOff: (sx, sy) => !((sx >= 0 && sx < 1000 && sy >= 0 && sy < 800)
+                      || (sx >= 1000 && sx < 2000 && sy >= 0 && sy < 800)),
+  };
+  const plan2 = icons.planMoves(mode, [], { x: 0, y: 0 }, home, [], envReconnected);
+  const at2 = (n) => plan2.moves.find(m => m.name === n);
+  eq('再接続: B はサブの保存位置へ帰る', { x: at2('B').x, y: at2('B').y }, { x: 1200, y: 100 });
+  eq('再接続: C もサブの保存位置へ帰る', { x: at2('C').x, y: at2('C').y }, { x: 1500, y: 300 });
+}
+
 console.log(fail ? `\n${fail} 件失敗 / ${pass + fail} 件` : `全 ${pass} 件 PASS`);
 process.exit(fail ? 1 : 0);
