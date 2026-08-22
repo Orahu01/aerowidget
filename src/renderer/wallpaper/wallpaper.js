@@ -880,6 +880,8 @@ let visQuietSince = 0;    // 無音が続いている開始時刻
 let visStream = null;     // 取り込み中のストリーム (出力切替時に停止して取り直す)
 let visCtx = null;
 let visOutId = '';        // いまの既定出力デバイス id
+let visRate = 48000;      // 取り込みのサンプリング周波数
+let visBinMap = null;     // バー -> 担当ビン範囲 (本数や分解能が変わるまで使い回す)
 
 function visWidgets() {
   return myWidgets().filter(w => w.type === 'visualizer');
@@ -925,8 +927,12 @@ async function ensureVisCapture() {
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const src = ctx.createMediaStreamSource(stream);
     visAnalyser = ctx.createAnalyser();
-    visAnalyser.fftSize = 256;
-    visAnalyser.smoothingTimeConstant = 0.82;
+    // 256 だと 128 ビンで 0〜24kHz を分けることになり、1 ビン = 187Hz。
+    // 音楽のエネルギーはほとんど 2kHz 以下なので、左端の数ビンに全部入ってしまう。
+    // 4096 (= 2048 ビン, 1 ビン 約 12Hz) にして低音側にも解像度を持たせる
+    visAnalyser.fftSize = 4096;
+    visAnalyser.smoothingTimeConstant = 0.8;
+    visRate = ctx.sampleRate || 48000;
     src.connect(visAnalyser);
     visData = new Uint8Array(visAnalyser.frequencyBinCount);
   } catch (e) {
@@ -939,6 +945,33 @@ async function ensureVisCapture() {
   }
 }
 
+const VIS_BARS_MIN = 12, VIS_BARS_MAX = 512;
+const VIS_FMIN = 35, VIS_FMAX = 16000;   // 見せる音域 (下は低音、上は聞こえる高音まで)
+
+// 各バーが受け持つ周波数ビンの範囲を作る。
+// 音の高さは倍で 1 オクターブなので、等間隔ではなく対数で並べる。
+// これをやらないと、音楽のエネルギーが集まる低音が左端の数本に潰れ、
+// 右側はずっと動かない (= 「左ばっかり上がる」)。
+function binRanges(bars, n, rate) {
+  if (visBinMap && visBinMap.bars === bars && visBinMap.n === n && visBinMap.rate === rate) {
+    return visBinMap.ranges;
+  }
+  const hzPerBin = (rate / 2) / n;
+  const ratio = VIS_FMAX / VIS_FMIN;
+  const ranges = [];
+  for (let i = 0; i < bars; i++) {
+    const lo = VIS_FMIN * Math.pow(ratio, i / bars);
+    const hi = VIS_FMIN * Math.pow(ratio, (i + 1) / bars);
+    let a = Math.floor(lo / hzPerBin);
+    let b = Math.ceil(hi / hzPerBin);
+    a = Math.min(Math.max(a, 1), n - 1);          // ビン 0 は直流成分なので使わない
+    b = Math.min(Math.max(b, a + 1), n);
+    ranges.push([a, b]);
+  }
+  visBinMap = { bars, n, rate, ranges };
+  return ranges;
+}
+
 function drawVis(cv, w, live) {
   const el = cv.parentElement;
   const cw = el.clientWidth || 200;
@@ -948,20 +981,27 @@ function drawVis(cv, w, live) {
   const ctx2 = cv.getContext('2d');
   ctx2.clearRect(0, 0, cw, ch);
   const o = w.options || {};
-  const bars = Math.max(12, Math.min(96, o.bars || 48));
-  const gap = 2;
-  const bw = (cw - gap * (bars - 1)) / bars;
+  const bars = Math.max(VIS_BARS_MIN, Math.min(VIS_BARS_MAX, o.bars || 48));
+
+  // 本数が増えたら隙間を詰める (詰めないと 1 本が消える太さになる)
+  const slot = cw / bars;
+  const gap = slot > 6 ? 2 : (slot > 3 ? 1 : 0);
+  const bw = Math.max(1, slot - gap);
+
   ctx2.fillStyle = hexA(w.color, 0.9);
   const n = visData ? visData.length : 0;
+  const ranges = (live && n) ? binRanges(bars, n, visRate) : null;
   for (let i = 0; i < bars; i++) {
     let v = 0;
-    if (live && n) {
-      // 低域〜中域を対数寄りにサンプリング
-      const idx = Math.min(n - 1, Math.floor(Math.pow(i / bars, 1.4) * n * 0.8));
-      v = visData[idx] / 255;
+    if (ranges) {
+      const [a, b] = ranges[i];
+      let peak = 0;
+      for (let k = a; k < b; k++) if (visData[k] > peak) peak = visData[k];
+      // 高音はもともとエネルギーが小さいので、右へ行くほど少し持ち上げる
+      v = Math.min(1, (peak / 255) * (1 + 0.9 * (i / (bars - 1))));
     }
     const h = Math.max(2, v * ch);
-    const x = i * (bw + gap);
+    const x = i * slot;
     if (o.mirror !== false) {
       ctx2.fillRect(x, ch / 2 - h / 2, bw, h);
     } else {

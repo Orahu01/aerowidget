@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.18 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.19 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,25 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.19 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.19</div><div class="when">先行版・修正</div></div>
+    <div>
+      <h4>ビジュアライザーが左側ばかり動く問題を修正しました</h4>
+      <ul>
+        <li>解析の細かさが足りていませんでした。<b>128 個の区切りで 0〜24000Hz</b> を分けていたので 1 区切り = 187Hz。音楽のエネルギーはほとんど 2000Hz 以下なので、<b>左端の数本に全部入って</b>いました。区切りを <b>2048 個 (1 つ約 12Hz)</b> に増やしました</li>
+        <li>並べ方も直しました。音の高さは倍で 1 オクターブなので、<b>等間隔ではなく対数</b>で割り当てます。これまでの式はむしろ高音側を広げる向きで、逆効果でした</li>
+        <li>結果、<b>左が低音・右が高音</b>になり、音の高さに合わせてバーの位置が動きます。高音は元々弱いので、右へ行くほど少し持ち上げて見えるようにしました</li>
+        <li>実測で確認: 60Hz の音は左、700Hz は中央、6000Hz は右のバーが立ちます</li>
+      </ul>
+      <h4>バーを 512 本まで増やせます</h4>
+      <ul>
+        <li>上限を <b>96 本から 512 本</b> に引き上げました</li>
+        <li>本数に応じて隙間を自動で詰めるので、増やしても 1 本が消えたり重なったりしません</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.18 -->

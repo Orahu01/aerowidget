@@ -1419,7 +1419,7 @@ function typeOptionsUI(w) {
 
   } else if (w.type === 'visualizer') {
     {
-      const [r, val, show] = mkRange(12, 96, 4, o.bars ?? 48, v => { show(v); patchWidget(w.id, { options: { bars: v } }, { debounce: true }); });
+      const [r, val, show] = mkRange(12, 512, 4, o.bars ?? 48, v => { show(v); patchWidget(w.id, { options: { bars: v } }, { debounce: true }); });
       val.textContent = o.bars ?? 48;
       wrap.appendChild(ctlRow('バーの本数', r, val));
     }
@@ -1466,7 +1466,7 @@ function typeOptionsUI(w) {
         }
       })();
     }
-    wrap.appendChild(noteEl('システム音声に反応するスペクトラムです。音が鳴っている間だけ描画し、静かなときは止まります。初回はキャプチャ開始まで数秒かかることがあります。'));
+    wrap.appendChild(noteEl('システム音声に反応するスペクトラムです。左が低音、右が高音で、音の高さに合わせて位置が動きます。バーは 512 本まで増やせます (増やすほど隙間が詰まります)。音が鳴っている間だけ描画し、静かなときは止まります。初回はキャプチャ開始まで数秒かかることがあります。'));
 
   } else if (w.type === 'zone') {
     {
