@@ -67,5 +67,17 @@ eq('重ねている間は隠れる', wpOf(effective()), '配信の壁紙');
 fg = '';
 eq('剥がれたら手で変えた壁紙が戻る', wpOf(effective()), '手で変えた壁紙');
 
+// 8. 手動オンと条件は同時に持てない (起動時の掃除と同じ規則)。
+//    両方立っていた古い設定は、条件が主になる
+{
+  const l = { name: 'X', on: true, trigger: { type: 'app', apps: ['chrome.exe'] } };
+  if (l.trigger && l.on) l.on = false;      // main.js の起動時掃除と同じ式
+  fg = '';
+  cfg.settings.iconLayouts = [l];
+  eq('掃除後: 条件が外れていれば効かない', activeModes().length, 0);
+  fg = 'chrome.exe';
+  eq('掃除後: 条件が合えば効く', activeModes().length, 1);
+}
+
 console.log(fail ? `\n${fail} 件失敗 / ${pass + fail} 件` : `全 ${pass} 件 PASS`);
 process.exit(fail ? 1 : 0);

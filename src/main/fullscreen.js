@@ -125,14 +125,14 @@ function onWinEvent(_hook, event) {
   debounceTimer = setTimeout(() => check(), 250);
 }
 
-function start(getMonitors) {
+function start(getMonitors, intervalMs = 5000) {
   getMonitorsFn = getMonitors;
   if (!hook) {
     hookCb = koffi.register(onWinEvent, koffi.pointer(WinEventProc));
     hook = num(SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MOVESIZEEND, 0, hookCb, 0, 0, WINEVENT_OUTOFCONTEXT));
   }
   // フックの取りこぼし (F11 のボーダーレス化など) を 5 秒毎に補完
-  heartbeat.register('fullscreen', 5000, check, true);
+  heartbeat.register('fullscreen', intervalMs, check, true);
 }
 
 function stop() {

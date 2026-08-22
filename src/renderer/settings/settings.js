@@ -167,7 +167,12 @@ const JA_EN = {
   'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
     'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モード切替ボタン': 'Mode switch button',
-  '重ね': 'Overlay', '効いています': 'active',
+  '重ね': 'Overlay', '効いています': 'active', 'このモードの動作': 'This mode',
+  'オフ': 'Off', '常に効かせる': 'Always on',
+  '条件: アプリが前面のとき': 'When an app is in front', '条件: 全画面のアプリがあるとき': 'When an app is fullscreen',
+  '条件: バッテリー駆動のとき': 'When on battery', '条件: 時間帯': 'During a time of day',
+  'いまモード「{n}」が効いていて、その壁紙が上に重なっています。ここで変えた内容は土台に保存され、モードが外れたときに表示されます。':
+    'Mode "{n}" is active and its wallpaper is layered on top. Changes made here are saved to the base and appear when the mode turns off.',
   '壁紙を覚えています': 'remembers a wallpaper', '壁紙は覚えていません': 'no wallpaper remembered',
   'このモードを今すぐ効かせる': 'Turn this mode on now', '壁紙も覚える': 'Remember the wallpaper too',
   'いまの壁紙を覚えました': 'Current wallpaper remembered', '壁紙を忘れました': 'Wallpaper forgotten',
@@ -715,6 +720,23 @@ $('#cb-save').addEventListener('click', () => {
 });
 
 function renderWallpaperTab() {
+  {
+    const note = document.getElementById('wp-overlay-note') || (() => {
+      const el = document.createElement('p');
+      el.id = 'wp-overlay-note';
+      el.className = 'foot-note warn';
+      const host = document.querySelector('#tab-wallpaper h1');
+      if (host) host.after(el);
+      return el;
+    })();
+    if (activeModeNames.length) {
+      note.style.display = '';
+      note.textContent = T('いまモード「{n}」が効いていて、その壁紙が上に重なっています。ここで変えた内容は土台に保存され、モードが外れたときに表示されます。')
+        .replace('{n}', activeModeNames.join('・'));
+    } else {
+      note.style.display = 'none';
+    }
+  }
   renderTargetChips();
   renderPresets();
   renderLivePreview();
@@ -2942,38 +2964,39 @@ function icModeCard(snap, allNames) {
   // --- 重ね (このモードが効いている間だけ、上に乗るもの) ---
   body.appendChild(mkSubHead(T('重ね'), snap.hasWallpaper ? T('壁紙を覚えています') : T('壁紙は覚えていません')));
 
-  const ovRow = document.createElement('div');
-  ovRow.className = 'ic-mode-tools';
-  ovRow.appendChild(mkCheck('このモードを今すぐ効かせる', !!snap.on, async (v) => {
-    await window.api.setIconModeOn(snap.name, v);
-    renderIconLayouts();
-  }));
-  ovRow.appendChild(mkCheck('壁紙も覚える', !!snap.hasWallpaper, async (v) => {
-    const r = await window.api.setIconWallpaper(snap.name, v);
-    icStatus(r.ok ? (v ? T('いまの壁紙を覚えました') : T('壁紙を忘れました')) : r.msg);
-    renderIconLayouts();
-  }));
-  body.appendChild(ovRow);
-
-  // 自動で効く条件
+  // 状態はひとつだけ選ぶ: オフ / 常に効かせる / 条件で効かせる。
+  // 以前は「今すぐ効かせる」と「条件」を同時に立てられ、手動オンが常に勝つため
+  // 条件を変えても何も起きなかった。選択肢を 1 本にして矛盾を作れなくする
   const trg = snap.trigger || null;
+  const stateNow = trg ? 'auto' : (snap.on ? 'always' : 'off');
   const trRow = document.createElement('div');
   trRow.className = 'ic-mode-tools';
-  trRow.appendChild(mkLabelSpan('自動で効く条件'));
+  trRow.appendChild(mkLabelSpan('このモードの動作'));
   const setTrigger = async (t) => {
     await window.api.setIconTrigger(snap.name, t);
     renderIconLayouts();
   };
   trRow.appendChild(mkSelect(
-    [['', 'なし (手動だけ)'], ['app', 'アプリが前面'], ['fullscreen', '全画面のアプリがある'],
-     ['battery', 'バッテリー駆動'], ['time', '時間帯']],
-    (trg && trg.type) || '',
-    (v) => {
-      if (!v) return setTrigger(null);
-      if (v === 'app') return setTrigger({ type: 'app', apps: (trg && trg.apps) || [] });
-      if (v === 'time') return setTrigger({ type: 'time', from: (trg && trg.from) || '22:00', to: (trg && trg.to) || '06:00' });
-      return setTrigger({ type: v });
+    [['off', 'オフ'], ['always', '常に効かせる'],
+     ['app', '条件: アプリが前面のとき'], ['fullscreen', '条件: 全画面のアプリがあるとき'],
+     ['battery', '条件: バッテリー駆動のとき'], ['time', '条件: 時間帯']],
+    stateNow === 'auto' ? trg.type : stateNow,
+    async (v) => {
+      if (v === 'off') { await window.api.setIconTrigger(snap.name, null); await window.api.setIconModeOn(snap.name, false); }
+      else if (v === 'always') { await window.api.setIconTrigger(snap.name, null); await window.api.setIconModeOn(snap.name, true); }
+      else {
+        await window.api.setIconModeOn(snap.name, false);
+        if (v === 'app') await window.api.setIconTrigger(snap.name, { type: 'app', apps: (trg && trg.apps) || [] });
+        else if (v === 'time') await window.api.setIconTrigger(snap.name, { type: 'time', from: (trg && trg.from) || '22:00', to: (trg && trg.to) || '06:00' });
+        else await window.api.setIconTrigger(snap.name, { type: v });
+      }
+      renderIconLayouts();
     }));
+  trRow.appendChild(mkCheck('壁紙も覚える', !!snap.hasWallpaper, async (v) => {
+    const r = await window.api.setIconWallpaper(snap.name, v);
+    icStatus(r.ok ? (v ? T('いまの壁紙を覚えました') : T('壁紙を忘れました')) : r.msg);
+    renderIconLayouts();
+  }));
   body.appendChild(trRow);
 
   if (trg && trg.type === 'app') {

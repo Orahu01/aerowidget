@@ -822,9 +822,17 @@ function syncServices() {
   if (wantBuiltin) stats.start();
   else stats.stop();
 
-  // フルスクリーン検知 (省電力)
-  if (c.settings.pauseOnFullscreen && !process.env.WW_NO_FS) {
-    fullscreen.start(() => displayPairs.map(p => ({ index: p.index, native: p.native })));
+  // フルスクリーン / 前面アプリの監視。
+  // 省電力 (全画面で停止) だけでなく、条件付きモードとシーンもこの監視に乗っている。
+  // 以前は省電力がオフだと監視ごと止まり、条件が一切効かなかった
+  const hasModeTriggers = (c.settings.iconLayouts || []).some(l => l.trigger);
+  const hasSceneRules = !!(c.settings.scenes && c.settings.scenes.enabled && (c.settings.scenes.rules || []).length);
+  const needWatch = (c.settings.pauseOnFullscreen || hasModeTriggers || hasSceneRules) && !process.env.WW_NO_FS;
+  if (needWatch) {
+    // アプリ条件があるときは切り替えの体感を優先して短めに見る
+    const hasAppCond = (c.settings.iconLayouts || []).some(l => l.trigger && l.trigger.type === 'app')
+      || (hasSceneRules && (c.settings.scenes.rules || []).some(r => r.trigger && r.trigger.type === 'app'));
+    fullscreen.start(() => displayPairs.map(p => ({ index: p.index, native: p.native })), hasAppCond ? 2000 : 5000);
   } else {
     fullscreen.stop();
   }
@@ -1183,6 +1191,15 @@ function onReady() {
 
   rebuildWallWindows();
 
+  // モードの状態はどちらか一方だけ: 「常に効かせる (on)」か「条件で効かせる (trigger)」。
+  // 両方立っていると手動オンが常に勝ち、条件を変えても何も起きず
+  // 「条件が効かない」ようにしか見えない。条件がある方を残す
+  config.update(c => {
+    for (const l of (c.settings.iconLayouts || [])) {
+      if (l.trigger && l.on) l.on = false;
+    }
+  });
+
   // 既存ウィジェットに、再起動でも変わらないモニタの鍵を覚えさせる。
   // 5.9.18 が書いた displayId は再起動で無効になるため、ここで鍵へ移行する。
   // 対応するモニタが見つからない displayId は捨てる (残すと永久に非表示になる)
@@ -1270,6 +1287,8 @@ function onReady() {
   fullscreen.on('change', (index, paused) => {
     scenes.setFullscreen(index, paused);
     if (editMode) return;
+    // 監視は条件付きモードのためにも回る。壁紙を止めるのは省電力がオンのときだけ
+    if (!config.get().settings.pauseOnFullscreen) return;
     const win = wallWins.get(index);
     if (win && !win.isDestroyed()) win.webContents.send('power', { paused });
   });
