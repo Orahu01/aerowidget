@@ -79,5 +79,53 @@ eq('剥がれたら手で変えた壁紙が戻る', wpOf(effective()), '手で�
   eq('掃除後: 条件が合えば効く', activeModes().length, 1);
 }
 
+// 9. ウィジェット表示の合成: 覚えているモードが効いている間だけ表示が変わり、
+//    土台の off (手動のしまう) はモードが外れれば戻る
+{
+  fg = '';
+  cfg = makeCfg();
+  cfg.widgets = [{ id: 'a', off: false }, { id: 'b', off: false }, { id: 'c', off: true }];
+  cfg.settings.iconLayouts = [
+    { name: 'ゲーム', trigger: { type: 'app', apps: ['game.exe'] }, linkWidgets: true, widgetsOn: ['a'] },
+  ];
+  const effW = () => {
+    const act = activeModes();
+    const wv = act.find(m => m.linkWidgets && (m.widgetsOn || []).length);
+    if (!wv) return cfg.widgets.map(w => !w.off);
+    const show = new Set(wv.widgetsOn);
+    return cfg.widgets.map(w => show.has(w.id));
+  };
+  eq('通常時: 土台の表示どおり', effW(), [true, true, false]);
+  fg = 'game.exe';
+  eq('モード中: a だけ表示', effW(), [true, false, false]);
+  fg = '';
+  eq('外れたら土台へ戻る (c は隠れたまま)', effW(), [true, true, false]);
+  eq('土台の off は書き換わっていない', cfg.widgets.map(w => !!w.off), [false, false, true]);
+}
+
+// 10. 手動オンの排他: 同じものを覚えるモードをオンにしたら、前のはオフ + 名前を知らせる
+{
+  const list = [
+    { name: 'A', on: true, wallpapers: { x: 1 } },
+    { name: 'B', on: false, wallpapers: { x: 2 } },
+    { name: 'C', on: true, linkWidgets: true, widgetsOn: ['w1'] },
+  ];
+  // main.js の setModeOn と同じ規則
+  const setOn = (name) => {
+    const me = list.find(l => l.name === name);
+    me.on = true; me.trigger = null;
+    const turnedOff = [];
+    const iWp = !!me.wallpapers, iWv = !!(me.linkWidgets && (me.widgetsOn || []).length);
+    for (const l of list) {
+      if (l === me || l.on !== true) continue;
+      const oWp = !!l.wallpapers, oWv = !!(l.linkWidgets && (l.widgetsOn || []).length);
+      if ((iWp && oWp) || (iWv && oWv)) { l.on = false; turnedOff.push(l.name); }
+    }
+    return turnedOff;
+  };
+  eq('B をオン -> 壁紙が競合する A だけオフ', setOn('B'), ['A']);
+  eq('C は残る (ウィジェットは競合しない)', list.find(l => l.name === 'C').on, true);
+}
+
 console.log(fail ? `\n${fail} 件失敗 / ${pass + fail} 件` : `全 ${pass} 件 PASS`);
 process.exit(fail ? 1 : 0);

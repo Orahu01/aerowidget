@@ -12,8 +12,7 @@ let current = '';    // いま当たっているもの
 
 // 何を切り替えるか。'icons' ならデスクトップアイコンのモード
 function target() {
-  if (widget && widget.type === 'modeswitch') return 'icons';   // モード切替ボタンは常にアイコンのモード
-  return ((widget && widget.options && widget.options.target) === 'icons') ? 'icons' : 'layout';
+  return 'icons';   // 統合後はどちらのボタンもモードを切り替える
 }
 const SRC = {
   layout: { list: () => window.fw.listLayouts(), now: () => window.fw.currentLayout(),

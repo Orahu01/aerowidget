@@ -167,7 +167,10 @@ const JA_EN = {
   'デスクトップの「アイコンの自動整列」がオンになっています。オンの間は、隠したり位置を戻したりしても Windows がすぐ並べ直してしまいます。デスクトップを右クリック → 表示 → 「アイコンの自動整列」をオフにしてください。':
     'Windows "Auto arrange icons" is ON, so anything this page does gets rearranged immediately. Right-click the desktop → View → turn off "Auto arrange icons".',
   'モード切替ボタン': 'Mode switch button',
-  '重ね': 'Overlay', '効いています': 'active', 'このモードの動作': 'This mode',
+  'モード': 'Modes', '重ね': 'Overlay', '効いています': 'active', 'このモードの動作': 'This mode',
+  '「{a}」をオンにしたので「{b}」をオフにしました': 'Turned off "{b}" because "{a}" was turned on',
+  'シーンとレイアウトプリセットは「アイコン」のモードに統合されました。壁紙・ウィジェットの表示・アイコンをモードごとに覚えて、手動または条件 (アプリが前面など) で切り替えられます。これまでのプリセットとルールは自動でモードに変換済みです。':
+    'Scenes and layout presets have been merged into Modes on the Icons page. A mode remembers the wallpaper, which widgets are shown, and the icon arrangement, switched manually or by a condition. Your existing presets and rules were converted automatically.',
   'オフ': 'Off', '常に効かせる': 'Always on',
   '条件: アプリが前面のとき': 'When an app is in front', '条件: 全画面のアプリがあるとき': 'When an app is fullscreen',
   '条件: バッテリー駆動のとき': 'When on battery', '条件: 時間帯': 'During a time of day',
@@ -1391,13 +1394,7 @@ function typeOptionsUI(w) {
     wrap.appendChild(noteEl('タイムゾーン名の例: Asia/Tokyo ・ America/New_York ・ America/Los_Angeles ・ Europe/London ・ Europe/Paris ・ Australia/Sydney'));
 
   } else if (w.type === 'switcher' || w.type === 'modeswitch') {
-    const forIcons = w.type === 'modeswitch' || o.target === 'icons';
-    if (w.type === 'switcher') {
-      wrap.appendChild(ctlRow('切り替えるもの', mkSelect(
-        [['layout', 'レイアウト'], ['icons', 'アイコンのモード']],
-        forIcons ? 'icons' : 'layout',
-        v => { patchWidget(w.id, { options: { target: v } }); renderWidgetList(); })));
-    }
+    const forIcons = true;   // 統合後はどちらのボタンもモードを切り替える
     wrap.appendChild(ctlRow(forIcons ? '並べるモード' : '並べるレイアウト', mkText((o.items || []).join(', '),
       '空欄 = 保存済みすべて / 例: 通常, 仕事用, ゲーム用',
       v => patchWidget(w.id, { options: { items: v.split(',').map(x => x.trim()).filter(Boolean) } }))));
@@ -2488,6 +2485,17 @@ function scnLayoutSelect(value, onChange) {
 }
 
 function renderScenes() {
+  // シーンはモードへ統合された。タブには案内だけを出す
+  const tab = document.getElementById('tab-scenes');
+  if (tab && !tab.dataset.retired) {
+    tab.dataset.retired = '1';
+    tab.innerHTML = '<h1>' + T('シーン') + '</h1>'
+      + '<div class="group"><p class="foot-note">'
+      + T('シーンとレイアウトプリセットは「アイコン」のモードに統合されました。壁紙・ウィジェットの表示・アイコンをモードごとに覚えて、手動または条件 (アプリが前面など) で切り替えられます。これまでのプリセットとルールは自動でモードに変換済みです。')
+      + '</p></div>';
+  }
+  return;
+  // 以下は旧実装 (到達しない)
   const sc = scenesCfg();
   const on = $('#scn-on');
   if (!on) return;
@@ -2983,7 +2991,14 @@ function icModeCard(snap, allNames) {
     stateNow === 'auto' ? trg.type : stateNow,
     async (v) => {
       if (v === 'off') { await window.api.setIconTrigger(snap.name, null); await window.api.setIconModeOn(snap.name, false); }
-      else if (v === 'always') { await window.api.setIconTrigger(snap.name, null); await window.api.setIconModeOn(snap.name, true); }
+      else if (v === 'always') {
+        await window.api.setIconTrigger(snap.name, null);
+        const r = await window.api.setIconModeOn(snap.name, true);
+        // 排他は黙って裏でやらない。オフになったものを名指しで知らせる
+        if (r && r.turnedOff && r.turnedOff.length) {
+          toast(T('「{a}」をオンにしたので「{b}」をオフにしました').replace('{a}', snap.name).replace('{b}', r.turnedOff.join('」「')));
+        }
+      }
       else {
         await window.api.setIconModeOn(snap.name, false);
         if (v === 'app') await window.api.setIconTrigger(snap.name, { type: 'app', apps: (trg && trg.apps) || [] });
