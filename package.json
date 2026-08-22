@@ -1,6 +1,6 @@
 {
   "name": "aerowidget",
-  "version": "5.9.20",
+  "version": "5.9.21",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "PoohS",
@@ -14,6 +14,7 @@
     "appId": "com.orahu01.aerowidget",
     "productName": "AeroWidget",
     "compression": "maximum",
+    "afterPack": "scripts/afterPack.js",
     "publish": [
       {
         "provider": "github",

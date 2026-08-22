@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.20 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.21 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,24 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.21 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.21</div><div class="when">先行版・修正</div></div>
+    <div>
+      <h4>格子から円形へ切り替えた一回目だけ崩れる問題を修正しました</h4>
+      <ul>
+        <li>並べ方を変えると、<b>ウィンドウが大きくなる前に</b>中身を描いてしまい、古い (小さい) 大きさを基準に円を描いていました。だから一回目だけ左上に固まり、アイコンサイズを変えて描き直すと直っていました</li>
+        <li>箱の大きさが変わったら<b>自動で並べ直す</b>ようにしました。窓のリサイズが後から届いても崩れません</li>
+      </ul>
+      <h4>アプリのサイズを 26MB 減らしました</h4>
+      <ul>
+        <li>WebGPU 用のシェーダコンパイラ (dxcompiler.dll / dxil.dll) を配布物から外しました。<b>このアプリの描画は Canvas2D・CSS・動画だけ</b>で WebGPU を使わないため、まるごと不要でした</li>
+        <li>インストール後の容量は <b>307MB → 281MB</b> です。外した状態で起動・壁紙・ビジュアライザーが動くことを確認しています</li>
+        <li>なお残りの大半は Electron 本体 (215MB) で、ここから大きく削るには土台ごと作り替えるしかありません。更新のダウンロードは差分方式なので、毎回全部を落とすわけではありません</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.20 -->

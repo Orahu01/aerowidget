@@ -102,7 +102,25 @@ async function render() {
   }
 
   for (const it of items) grid.appendChild(itemButton(it, o, icon));
-  if (circle) placeCircle(items.length, icon, o.showLabels !== false);
+  if (circle) {
+    placeCircle(items.length, icon, o.showLabels !== false);
+    watchCircleBox();     // 窓のリサイズが後から来ても並べ直す
+  }
+}
+
+// 円形に切り替えた直後は、まだウィンドウが前の大きさのまま描画されることがある
+// (窓のリサイズは main が config の変更を受けてから行うので、描画の方が先に走る)。
+// 箱の大きさが変わったら並べ直す。これが無いと初回だけ左上に固まる
+let circleRO = null;
+function watchCircleBox() {
+  if (circleRO || typeof ResizeObserver !== 'function') return;
+  circleRO = new ResizeObserver(() => {
+    const o = (widget && widget.options) || {};
+    if (o.layout !== 'circle') return;
+    const n = (o.items || []).length;
+    if (n) placeCircle(n, o.iconSize || 34, o.showLabels !== false);
+  });
+  circleRO.observe(grid);
 }
 
 // 円形に並べる。半径は実際の箱の大きさから決めるので、
