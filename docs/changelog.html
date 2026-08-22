@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.17 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.18 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,20 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.18 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.18</div><div class="when">先行版・修正</div></div>
+    <div>
+      <h4>外したモニタのウィジェットがメインモニタに出てくる問題を修正しました</h4>
+      <ul>
+        <li>ウィジェットの居場所を<b>「何番目のモニタ」という番号</b>で覚えていたため、モニタを 1 台外すと番号が詰まって、外したモニタのウィジェットが別のモニタへ化けていました。対話ウィジェット (フォルダなど) は<b>メインモニタへ逃がす</b>作りにもなっていました</li>
+        <li>居場所を<b>モニタ固有の ID</b> で覚えるようにしました。つながっていないモニタのウィジェットは<b>どこにも表示せず</b>、つなぎ直すと自動で元のモニタに戻ります</li>
+        <li>設定のウィジェット一覧では、そのモニタが外れている間は<b>「未接続のモニタ (つないだら戻ります)」</b>と表示されます。別のモニタへ移すこともできます</li>
+        <li>既存のウィジェットには、起動時にいまのモニタの ID を一度だけ覚えさせます。設定の変更は不要です</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.17 -->

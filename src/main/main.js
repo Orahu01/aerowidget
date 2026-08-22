@@ -174,7 +174,7 @@ function createOverlayWindow(pair) {
   win.setVisibleOnAllWorkspaces(true);
 
   win.loadFile(RENDERER(path.join('wallpaper', 'index.html')),
-    { query: { display: String(pair.index), overlay: '1' } });
+    { query: { display: String(pair.index), did: pair.id, overlay: '1' } });
 
   win.once('ready-to-show', () => {
     if (win.isDestroyed()) return;
@@ -264,7 +264,7 @@ function createWallWindow(pair) {
     });
   }
 
-  win.loadFile(RENDERER(path.join('wallpaper', 'index.html')), { query: { display: String(pair.index) } });
+  win.loadFile(RENDERER(path.join('wallpaper', 'index.html')), { query: { display: String(pair.index), did: pair.id } });
 
   win.once('ready-to-show', () => {
     win.showInactive();
@@ -408,6 +408,13 @@ function resizeLocked(win, w, h) {
 
 // 配置キー: これが変わった時だけ再配置する。
 // (以前は設定のどんな変更でも SetParent + 収束ループが走り直し、サイズがふらつく原因だった)
+// ウィジェットの居場所のモニタ。displayId (固有 id) を優先し、無ければ従来の番号。
+// つながっていなければ null を返す — 勝手に別のモニタへ出さないことが大事
+function pairForWidget(w) {
+  if (w.displayId) return displayPairs.find(p => p.id === String(w.displayId)) || null;
+  return displayPairs.find(p => p.index === (w.display || 0)) || null;
+}
+
 function folderPlaceKey(w) {
   const dims = interDims(w);
   return JSON.stringify([w.display || 0, w.x, w.y, dims.w, dims.h]);
@@ -417,8 +424,8 @@ function placeFolder(id) {
   const win = folderWins.get(id);
   const widget = config.get().widgets.find(w => w.id === id);
   if (!win || win.isDestroyed() || !widget) return;
-  const pair = displayPairs.find(p => p.index === (widget.display || 0)) || displayPairs[0];
-  if (!pair) return;
+  const pair = pairForWidget(widget);
+  if (!pair) return;                       // そのモニタは今つながっていない
 
   // 対話ウィジェットはトップレベルのままなので、Electron の DIP 座標系で素直に配置できる。
   // (物理ピクセルで中心位置を決め、その左上を DIP に変換して setBounds に渡す)
@@ -465,7 +472,7 @@ function placeFolder(id) {
 }
 
 function syncFolders() {
-  const inters = config.get().widgets.filter(w => INTERACTIVE_TYPES.has(w.type) && !w.off);
+  const inters = config.get().widgets.filter(w => INTERACTIVE_TYPES.has(w.type) && !w.off && pairForWidget(w));
   for (const [id, win] of [...folderWins]) {
     if (!inters.find(w => w.id === id)) {
       try { attach.detach(getHwnd(win)); } catch (_) {}
@@ -578,7 +585,7 @@ function exitEditMode() {
     attachWall(idx);
   }
   placedKey.clear(); // 編集で位置が変わった可能性があるため全対話ウィジェットを配置し直す
-  for (const w of config.get().widgets.filter(x => INTERACTIVE_TYPES.has(x.type) && !x.off)) {
+  for (const w of config.get().widgets.filter(x => INTERACTIVE_TYPES.has(x.type) && !x.off && pairForWidget(x))) {
     const win = folderWins.get(w.id);
     if (win && !win.isDestroyed()) {
       win.showInactive();
@@ -1091,6 +1098,17 @@ function onReady() {
   });
 
   rebuildWallWindows();
+
+  // 既存ウィジェットに、いま居るモニタの固有 id を一度だけ覚えさせる。
+  // これまでの「番号」はモニタの抜き差しでずれるため、以後は id で追う
+  config.update(c => {
+    for (const w of (c.widgets || [])) {
+      if (w.displayId) continue;
+      const pair = displayPairs.find(p => p.index === (w.display || 0));
+      if (pair) w.displayId = pair.id;
+    }
+  });
+
   createTray();
   startWatchdog();
   syncServices();

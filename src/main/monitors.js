@@ -46,9 +46,11 @@ function pair(screen) {
   const nPrim = native.find(m => m.primary) || native[0] || { x: 0, y: 0, w: 1920, h: 1080, primary: true };
   const nRest = native.filter(m => m !== nPrim).sort((a, b) => a.x - b.x || a.y - b.y);
 
-  const out = [{ index: 0, display: prim, native: nPrim }];
+  // id はモニタ固有 (Electron が EDID 等から作る)。接続順が変わっても変わらないので、
+  // 「どのモニタのウィジェットか」はこの id で覚える (番号は表示用)
+  const out = [{ index: 0, display: prim, native: nPrim, id: String(prim.id) }];
   rest.forEach((d, i) => {
-    out.push({ index: i + 1, display: d, native: nRest[i] || nPrim });
+    out.push({ index: i + 1, display: d, native: nRest[i] || nPrim, id: String(d.id) });
   });
   return out;
 }
@@ -57,6 +59,7 @@ function pair(screen) {
 function describe(screen) {
   return pair(screen).map(p => ({
     index: p.index,
+    id: p.id,
     label: `モニタ${p.index + 1} (${p.native.w}×${p.native.h}${p.index === 0 ? '・メイン' : ''})`,
     primary: p.index === 0,
   }));

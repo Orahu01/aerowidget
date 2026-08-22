@@ -167,7 +167,8 @@ const JA_EN = {
   '切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。':
     'Hiding the switcher means you cannot press it in that mode (you can still switch back from settings).',
   '呼び名を付ける (デスクトップの名前は変わりません)': 'Give it a label (your desktop is not renamed)',
-  'モニタ': 'Monitor',
+  'モニタ': 'Monitor', '未接続のモニタ': 'Disconnected monitor',
+  '未接続のモニタ (つないだら戻ります)': 'Disconnected monitor (returns when reconnected)',
   'モード一覧を表示できませんでした: ': 'Could not show the mode list: ',
   '作成しました。開いて隠すアイコンを選んでください。': 'Created. Open it and tick the icons to hide.',
   '全部で ': 'Total ',
@@ -1633,6 +1634,12 @@ let widgetQuery = '';               // ウィジェットの絞り込み文字�
 // 名前を付ける鉛筆 (ウィジェットの見出しとアイコン一覧で共用)
 const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
 
+// そのウィジェットのモニタが、いま外れているか
+function orphanDisplay(w) {
+  if (!w.displayId) return false;
+  return !displays.some(d => String(d.id) === String(w.displayId));
+}
+
 function widgetCard(w) {
   const meta = TYPES[w.type] || { icon: 'i-widgets', label: w.type };
   const card = document.createElement('div');
@@ -1687,7 +1694,8 @@ function widgetCard(w) {
   sub.textContent = [
     w.name ? T(meta.label) : '',
     NO_FONT_TYPES.has(w.type) ? '' : `${w.font} ・ ${w.size}px`,
-    displays.length > 1 ? `${T('モニタ')}${(w.display || 0) + 1}` : '',
+    orphanDisplay(w) ? T('未接続のモニタ')
+      : (displays.length > 1 ? `${T('モニタ')}${(w.display || 0) + 1}` : ''),
   ].filter(Boolean).join(' ・ ');
   const spacer = document.createElement('span');
   spacer.className = 'wc-spacer';
@@ -1736,11 +1744,19 @@ function widgetCard(w) {
   grid.appendChild(ctlRow('呼び名', mkText(w.name, T(meta.label) + T(' (空欄なら種類名)'),
     v => { patchWidget(w.id, { name: v.trim().slice(0, 24) }); renderWidgetList(); })));
 
-  if (displays.length > 1) {
-    grid.appendChild(ctlRow('モニタ', mkSelect(
-      displays.map(d => [String(d.index), d.label]),
-      String(w.display || 0),
-      v => patchWidget(w.id, { display: +v }))));
+  if (displays.length > 1 || orphanDisplay(w)) {
+    const opts = displays.map(d => [String(d.index), d.label]);
+    let value = String(w.display || 0);
+    if (orphanDisplay(w)) {
+      opts.unshift(['__gone', T('未接続のモニタ (つないだら戻ります)')]);
+      value = '__gone';
+    }
+    grid.appendChild(ctlRow('モニタ', mkSelect(opts, value, v => {
+      if (v === '__gone') return;         // そのまま待つ選択
+      const d = displays.find(x => String(x.index) === v);
+      patchWidget(w.id, { display: +v, displayId: (d && d.id) || '' });
+      renderWidgetList();
+    })));
   }
 
   if (!NO_FONT_TYPES.has(w.type)) {
