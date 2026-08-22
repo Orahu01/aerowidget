@@ -787,6 +787,14 @@ function syncServices() {
     heartbeat.unregister('audiodev');
   }
 
+  // 隠すアイコンのあるモードが当たっている間だけ、逃げ戻り監視を回す
+  const curMode = (c.settings.iconLayouts || []).find(l => l.name === c.settings.currentIconMode);
+  if (curMode && (curMode.hidden || []).length) {
+    heartbeat.register('iconguard', 5000, iconGuardTick);
+  } else {
+    heartbeat.unregister('iconguard');
+  }
+
   // ディスク / ネットワーク情報
   sysinfo.sync(
     c.widgets.some(x => x.type === 'disk'),
@@ -2119,6 +2127,46 @@ function onDisplayChanged() {
       if (process.env.WW_DEBUG) console.error('[icons] 隠し直しに失敗:', e);
     }
   }, 5000);
+}
+
+// 隠しているモードの見張り。
+// アイコンを手で動かすと、explorer (混在 DPI の再計算) が死角に退避中の
+// アイコンまで画面へ引き戻すことがある。止める手段は無いので、
+// 「隠すはずなのに見えている」ものを見つけたら黙って隠し直す。
+// 見えているアイコンの位置には一切触らない。
+let iconGuardBackoffUntil = 0;
+let iconGuardLastSet = '';
+let iconGuardRepeat = 0;
+function iconGuardTick() {
+  const st = config.get().settings;
+  const mode = st.currentIconMode
+    ? (st.iconLayouts || []).find(l => l.name === st.currentIconMode) : null;
+  const hide = (mode && mode.hidden) || [];
+  if (!hide.length) return;                                  // 隠すモードが当たっていない
+  if (Date.now() - lastDisplayChangeAt < 6000) return;       // 構成変更中は専用処理に任せる
+  if (Date.now() < iconGuardBackoffUntil) return;
+  try {
+    if (icons.autoArrange()) return;                         // 自動整列と戦っても勝てない
+    const parked = new Set(icons.strandedNames() || []);
+    const escaped = hide.filter(n => !parked.has(n));
+    if (!escaped.length) { iconGuardRepeat = 0; return; }
+
+    // 同じ顔ぶれを連続で隠し直しているなら、explorer と喧嘩している。間を空ける
+    const key = escaped.slice().sort().join('|');
+    iconGuardRepeat = key === iconGuardLastSet ? iconGuardRepeat + 1 : 0;
+    iconGuardLastSet = key;
+    if (iconGuardRepeat >= 3) {
+      iconGuardBackoffUntil = Date.now() + 60000;
+      iconGuardRepeat = 0;
+      return;
+    }
+    const r = icons.apply([], escaped);
+    if (process.env.WW_DEBUG) {
+      console.log('[icons] 逃げてきた ' + ((r && r.hidden) || 0) + ' 個を隠し直した (' + escaped.slice(0, 3).join(', ') + (escaped.length > 3 ? ' …' : '') + ')');
+    }
+  } catch (e) {
+    if (process.env.WW_DEBUG) console.error('[icons] 見張りに失敗:', e);
+  }
 }
 
 // 切り替えボタンウィジェット: レイアウト名で切り替える
