@@ -154,9 +154,10 @@ function status() {
   return { lastTarget, foreground: state.foreground, fullscreen: state.fsMonitors.size > 0, onBattery: state.onBattery };
 }
 
-// モードの重ね: 条件が成立しているかだけを判定して返す (適用はしない)
-function matches(trigger) {
-  return trigger ? ruleMatches({ trigger }) : false;
+// モードの重ね: 条件が成立しているかだけを判定して返す (適用はしない)。
+// now は検査で時刻を差し込むためだけの引数 (本番は常に現在時刻)
+function matches(trigger, now = new Date()) {
+  return trigger ? ruleMatches({ trigger }, now) : false;
 }
 
 function watchModes(fn) { modeWatch = fn; }

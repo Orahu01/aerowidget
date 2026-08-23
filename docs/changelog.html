@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.31 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.32 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,24 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.32 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.32</div><div class="when">先行版・検査</div></div>
+    <div>
+      <h4>モードの条件判定の自動検査を追加しました</h4>
+      <ul>
+        <li>「22 時から 6 時まで」のような<b>日をまたぐ時間帯</b>や、曜日を絞ったときの
+          「前の日から続く朝」の判定は、間違っていても画面が静かにずれるだけでエラーになりません。
+          これまで検査が 1 つもありませんでした</li>
+        <li>時間帯・曜日・アプリ・全画面・バッテリーのすべてについて、
+          境界の分きざみまで含めて確かめる検査を追加しました</li>
+        <li>時刻の入力欄に「6:5」のような書き方をしたときにどう扱われるかも、
+          検査で固定しました (勝手に変わらないように)</li>
+        <li>検査は 132 項目から 166 項目になりました</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.31 -->
