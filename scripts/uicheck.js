@@ -118,11 +118,23 @@ const O = {
     if (w) { const { options, ...rest } = patch || {}; Object.assign(w, rest); if (options) Object.assign(w.options = w.options || {}, options); }
     return true;
   },
-  saveIcons: async (name) => {
+  saveIcons: async (name, hidden) => {
+    // 本物の saveIconSnapshot と同じ契約: 同名は「その場で上書き」(作成ではない)。
+    // 位置と hidden は入れ替わり、条件・壁紙・連動は持ち越す
     const clean = name || '無名';
-    if (!CFG.settings.iconLayouts.some(l => l.name === clean)) {
-      CFG.settings.iconLayouts.push({ name: clean, savedAt: 9, count: ICON_NAMES.length, hidden: [], linkWidgets: false, widgetsOn: [], hasWallpaper: false, trigger: null, on: false });
-    }
+    const idx = CFG.settings.iconLayouts.findIndex(l => l.name === clean);
+    const prev = idx >= 0 ? CFG.settings.iconLayouts[idx] : null;
+    const entry = {
+      name: clean, savedAt: 9, count: ICON_NAMES.length,
+      hidden: Array.isArray(hidden) ? hidden.filter(Boolean) : [],
+      linkWidgets: !!(prev && prev.linkWidgets),
+      widgetsOn: (prev && prev.widgetsOn) ? prev.widgetsOn.slice() : [],
+      hasWallpaper: !!(prev && prev.hasWallpaper),
+      trigger: (prev && prev.trigger) ? JSON.parse(JSON.stringify(prev.trigger)) : null,
+      on: !!(prev && prev.on),
+    };
+    if (idx >= 0) CFG.settings.iconLayouts[idx] = entry;
+    else CFG.settings.iconLayouts.push(entry);
     return { ok: true, count: ICON_NAMES.length, name: clean };
   },
   renameIconMode: async (from, to) => {
@@ -148,7 +160,15 @@ const O = {
   setIconModeOn: async (name, on) => {
     const l = CFG.settings.iconLayouts.find(x => x.name === name);
     if (l) { l.on = !!on; if (on) l.trigger = null; }
-    return { ok: true, on: !!on, turnedOff: [] };
+    // 本物の setModeOn と同じ排他: 他にオンのモードがあれば落として名指しで返す。
+    // 画面はこの名前をトーストに出す約束 (黙ってオフにしない)
+    const turnedOff = [];
+    if (on) {
+      for (const o of CFG.settings.iconLayouts) {
+        if (o !== l && o.on === true) { o.on = false; turnedOff.push(o.name); }
+      }
+    }
+    return { ok: true, on: !!on, turnedOff };
   },
   setIconWallpaper: async (name, remember) => {
     const l = CFG.settings.iconLayouts.find(x => x.name === name);
@@ -407,6 +427,58 @@ app.whenReady().then(async () => {
     [...document.querySelectorAll('#widget-list .btn')].find(b => b.textContent === 'リンクを追加').click();
     await sleep(400); return true;`);
   ok('リンク追加: items が更新される', await fired('"url":"https://github.com'));
+
+  // ================= 直したバグの再発防止 =================
+  // 17. 既存モードと同じ名前で「作成」しても、黙って上書きしない
+  await tab('icons');
+  await reset();
+  await step('同名作成', `
+    const i = await wf(() => document.getElementById('ic-name'));
+    i.value = 'モードB';
+    document.getElementById('ic-save').click();
+    await sleep(600); return true;`);
+  ok('同名作成: saveIcons を呼ばない', !(await fired('saveIcons("モードB"')));
+  ok('同名作成: 断りを出す', !!await step('断りの確認', `
+    const el = document.getElementById('ic-status');
+    return !!(el && el.textContent.includes('既にあります'));`));
+
+  // 18. 条件の値 (アプリ名・時刻) を書き換えても、入力欄が作り直されない。
+  //     作り直されると、隣の欄へタブ移動して入力中の打鍵が消える
+  await step('時間帯にする', inCard('モードA改', `
+    const sel = [...card.querySelectorAll('select')].find(x => [...x.options].some(o => o.value === 'always'));
+    sel.value = 'time'; sel.dispatchEvent(new Event('change'));
+    await sleep(700); return true;`));
+  await reset();
+  const keep = await step('時刻編集中のフォーカス', inCard('モードA改', `
+    const box = [...card.querySelectorAll('input[type=text]')].filter(i => i.placeholder === '22:00' || i.placeholder === '06:00');
+    if (box.length < 2) return { skip: '時刻欄なし', n: box.length };
+    const [from, to] = box;
+    from.value = '23:00';
+    to.dataset.p2 = '1';
+    to.focus();
+    from.dispatchEvent(new Event('change'));   // 「from を確定して to へタブ移動」の再現
+    await sleep(900);
+    const still = document.querySelector('[data-p2="1"]');
+    return { alive: !!still, focused: still === document.activeElement };`));
+  ok('時刻編集: 隣の入力欄が生き残る', !!(keep && keep.alive), keep);
+  ok('時刻編集: フォーカスも保つ', !!(keep && keep.focused), keep);
+  ok('時刻編集: setTrigger は飛ぶ', await fired('setIconTrigger("モードA改"'));
+
+  // 19. 排他の知らせが実際に画面へ出る (黙ってオフにしない約束)。
+  //     先に「モードB」を常にオンにしてから「モードA改」を常にオンにすると、
+  //     B が落ちるので、その名前がトーストに出るはず
+  await step('B を常にオン', inCard('モードB', `
+    const sel = [...card.querySelectorAll('select')].find(x => [...x.options].some(o => o.value === 'always'));
+    sel.value = 'always'; sel.dispatchEvent(new Event('change'));
+    await sleep(700); return true;`));
+  await reset();
+  await step('A改 を常にオン', inCard('モードA改', `
+    const sel = [...card.querySelectorAll('select')].find(x => [...x.options].some(o => o.value === 'always'));
+    sel.value = 'always'; sel.dispatchEvent(new Event('change'));
+    await sleep(800); return true;`));
+  ok('排他: オフにした名前を知らせる', !!await step('トーストの確認', `
+    const el = document.getElementById('toast');
+    return !!(el && el.textContent.includes('モードB') && el.textContent.includes('オフにしました'));`));
 
   // ================= 他タブが素で描けるか =================
   await tab('wallpaper');

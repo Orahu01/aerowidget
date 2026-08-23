@@ -117,7 +117,7 @@ function effectiveConfig() {
   const base = config.get();
   const act = activeModes();
   const wp = act.find(m => m.wallpapers);
-  const wv = act.find(m => m.linkWidgets && (m.widgetsOn || []).length);
+  const wv = act.find(m => m.linkWidgets);   // 空でも「全部隠す」という意思表示 (bug: 以前は空だと何もしなかった)
   if (!wp && !wv) return base;
   const out = { ...base };
   if (wp) out.wallpapers = JSON.parse(JSON.stringify(wp.wallpapers));
@@ -155,6 +155,11 @@ function refreshOverlay() {
   lastOverlayKey = key;
   if (process.env.WW_DEBUG) console.log('[modes] 重ねが変わった -> ' + activeModes().map(m => m.name).join(', '));
   try { broadcast('config', configEnvelope()); } catch (_) {}
+  // 壁紙レンダラは配られた config を描き直すだけで済むが、フォルダなどの対話ウィジェットは
+  // 別窓なので、重ねの結果 (off) に合わせて窓そのものを作る/消すところまでここでやる。
+  // 手動操作 (config.update 経由) は 'change' -> syncFolders で既に効いていたが、
+  // 条件トリガーだけの重ね直しはここを通らず、窓が古いまま残っていた
+  if (!editMode) { try { syncFolders(); } catch (_) {} }
 }
 
 function weatherWidget() {
@@ -1165,6 +1170,54 @@ function toggleWidgetsVisible() {
   }
 }
 
+// 一度だけ: レイアウトプリセットとシーンを「モード」へ統合し、矛盾した状態を掃除する。
+// onReady() だけでなく config:import / backup:restore の直後にも呼ぶ必要がある —
+// 呼ばないと、統合前の古い設定ファイルを読み込んだ瞬間だけ、退役させたはずの
+// シーンエンジンが (scenes.enabled: true のまま) その場限りで動き出してしまう
+function migrateModes() {
+  // レイアウトは壁紙+ウィジェット一式の写しだったので、
+  // 壁紙とウィジェットの表示だけをモードに引き継ぐ (位置は土台に一本化)。
+  // シーンのルールは、指していたレイアウトから作られたモードの条件になる
+  config.update(c => {
+    if (c.settings.modesUnified) return;
+    c.settings.modesUnified = true;
+    const modes = c.settings.iconLayouts || (c.settings.iconLayouts = []);
+    const skip = new Set(['シーン切替前 (自動)', '適用前の構成 (自動)', 'テーマ適用前 (自動)']);
+    for (const lay of (c.settings.layouts || [])) {
+      if (!lay || !lay.name || skip.has(lay.name)) continue;
+      if (modes.some(m => m.name === lay.name)) continue;
+      const ids = new Set((lay.widgets || []).map(w => w.id));
+      modes.push({
+        name: lay.name, savedAt: Date.now(), icons: [], hidden: [],
+        wallpapers: lay.wallpapers ? JSON.parse(JSON.stringify(lay.wallpapers)) : null,
+        linkWidgets: (c.widgets || []).some(w => !ids.has(w.id)),
+        widgetsOn: (c.widgets || []).filter(w => ids.has(w.id)).map(w => w.id),
+        trigger: null, on: false,
+      });
+    }
+    const sc = c.settings.scenes || {};
+    // マスタースイッチや個々のルールを切ってあったなら、その無効化ごと引き継ぐ。
+    // 無視して移すと、ユーザーが止めたはずの自動切り替えが更新後に勝手に復活する
+    if (sc.enabled) {
+      for (const r of (sc.rules || [])) {
+        if (!r || r.enabled === false || !r.trigger || !r.layout) continue;
+        const m = modes.find(x => x.name === r.layout);
+        if (m && !m.trigger) { m.trigger = JSON.parse(JSON.stringify(r.trigger)); m.on = false; }
+      }
+    }
+    sc.enabled = false;                       // シーンは役目を終える (データは残す)
+  });
+
+  // モードの状態はどちらか一方だけ: 「常に効かせる (on)」か「条件で効かせる (trigger)」。
+  // 両方立っていると手動オンが常に勝ち、条件を変えても何も起きず
+  // 「条件が効かない」ようにしか見えない。条件がある方を残す
+  config.update(c => {
+    for (const l of (c.settings.iconLayouts || [])) {
+      if (l.trigger && l.on) l.on = false;
+    }
+  });
+}
+
 function onReady() {
   config.load();
 
@@ -1200,44 +1253,7 @@ function onReady() {
 
   rebuildWallWindows();
 
-  // 一度だけ: レイアウトプリセットとシーンを「モード」へ統合する。
-  // レイアウトは壁紙+ウィジェット一式の写しだったので、
-  // 壁紙とウィジェットの表示だけをモードに引き継ぐ (位置は土台に一本化)。
-  // シーンのルールは、指していたレイアウトから作られたモードの条件になる
-  config.update(c => {
-    if (c.settings.modesUnified) return;
-    c.settings.modesUnified = true;
-    const modes = c.settings.iconLayouts || (c.settings.iconLayouts = []);
-    const skip = new Set(['シーン切替前 (自動)', '適用前の構成 (自動)', 'テーマ適用前 (自動)']);
-    for (const lay of (c.settings.layouts || [])) {
-      if (!lay || !lay.name || skip.has(lay.name)) continue;
-      if (modes.some(m => m.name === lay.name)) continue;
-      const ids = new Set((lay.widgets || []).map(w => w.id));
-      modes.push({
-        name: lay.name, savedAt: Date.now(), icons: [], hidden: [],
-        wallpapers: lay.wallpapers ? JSON.parse(JSON.stringify(lay.wallpapers)) : null,
-        linkWidgets: (c.widgets || []).some(w => !ids.has(w.id)),
-        widgetsOn: (c.widgets || []).filter(w => ids.has(w.id)).map(w => w.id),
-        trigger: null, on: false,
-      });
-    }
-    const sc = c.settings.scenes || {};
-    for (const r of (sc.rules || [])) {
-      if (!r || !r.trigger || !r.layout) continue;
-      const m = modes.find(x => x.name === r.layout);
-      if (m && !m.trigger) { m.trigger = JSON.parse(JSON.stringify(r.trigger)); m.on = false; }
-    }
-    sc.enabled = false;                       // シーンは役目を終える (データは残す)
-  });
-
-  // モードの状態はどちらか一方だけ: 「常に効かせる (on)」か「条件で効かせる (trigger)」。
-  // 両方立っていると手動オンが常に勝ち、条件を変えても何も起きず
-  // 「条件が効かない」ようにしか見えない。条件がある方を残す
-  config.update(c => {
-    for (const l of (c.settings.iconLayouts || [])) {
-      if (l.trigger && l.on) l.on = false;
-    }
-  });
+  migrateModes();
 
   // 既存ウィジェットに、再起動でも変わらないモニタの鍵を覚えさせる。
   // 5.9.18 が書いた displayId は再起動で無効になるため、ここで鍵へ移行する。
@@ -1366,6 +1382,17 @@ function onReady() {
         const st = config.get().settings;
         const modes = st.iconLayouts || [];
 
+        // 別ケース: シーンのマスタースイッチが切ってあるとき、
+        // ルールが 1 つも条件へ移行されないこと (無効化した自動化が復活しない)
+        if (process.env.WW_SELFTEST_CASE === 'scenes-disabled') {
+          chk('無効なシーンのルールは条件にならない', modes.every(m => !m.trigger),
+            modes.map(m => m.name + ':' + JSON.stringify(m.trigger)));
+          chk('シーンは無効のまま', !(st.scenes && st.scenes.enabled));
+          console.log(stFail ? `SELFTEST: ${stFail} 件失敗 / ${stPass + stFail} 件` : `SELFTEST: 全 ${stPass} 件 PASS`);
+          app.exit(stFail ? 1 : 0);
+          return;
+        }
+
         // 1. マイグレーション: 印・プリセットの変換・シーンの引退
         chk('統合の印が立つ', st.modesUnified === true);
         const day = modes.find(m => m.name === '昼プリセット');
@@ -1409,6 +1436,69 @@ function onReady() {
 
         // 7. 窓が実際に立っている
         chk('壁紙の窓がある', wallWins.size >= 1, wallWins.size);
+
+        // 8. 移行はシーン・ルールの無効化ごと引き継ぐ
+        //    (無効ルールが先頭にあっても、有効ルールの条件が勝つ)
+        chk('無効なルールに条件枠を奪われない',
+          !!(day && day.trigger && day.trigger.type === 'app'), day && day.trigger);
+
+        // 9. ウィジェット表示が「ひとつも選んでいない」= 全部隠す
+        //    (以前は空だと合成に乗らず、何も起きなかった)
+        setModeOn('壁紙モードA', false);
+        config.update(c => {
+          const m = (c.settings.iconLayouts || []).find(x => x.name === '壁紙モードA');
+          if (m) m.widgetsOn = [];
+        });
+        setModeOn('壁紙モードA', true);
+        chk('空選択のモードは全部隠す', effectiveConfig().widgets.every(w => w.off),
+          effectiveConfig().widgets.map(w => w.id + ':' + (w.off ? 'off' : 'on')));
+        chk('土台のウィジェットは隠れない', config.get().widgets.every(w => !w.off));
+
+        // 10. その状態でウィジェットを足しても、隠れっぱなしにならない…わけではない。
+        //     「全部隠す」モードには足さない (それが意思表示なので) が、
+        //     選択があるモードには足して「追加したのに出ない」を防ぐ
+        config.update(c => {
+          const m = (c.settings.iconLayouts || []).find(x => x.name === '壁紙モードA');
+          if (m) m.widgetsOn = ['w1'];
+        });
+        const added = addWidget('clock');
+        const aMode = (config.get().settings.iconLayouts || []).find(x => x.name === '壁紙モードA');
+        chk('追加したウィジェットは選択中のモードにも入る',
+          !!(added && aMode && (aMode.widgetsOn || []).includes(added.id)), aMode && aMode.widgetsOn);
+        chk('追加したウィジェットは合成でも出る',
+          !!effectiveConfig().widgets.find(w => w.id === added.id && !w.off));
+        setModeOn('壁紙モードA', false);
+
+        // 11. 名前の変更が、他の場所の参照もまとめて追いかける
+        const rn = renameIconMode('名前変更対象', '新しい名前');
+        chk('名前を変えられる', !!(rn && rn.ok), rn);
+        const stR = config.get().settings;
+        const swR = (config.get().widgets || []).find(w => w.id === 'w4');
+        chk('切り替えボタンの参照も追従する',
+          !!(swR && swR.options.items.includes('新しい名前') && !swR.options.items.includes('名前変更対象')),
+          swR && swR.options.items);
+        chk('名前変更後も同名モードは 1 つ',
+          (stR.iconLayouts || []).filter(l => l.name === '新しい名前').length === 1);
+
+        // 12. 削除が、宙に浮く参照を残さない
+        removeIconMode('削除対象');
+        const stD = config.get().settings;
+        const swD = (config.get().widgets || []).find(w => w.id === 'w4');
+        chk('削除したモードは消える', !(stD.iconLayouts || []).some(l => l.name === '削除対象'));
+        chk('自動復元の指定が外れる', stD.iconAutoRestore !== '削除対象', stD.iconAutoRestore);
+        chk('シーンの既定も外れる', !(stD.scenes && stD.scenes.defaultIcons === '削除対象'));
+        chk('シーンのルール参照も外れる',
+          !((stD.scenes && stD.scenes.rules) || []).some(r => r.icons === '削除対象'));
+        chk('切り替えボタンから消える', !!(swD && !swD.options.items.includes('削除対象')), swD && swD.options.items);
+
+        // 13. 「今のアイコンモード」は重ねではなく実際に適用した名前で決まる
+        //     (壁紙だけのモードが効いていても、それを今のアイコンモードとは呼ばない)
+        setModeOn('壁紙モードB', true);
+        config.update(c => { c.settings.currentIconMode = '新しい名前'; });
+        chk('今のアイコンモードは重ねに引きずられない',
+          (config.get().settings.currentIconMode) === '新しい名前');
+        setModeOn('壁紙モードB', false);
+        config.update(c => { c.settings.currentIconMode = ''; });
       } catch (err) {
         stFail++;
         console.log('SELFTEST FAIL: 例外 :: ' + (err && err.stack || err));
@@ -1480,14 +1570,21 @@ ipcMain.handle('custompreset:remove', (e, i) => config.update(c => {
   c.settings.customPresets.splice(i, 1);
 }));
 
-ipcMain.handle('widget:add', (e, type) => {
+function addWidget(type) {
   let created = null;
   config.update(c => {
     created = config.newWidget(type);
     c.widgets.push(created);
+    // 「特定のウィジェットだけ出す」モードが効いている間に追加すると、
+    // 重ねの対象外 (=隠れる) になって「追加したのに出ない」ように見える。
+    // 何も選んでいない (= 全部隠す意思表示の) モードは対象外にする
+    for (const l of (c.settings.iconLayouts || [])) {
+      if (l.linkWidgets && (l.widgetsOn || []).length) l.widgetsOn.push(created.id);
+    }
   });
   return created;
-});
+}
+ipcMain.handle('widget:add', (e, type) => addWidget(type));
 
 ipcMain.handle('widget:remove', (e, id) => config.update(c => {
   c.widgets = c.widgets.filter(w => w.id !== id);
@@ -1917,6 +2014,7 @@ ipcMain.handle('config:import', async () => {
     }
     placedKey.clear();
     config.replace(parsed, 'インポートの前');
+    migrateModes();
     return { ok: true, msg: 'インポートしました (元の設定はバックアップ済み)' };
   } catch (e) {
     return { ok: false, msg: '読み込みに失敗: ' + e.message };
@@ -1948,6 +2046,7 @@ ipcMain.handle('backup:restore', async (e, file) => {
     const parsed = backup.read(file);
     placedKey.clear();
     config.replace(parsed, '復元の前');
+    migrateModes();
     return { ok: true, msg: `${when} の状態に復元しました` };
   } catch (err) {
     return { ok: false, msg: '復元に失敗: ' + err.message };
@@ -2093,7 +2192,11 @@ function saveIconSnapshot(name, hidden) {
 
 // スナップを適用する共通処理。書き込む前に必ず今の並びを退避する。
 
-function applyIconSnapshot(name) {
+// activate: このモードを「オン」にする (条件を外し、排他を効かせる) かどうか。
+// 人がボタン/切り替えウィジェットを押したときだけ true にする。
+// モニタ構成変更などシステムが自動で当て直すときは false —
+// でないとユーザーが設定した条件が黙って消え、他のモードまで巻き添えでオフになる
+function applyIconSnapshot(name, activate = true) {
   const snap = (config.get().settings.iconLayouts || []).find(l => l.name === name);
   if (!snap) return { ok: false, msg: 'その配置が見つかりません' };
   rememberHome();                       // 隠す前の住所を控える
@@ -2104,7 +2207,7 @@ function applyIconSnapshot(name) {
     { origin: snap.origin, home: config.get().settings.iconHome || {} });
   if (!r) return { ok: false, msg: 'アイコンを操作できませんでした (デスクトップにアクセスできません)' };
   let turnedOff = [];
-  if (name !== ICON_BACKUP_NAME) {
+  if (name !== ICON_BACKUP_NAME && activate) {
     const t = setModeOn(name, true);
     turnedOff = (t && t.turnedOff) || [];
   }
@@ -2248,7 +2351,7 @@ ipcMain.handle('icons:reorder', (e, names) => {
   return { ok: true };
 });
 
-ipcMain.handle('icons:rename', (e, from, to) => {
+function renameIconMode(from, to) {
   const clean = String(to || '').trim().slice(0, 40);
   if (!clean) return { ok: false, msg: '名前を入れてください' };
   if (clean === ICON_BACKUP_NAME) return { ok: false, msg: 'その名前は使えません' };
@@ -2265,9 +2368,17 @@ ipcMain.handle('icons:rename', (e, from, to) => {
     const sc = cfg.settings.scenes || {};
     if (sc.defaultIcons === from) sc.defaultIcons = clean;
     for (const r of (sc.rules || [])) if (r.icons === from) r.icons = clean;
+    // 切り替えウィジェットはモード名を生の文字列で持っている。直さないと
+    // ボタンがそのまま消える (存在しない名前としてフィルタで落ちる)
+    for (const w of (cfg.widgets || [])) {
+      if ((w.type === 'switcher' || w.type === 'modeswitch') && w.options && Array.isArray(w.options.items)) {
+        w.options.items = w.options.items.map(n => (n === from ? clean : n));
+      }
+    }
   });
   return { ok: true, name: clean };
-});
+}
+ipcMain.handle('icons:rename', (e, from, to) => renameIconMode(from, to));
 
 // モードにウィジェットの表示状態を結び付ける
 ipcMain.handle('icons:setWidgets', (e, name, link, ids) => {
@@ -2362,11 +2473,11 @@ function setModeOn(name, on) {
     if (on) {
       me.trigger = null;                 // 手動オンにしたら条件は外す (排他)
       const iWp = !!me.wallpapers;
-      const iWv = !!(me.linkWidgets && (me.widgetsOn || []).length);
+      const iWv = !!me.linkWidgets;
       for (const l of list) {
         if (l === me || l.name === ICON_BACKUP_NAME || l.on !== true) continue;
         const oWp = !!l.wallpapers;
-        const oWv = !!(l.linkWidgets && (l.widgetsOn || []).length);
+        const oWv = !!l.linkWidgets;
         if ((iWp && oWp) || (iWv && oWv)) {
           l.on = false;
           turnedOff.push(l.name);
@@ -2423,13 +2534,25 @@ ipcMain.handle('icons:capacity', () => {
   try { return icons.hideCapacity(); } catch (_) { return 0; }
 });
 
-ipcMain.handle('icons:remove', (e, name) => {
+function removeIconMode(name) {
   config.update(cfg => {
     cfg.settings.iconLayouts = (cfg.settings.iconLayouts || []).filter(l => l.name !== name);
     if (cfg.settings.currentIconMode === name) cfg.settings.currentIconMode = '';
+    // rename と同じ参照をここでも掃除する。放置すると自動復元やシーンの跡地が
+    // 存在しない名前を指したまま黙って空振りし続ける (icons:rename 参照)
+    if (cfg.settings.iconAutoRestore === name) cfg.settings.iconAutoRestore = '';
+    const sc = cfg.settings.scenes || {};
+    if (sc.defaultIcons === name) sc.defaultIcons = '';
+    for (const r of (sc.rules || [])) if (r.icons === name) r.icons = '';
+    for (const w of (cfg.widgets || [])) {
+      if ((w.type === 'switcher' || w.type === 'modeswitch') && w.options && Array.isArray(w.options.items)) {
+        w.options.items = w.options.items.filter(n => n !== name);
+      }
+    }
   });
   return (config.get().settings.iconLayouts || []).map(l => ({ name: l.name, savedAt: l.savedAt, count: (l.icons || []).length }));
-});
+}
+ipcMain.handle('icons:remove', (e, name) => removeIconMode(name));
 
 // 解像度・モニタ構成が変わったとき。
 // Windows はこのとき画面外のアイコンを適当な場所へ引き戻すので、
@@ -2443,10 +2566,12 @@ function onDisplayChanged() {
   iconRestoreTimer = setTimeout(() => {
     const cur = config.get().settings;
     if (cur.iconAutoRestore) {
-      // ユーザーが明示的に選んだ配置へ戻す (従来どおりのオプトイン)
-      applyIconSnapshot(cur.iconAutoRestore);
-      if (process.env.WW_DEBUG) console.log('[icons] モニタ構成変更 -> "' + cur.iconAutoRestore + '" へ復元');
-      return;
+      // ユーザーが明示的に選んだ配置へ戻す (従来どおりのオプトイン)。
+      // これはシステムが勝手に行うので、条件やオンオフには一切触らない (activate: false)。
+      // 保存先の名前が消えている (モード削除済み) こともあるので、失敗したら下の隠し直しに続ける
+      const r = applyIconSnapshot(cur.iconAutoRestore, false);
+      if (process.env.WW_DEBUG) console.log('[icons] モニタ構成変更 -> "' + cur.iconAutoRestore + '" へ復元 ' + (r.ok ? 'OK' : ('失敗: ' + r.msg)));
+      if (r.ok) return;
     }
     // それ以外は勝手に並べ直さない。ただし Windows が退避中のアイコンを
     // 引き戻してしまうので、いまのモードが隠しているぶんだけは隠し直す。
@@ -2522,18 +2647,17 @@ ipcMain.handle('switcher:iconModes', () =>
   (config.get().settings.iconLayouts || [])
     .filter(l => l.name !== ICON_BACKUP_NAME).map(l => l.name));
 
-ipcMain.handle('switcher:currentIcons', () => {
-  const act = activeModes();
-  return act.length ? act[0].name : (config.get().settings.currentIconMode || '');
-});
+// 「今のアイコンモード」は重ねとは別物 (アイコンは人操作でしか動かない)。
+// activeModes() は壁紙・ウィジェット表示のための一覧で、アイコンを一切
+// 動かしていないモードも含まれる。currentIconMode = 最後に実際に適用した名前、それだけ
+ipcMain.handle('switcher:currentIcons', () => config.get().settings.currentIconMode || '');
 
 ipcMain.handle('switcher:applyIcons', (e, name) => {
-  // トグル式: すでにオンなら消すだけ。まだなら適用してオンにする
-  const me = (config.get().settings.iconLayouts || []).find(l => l.name === name);
-  if (me && me.on === true) {
-    setModeOn(name, false);
-    config.update(cfg => { if (cfg.settings.currentIconMode === name) cfg.settings.currentIconMode = ''; });
-    return true;
+  // トグル式: 今まさに適用中のものをもう一度押したら、当てる前の状態に戻す。
+  // まだなら適用する。旧実装は on フラグを消すだけでアイコンを物理的に
+  // 戻していなかったため、隠していたアイコンが保護されないまま隠れ続けた
+  if (config.get().settings.currentIconMode === name) {
+    return !!applyIconSnapshot(ICON_BACKUP_NAME).ok;
   }
   return !!applyIconSnapshot(name).ok;
 });

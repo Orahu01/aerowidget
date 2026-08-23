@@ -35,6 +35,7 @@ const PRESETS = {
 const WEEK_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
 let config = null;
+let baseCfg = null;   // env.base — 重ねで隠れていても編集中は触れるようにするため
 let systemWallpaper = '';
 let onlineWallpaper = null;    // {source, file} — オンライン壁紙の実体
 const weatherMap = new Map();  // "lat,lon" -> 天気+予報データ
@@ -124,8 +125,12 @@ function mine(w) {
 }
 
 function myWidgets() {
-  // off はしまってあるだけ。設定には残るが描かない
-  return (config.widgets || []).filter(w => !w.off && mine(w));
+  // 編集中は土台 (env.base) を見る。モードの重ねで隠れているだけのウィジェットや
+  // 追加した直後でどのモードの一覧にもまだ入っていないウィジェットも、
+  // 位置編集の対象にできないと「追加したのに触れない」ことになる。
+  // off (しまってある) だけは土台でも編集中でも変わらず描かない
+  const src = (editing && baseCfg) ? baseCfg : config;
+  return (src.widgets || []).filter(w => !w.off && mine(w));
 }
 
 function customCss(v) {
@@ -1425,6 +1430,7 @@ async function injectFonts() {
 
 function applyEnv(env) {
   config = env.config;
+  baseCfg = env.base || env.config;
   systemWallpaper = env.systemWallpaper || '';
   onlineWallpaper = env.onlineWallpaper || null;
   if (env.osLocale) osLocale = env.osLocale;
@@ -1526,6 +1532,11 @@ window.wall.onEditMode((v) => {
     sizeBadge.style.display = 'none';
     clearSelection();
     undoStack.length = 0;
+    // 編集中は土台基準で描いていたので、抜けたら重ねの結果に戻す。
+    // 位置を何も変えていなければ config の再配信が来ず、土台基準の見た目のまま
+    // 固まってしまうため、ここで明示的に描き直す
+    renderWidgets();
+    tick();
   } else {
     renderWidgets();
     tick();
@@ -1546,6 +1557,7 @@ window.wall.onPower(({ paused: p }) => {
 (async () => {
   const st = await window.wall.requestState();
   config = st.config;
+  baseCfg = st.base || st.config;
   systemWallpaper = st.systemWallpaper || '';
   onlineWallpaper = st.onlineWallpaper || null;
   hwData = st.hw;

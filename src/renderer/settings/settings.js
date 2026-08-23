@@ -139,10 +139,12 @@ const JA_EN = {
   'この内容で保存': 'Save this mode', 'このモードを適用': 'Apply this mode',
   '保存しました': 'Saved', '適用しました': 'Applied', '隠した: ': 'hidden: ',
   '今の並びを覚え直す': 'Re-capture positions', '今の並びを覚えました (': 'Positions captured (',
+  'その名前のモードは既にあります。開いて「今の並びを覚え直す」を使ってください。':
+    'A mode with that name already exists. Open it and use "Re-capture positions" instead.',
   'このモードを削除します: ': 'Delete this mode: ',
   'ひとつも選んでいません': 'nothing selected',
-  'ひとつも選んでいないので、このモードではウィジェットに触りません。':
-    'Nothing is selected, so this mode leaves widgets alone.',
+  'ひとつも選んでいないので、このモードが効いている間はウィジェットが全部隠れます。':
+    'Nothing is selected, so every widget is hidden while this mode is active.',
   'しまってあるウィジェット: ': 'Parked widgets: ',
   'ここへドラッグでも追加できます (複数まとめて OK)': 'Or drag files here (multiple at once is fine)',
   '{n} 個を追加しました': 'Added {n} item(s)',
@@ -2999,8 +3001,12 @@ function icModeCard(snap, allNames) {
   trRow.className = 'ic-mode-tools';
   trRow.appendChild(mkLabelSpan('このモードの動作'));
   const setTrigger = async (t) => {
+    // ここは type を変えない値の書き換えだけ (アプリ名・時刻)。表示は入力欄の値が
+    // そのまま正しいので、全体を作り直す必要はない — 作り直すとフォーカス中の
+    // 隣の欄 (from -> to へタブ移動して入力中など)を壊して打鍵を飲み込んでしまう。
+    // touch() で、この後の config 配信による自動再描画も少し待たせる
+    touch();
     await window.api.setIconTrigger(snap.name, t);
-    renderIconLayouts();
   };
   trRow.appendChild(mkSelect(
     [['off', 'オフ'], ['always', '常に効かせる'],
@@ -3008,6 +3014,7 @@ function icModeCard(snap, allNames) {
      ['battery', '条件: バッテリー駆動のとき'], ['time', '条件: 時間帯']],
     stateNow === 'auto' ? trg.type : stateNow,
     async (v) => {
+      touch();   // この直後に自分で再描画するので、配信経由の二重再描画は待たせる
       if (v === 'off') { await window.api.setIconTrigger(snap.name, null); await window.api.setIconModeOn(snap.name, false); }
       else if (v === 'always') {
         await window.api.setIconTrigger(snap.name, null);
@@ -3026,6 +3033,7 @@ function icModeCard(snap, allNames) {
       renderIconLayouts();
     }));
   trRow.appendChild(mkCheck('壁紙も覚える', !!snap.hasWallpaper, async (v) => {
+    touch();
     const r = await window.api.setIconWallpaper(snap.name, v);
     icStatus(r.ok ? (v ? T('いまの壁紙を覚えました') : T('壁紙を忘れました')) : r.msg);
     renderIconLayouts();
@@ -3208,7 +3216,7 @@ function icModeCard(snap, allNames) {
       }
       body.appendChild(wlist);
       // どちらの知らせもチェックのたびに出し入れする (作った時点の状態で固定しない)
-      noteNone = mkNote(T('ひとつも選んでいないので、このモードではウィジェットに触りません。'));
+      noteNone = mkNote(T('ひとつも選んでいないので、このモードが効いている間はウィジェットが全部隠れます。'));
       noteSwitcher = mkNote(T('切り替えボタンをしまうと、そのモードからは押せなくなります (設定画面からは戻せます)。'));
       body.append(noteNone, noteSwitcher);
     }
@@ -3404,11 +3412,23 @@ async function renderIconLayouts() {
 async function createIconMode() {
   const nameEl = $('#ic-name');
   try {
+    const name = nameEl.value.trim();
+    if (!name) { icStatus(T('名前を入れてください')); return; }
+    // 既にある名前なら黙って上書きしない。saveIcons は元々「同じ名前なら上書き」の
+    // 保存も兼ねているため (覚え直すボタンが使う)、ここで作成側だけ止める
+    if ((cfg.settings.iconLayouts || []).some(l => l.name === name)) {
+      icStatus(T('その名前のモードは既にあります。開いて「今の並びを覚え直す」を使ってください。'));
+      icOpenModes.add(name);
+      renderIconLayouts();
+      return;
+    }
     // 作った直後は何も隠していない状態。開いてチェックを入れて保存する
-    const r = await window.api.saveIcons(nameEl.value.trim(), []);
+    const r = await window.api.saveIcons(name, []);
     if (!r.ok) { icStatus(r.msg); return; }
     icStatus(T('作成しました。開いて隠すアイコンを選んでください。'));
     nameEl.value = '';
+    icDraft.delete(r.name);           // 同名事故がなくても、念のため古い下書きは残さない
+    icWDraft.delete(r.name);
     icOpenModes.add(r.name);          // 作ったら開いた状態で出す
     renderIconLayouts();
   } catch (err) {
