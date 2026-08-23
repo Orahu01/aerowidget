@@ -274,6 +274,10 @@ const JA_EN = {
   '天気予報 (時間別・週間)': 'Forecast (hourly / weekly)', '予定表 (カレンダー購読)': 'Agenda (ICS)', '世界時計': 'World clock',
   'バッテリー': 'Battery', 'ディスク空き容量': 'Disk space', 'ネットワーク情報': 'Network info', 'ビジュアライザー': 'Visualizer',
   'ゾーン (色分け枠)': 'Zone (colored frame)', 'ライン (線)': 'Line', 'フォルダ (アプリまとめ)': 'Folder (app launcher)',
+  'この画面の見た目': 'This window’s appearance', '明るさ': 'Brightness', 'ライト': 'Light', 'ダーク': 'Dark',
+  'アクセント色': 'Accent color',
+  'ARGB を選ぶと、ナビの帯やボタンの縁だけが虹色に流れ続けます。':
+    'Pick ARGB and just the edges — the nav bar and button borders — keep cycling through the rainbow.',
   'デスクトップ': 'Desktop', 'デスクトップアイコンを表示': 'Show desktop icons', '言語 / Language': 'Language',
   '自動 (OS に合わせる)': 'Auto (match OS)',
   'ホットキー': 'Hotkeys', 'グローバルホットキーを有効にする': 'Enable global hotkeys',
@@ -2193,7 +2197,42 @@ async function maybeShowWizard() {
 }
 
 // ---------------------------------------------------------------- 一般タブ
+// 明るさ・アクセント色の選択状態を、実際に効いている dataset に合わせて表示する。
+// クリックの配線 (wireAppearance) は起動時に一度だけ行う — renderGeneral は
+// onConfig のたびに呼ばれるので、そこで addEventListener すると押すたびに二重三重に発火する
+function syncAppearanceUI() {
+  const theme = document.documentElement.dataset.theme || 'light';
+  const accent = document.documentElement.dataset.accent || 'teal';
+  for (const b of document.querySelectorAll('#theme-mode-seg button')) {
+    b.classList.toggle('on', b.dataset.mode === theme);
+  }
+  for (const b of document.querySelectorAll('#accent-swatches button')) {
+    b.classList.toggle('on', b.dataset.accent === accent);
+  }
+}
+
+function wireAppearance() {
+  syncAppearanceUI();
+  const segEl = $('#theme-mode-seg');
+  const swEl = $('#accent-swatches');
+  segEl && segEl.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    document.documentElement.dataset.theme = b.dataset.mode;
+    syncAppearanceUI();
+    window.api.setSettings({ uiTheme: b.dataset.mode });
+  });
+  swEl && swEl.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    document.documentElement.dataset.accent = b.dataset.accent;
+    syncAppearanceUI();
+    window.api.setSettings({ uiAccent: b.dataset.accent });
+  });
+}
+
 async function renderGeneral() {
+  syncAppearanceUI();
   const a = await window.api.getAutostart();
   const chk = $('#autostart');
   chk.checked = a.enabled;
@@ -3757,6 +3796,7 @@ window.api.onFontsChanged(() => injectFonts());
     Object.assign(cb, clone(cfg.wallpapers.default.value));
   }
   applyI18n();
+  safeRender('appearance', () => wireAppearance());
   safeRender('add-row', () => renderAddRow());
   safeRender('wallpaper', () => renderWallpaperTab());
   safeRender('custom', () => renderCustomBuilder());

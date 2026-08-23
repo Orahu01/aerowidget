@@ -48,6 +48,8 @@ function defaults() {
       lhmUrl: 'http://127.0.0.1:8085/data.json',
       showDesktopIcons: true,      // 通常時にデスクトップアイコンを表示するか
       language: 'auto',            // 'auto' | 'ja' | 'en'
+      uiTheme: 'light',            // 設定画面自体の明暗: 'light' | 'dark'
+      uiAccent: 'teal',            // 設定画面のアクセント色: 'teal'|'red'|'orange'|'yellow'|'green'|'blue'|'purple'|'argb'
       onboarded: false,            // 初回ウィザードを完了したか
       artAccent: false,            // 再生中の曲の色をアクセントに反映
       allowPrerelease: false,      // 先行版 (奇数マイナー) を受け取るか

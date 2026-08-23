@@ -24,6 +24,31 @@
   --glass: rgba(255, 255, 255, .58);
 }
 
+/* ダーク (設定 > この画面の見た目)。html[data-theme="dark"] は起動時に main.js が
+   query 経由で、以後は theme-boot.js の代わりに JS が直接付け外しする */
+:root[data-theme="dark"] {
+  --bg0: #12160f;
+  --bg1: #1c231b;
+  --bg2: #242c22;
+  --bg3: #2e3729;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #eef1ea;
+  --dim: #a3ac9d;
+  --faint: #74806e;
+  --glass: rgba(28, 35, 26, .55);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 24px -18px rgba(0, 0, 0, .6);
+  --shadow-pop: 0 20px 48px -16px rgba(0, 0, 0, .65);
+}
+
+/* アクセント色 (設定 > この画面の見た目)。既定 (無指定 / teal) は :root のティールのまま */
+:root[data-accent="red"]    { --acc: #c8434b; --acc-dim: rgba(200, 67, 75, .10); }
+:root[data-accent="orange"] { --acc: #c9711f; --acc-dim: rgba(201, 113, 31, .11); }
+:root[data-accent="yellow"] { --acc: #a8860a; --acc-dim: rgba(168, 134, 10, .11); }
+:root[data-accent="green"]  { --acc: #3a8a4c; --acc-dim: rgba(58, 138, 76, .10); }
+:root[data-accent="blue"]   { --acc: #2b6fc9; --acc-dim: rgba(43, 111, 201, .10); }
+:root[data-accent="purple"] { --acc: #7a4fc9; --acc-dim: rgba(122, 79, 201, .10); }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body { height: 100%; }
@@ -38,6 +63,11 @@ body {
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
+  transition: background-color .15s ease;
+}
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(120% 150% at 8% -12%, #1c231b 0%, #171d15 45%, #10140d 100%);
 }
 
 button { font-family: inherit; color: inherit; }
@@ -111,6 +141,7 @@ button { font-family: inherit; color: inherit; }
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -137,6 +168,24 @@ button { font-family: inherit; color: inherit; }
 }
 .nav-item.active .ic { color: var(--acc); }
 
+/* ARGB: 単色が回るのではなく「縁」だけが虹色に流れ続ける。中身の色は普段どおり —
+   ケースファンやキーボードの縁光と同じ考え方。太さや位置は普段の -acc の縁と揃える */
+:root[data-accent="argb"] .nav-item.active { border-left-color: transparent; }
+:root[data-accent="argb"] .nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 3px;
+  background: linear-gradient(180deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a);
+  background-size: 100% 400%;
+  animation: argb-flow-v 3s linear infinite;
+}
+@keyframes argb-flow-v { to { background-position: 0 -400%; } }
+@keyframes argb-flow-h { to { background-position: 0 0, -400% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-accent="argb"] .nav-item.active::before,
+  :root[data-accent="argb"] .btn.primary,
+  :root[data-accent="argb"] #btn-edit-layout,
+  :root[data-accent="argb"] .ic-mode.is-now { animation: none; }
+}
+
 .side-spacer { flex: 1; }
 
 #btn-edit-layout {
@@ -158,6 +207,18 @@ button { font-family: inherit; color: inherit; }
 #btn-edit-layout:hover { filter: brightness(1.08); }
 #btn-edit-layout:active { transform: translateY(1px); }
 #btn-edit-layout .ic { stroke-width: 2; }
+
+:root[data-accent="argb"] #btn-edit-layout,
+:root[data-accent="argb"] .btn.primary {
+  color: var(--text);
+  box-shadow: none;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--bg1), var(--bg1)) padding-box,
+    linear-gradient(90deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a) border-box;
+  background-size: 100% 100%, 400% 100%;
+  animation: argb-flow-h 3s linear infinite;
+}
 
 .side-note {
   color: var(--faint);
@@ -398,6 +459,33 @@ input[type=color] {
 }
 .seg button:hover { color: var(--text); }
 .seg button.on { background: var(--bg3); color: var(--text); font-weight: 600; }
+
+/* アクセント色のスウォッチ選び (設定 > この画面の見た目) */
+.accent-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.accent-sw {
+  width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer;
+  padding: 0; position: relative; box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+  transition: transform .12s;
+}
+.accent-sw:hover { transform: scale(1.12); }
+.accent-sw.on::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid var(--sw-ring, var(--text)); opacity: .55;
+}
+.accent-sw[data-accent="teal"]   { background: #0f6e63; --sw-ring: #0f6e63; }
+.accent-sw[data-accent="red"]    { background: #c8434b; --sw-ring: #c8434b; }
+.accent-sw[data-accent="orange"] { background: #c9711f; --sw-ring: #c9711f; }
+.accent-sw[data-accent="yellow"] { background: #a8860a; --sw-ring: #a8860a; }
+.accent-sw[data-accent="green"]  { background: #3a8a4c; --sw-ring: #3a8a4c; }
+.accent-sw[data-accent="blue"]   { background: #2b6fc9; --sw-ring: #2b6fc9; }
+.accent-sw[data-accent="purple"] { background: #7a4fc9; --sw-ring: #7a4fc9; }
+.accent-sw-argb {
+  background: conic-gradient(from 0deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a);
+  animation: argb-swatch-spin 3.5s linear infinite;
+}
+.accent-sw-argb.on::after { border-color: #fff; opacity: .8; }
+@keyframes argb-swatch-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .accent-sw-argb { animation: none; } }
 
 /* チェックボックス */
 .chk-row { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 8px 0; }
@@ -1012,6 +1100,14 @@ input[type="text"].bad {
   border: 1px solid var(--acc); font-weight: 600;
 }
 .ic-mode.is-now { border-color: var(--acc); }
+:root[data-accent="argb"] .ic-mode.is-now {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--bg1), var(--bg1)) padding-box,
+    linear-gradient(180deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a) border-box;
+  background-size: 100% 100%, 100% 400%;
+  animation: argb-flow-v 3s linear infinite;
+}
 
 /* ---- 一時的な知らせ ---- */
 #toast {
@@ -1023,6 +1119,7 @@ input[type="text"].bad {
   opacity: 0; pointer-events: none; transition: opacity .16s, transform .16s;
   z-index: 60;
 }
+:root[data-theme="dark"] #toast { background: #3d4a38; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* 自動整列の警告 */

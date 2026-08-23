@@ -646,6 +646,51 @@ app.whenReady().then(async () => {
   await tab('general');
   ok('設定タブが描けた', !!await step('設定タブ', `return !!document.querySelector('#tab-general.active');`));
 
+  // ================= この画面の見た目 (明暗・アクセント色) =================
+  // 26. ダークへ切り替えると、html の dataset とトースト経由の保存の両方が動く
+  await reset();
+  const darkR = await step('ダークへ', `
+    const b = document.querySelector('#theme-mode-seg button[data-mode="dark"]');
+    b.click();
+    return { theme: document.documentElement.dataset.theme, on: b.classList.contains('on') };`);
+  ok('ダーク: html に反映される', !!(darkR && darkR.theme === 'dark'), darkR);
+  ok('ダーク: 選んだボタンが光る', !!(darkR && darkR.on), darkR);
+  ok('ダーク: setSettings が飛ぶ', await fired('setSettings({"uiTheme":"dark"}'));
+
+  // 27. ライトへ戻す (セグメントは排他で、片方だけ光る)
+  await reset();
+  const lightR = await step('ライトへ戻す', `
+    document.querySelector('#theme-mode-seg button[data-mode="light"]').click();
+    const seg = document.getElementById('theme-mode-seg');
+    return {
+      theme: document.documentElement.dataset.theme,
+      onCount: seg.querySelectorAll('button.on').length,
+    };`);
+  ok('ライトへ戻せる', !!(lightR && lightR.theme === 'light'), lightR);
+  ok('セグメントは常にどちらか 1 つだけ光る', lightR && lightR.onCount === 1, lightR);
+
+  // 28. アクセント色のスウォッチを選ぶと、html に反映され保存される
+  await reset();
+  const purpleR = await step('紫を選ぶ', `
+    const b = document.querySelector('.accent-sw[data-accent="purple"]');
+    b.click();
+    return { accent: document.documentElement.dataset.accent, on: b.classList.contains('on') };`);
+  ok('アクセント色: html に反映される', !!(purpleR && purpleR.accent === 'purple'), purpleR);
+  ok('アクセント色: 選んだスウォッチが光る', !!(purpleR && purpleR.on), purpleR);
+  ok('アクセント色: setSettings が飛ぶ', await fired('setSettings({"uiAccent":"purple"}'));
+
+  // 29. ARGB も選べて、他のスウォッチの光が消える (排他)
+  await reset();
+  const argbR = await step('ARGB を選ぶ', `
+    document.querySelector('.accent-sw-argb').click();
+    const wrap = document.getElementById('accent-swatches');
+    return {
+      accent: document.documentElement.dataset.accent,
+      onCount: wrap.querySelectorAll('button.on').length,
+    };`);
+  ok('ARGB を選べる', !!(argbR && argbR.accent === 'argb'), argbR);
+  ok('ARGB でも光るのは 1 つだけ', argbR && argbR.onCount === 1, argbR);
+
   // ================= 総合: レンダラ例外ゼロ =================
   ok('レンダラ例外ゼロ', pageErrors.length === 0, pageErrors.slice(0, 4));
 

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; font-src 'self' file:">
   <title>AeroWidget 設定</title>
+  <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -263,6 +264,35 @@
       <!-- ======== 一般 ======== -->
       <section class="tab" id="tab-general">
         <h1 data-i18n="gen.title">設定</h1>
+        <h2 data-i18n="gen.appearance">この画面の見た目</h2>
+        <div class="group">
+          <div class="row">
+            <label data-i18n="gen.brightness">明るさ</label>
+            <div class="ctl">
+              <div class="seg" id="theme-mode-seg">
+                <button type="button" data-mode="light" data-i18n="gen.light">ライト</button>
+                <button type="button" data-mode="dark" data-i18n="gen.dark">ダーク</button>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <label data-i18n="gen.accent">アクセント色</label>
+            <div class="ctl">
+              <div class="accent-swatches" id="accent-swatches">
+                <button type="button" class="accent-sw" data-accent="teal"></button>
+                <button type="button" class="accent-sw" data-accent="red"></button>
+                <button type="button" class="accent-sw" data-accent="orange"></button>
+                <button type="button" class="accent-sw" data-accent="yellow"></button>
+                <button type="button" class="accent-sw" data-accent="green"></button>
+                <button type="button" class="accent-sw" data-accent="blue"></button>
+                <button type="button" class="accent-sw" data-accent="purple"></button>
+                <button type="button" class="accent-sw accent-sw-argb" data-accent="argb"></button>
+              </div>
+            </div>
+          </div>
+          <p class="foot-note" data-i18n="gen.argbNote">ARGB を選ぶと、ナビの帯やボタンの縁だけが虹色に流れ続けます。</p>
+        </div>
+
         <h2 data-i18n="gen.desktop">デスクトップ</h2>
         <div class="group">
           <div class="row">

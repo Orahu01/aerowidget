@@ -700,8 +700,14 @@ function openSettings() {
       console.log(`[settings:${level}] ${message} (${sourceId}:${line})`);
     });
   }
-  settingsWin.loadFile(RENDERER(path.join('settings', 'index.html')),
-    process.env.WW_TEST_TAB ? { query: { tab: process.env.WW_TEST_TAB } } : undefined);
+  {
+    // 明暗・アクセント色は、設定を読み終わるまで待つと最初の一瞬だけ既定色で
+    // 表示されてしまう (ちらつき)。起動時点でわかっている値は URL 越しに渡しておく
+    const st = config.get().settings;
+    const query = { theme: st.uiTheme || 'light', accent: st.uiAccent || 'teal' };
+    if (process.env.WW_TEST_TAB) query.tab = process.env.WW_TEST_TAB;
+    settingsWin.loadFile(RENDERER(path.join('settings', 'index.html')), { query });
+  }
   settingsWin.once('ready-to-show', () => {
     positionSettingsOnPrimary();
     settingsWin.show();
