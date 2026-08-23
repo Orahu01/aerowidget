@@ -1,14 +1,27 @@
-// 重ねの中核 (activeModes / effectiveConfig) が、土台を書き換えずに動くかの机上テスト
+// 重ねの規則 (src/main/overlay.js) の検査。
+//
+//   実行: node scripts/overlaytest.js
+//
+// かつてここは main.js の式を「書き写して」検査していた。
+// その結果、実装だけ直しても写しは古いまま緑になり、直したはずの穴を見逃した
+// (v5.9.29 の linkWidgets)。いまは本物の関数をそのまま呼ぶ。
 'use strict';
+
+const overlay = require('../src/main/overlay');
+const { ICON_BACKUP_NAME } = overlay;
+
 let pass = 0, fail = 0;
 const eq = (label, got, want) => {
   const g = JSON.stringify(got), w = JSON.stringify(want);
   if (g === w) { pass++; return; }
   fail++; console.log(`✗ ${label}\n    got : ${g}\n    want: ${w}`);
 };
+const ok = (label, cond, detail) => {
+  if (cond) { pass++; return; }
+  fail++; console.log(`✗ ${label}`, detail !== undefined ? JSON.stringify(detail) : '');
+};
 
-// main.js と同じ式
-const ICON_BACKUP_NAME = '復元前 (自動)';
+// 条件の成立を差し込む (本番は scenes.matches)
 let fg = '';
 const matches = (t) => (t && t.type === 'app' ? (t.apps || []).includes(fg) : false);
 
@@ -24,107 +37,111 @@ const makeCfg = () => ({
   },
 });
 let cfg = makeCfg();
-const modeList = () => (cfg.settings.iconLayouts || []).filter(l => l.name !== ICON_BACKUP_NAME);
-const activeModes = () => modeList().filter(m => m.on === true || (m.trigger && matches(m.trigger)));
-const effective = () => {
-  const wp = activeModes().find(m => m.wallpapers);
-  if (!wp) return cfg;
-  return { ...cfg, wallpapers: JSON.parse(JSON.stringify(wp.wallpapers)) };
-};
+const act = () => overlay.activeModes(cfg.settings, matches);
+const effective = () => overlay.compose(cfg, act());
 const wpOf = (c) => c.wallpapers.default.value;
 const baseSnapshot = JSON.stringify(cfg);
 
-// 1. 条件が成立していないときは土台のまま
+// ---------------- 条件と手動オン ----------------
 eq('通常時は土台の壁紙', wpOf(effective()), '土台の壁紙');
-eq('自動退避は重ねの対象外', activeModes().length, 0);
+eq('自動退避は重ねの対象外', act().length, 0);
 
-// 2. Chrome を前面に -> 重なる
 fg = 'chrome.exe';
-eq('Chrome で配信の壁紙が重なる', wpOf(effective()), '配信の壁紙');
+eq('条件が成立したら重なる', wpOf(effective()), '配信の壁紙');
+eq('効いているのは 1 つ', act().map(m => m.name), ['配信用']);
 
-// 3. 外れたら自動的に土台へ戻る (記憶や退避が要らない)
-fg = 'explorer.exe';
-eq('外れたら土台へ戻る', wpOf(effective()), '土台の壁紙');
+fg = '';
+eq('条件から外れたら土台へ戻る', wpOf(effective()), '土台の壁紙');
 
-// 4. 手動オンは条件なしでも効く
 cfg.settings.iconLayouts[1].on = true;
-eq('手動オンで重なる', wpOf(effective()), '仕事の壁紙');
+eq('手動オンでも重なる', wpOf(effective()), '仕事の壁紙');
 
-// 5. 一覧の上のモードが優先
 fg = 'chrome.exe';
-eq('上のモードが勝つ', wpOf(effective()), '配信の壁紙');
+eq('両方効いたら一覧の上が勝つ', wpOf(effective()), '配信の壁紙');
+eq('効いているのは 2 つ', act().map(m => m.name), ['配信用', '仕事']);
 
-// 6. ここまでで土台は一切変わっていないこと (これが設計の核心)
-cfg.settings.iconLayouts[1].on = false;
-fg = '';
-eq('土台は不変', JSON.stringify(cfg), baseSnapshot);
+// 一覧の順を入れ替えると勝ち負けも入れ替わる
+cfg.settings.iconLayouts = [cfg.settings.iconLayouts[1], cfg.settings.iconLayouts[0], cfg.settings.iconLayouts[2]];
+eq('並べ替えると勝ち負けも変わる', wpOf(effective()), '仕事の壁紙');
 
-// 7. 手で壁紙を変えたら、それは土台に入り、重ねが剥がれれば見える
-cfg.wallpapers.default.value = '手で変えた壁紙';
-eq('手で変えた壁紙が土台に入る', wpOf(effective()), '手で変えた壁紙');
+// ---------------- 土台の不変 ----------------
+cfg = makeCfg();
 fg = 'chrome.exe';
-eq('重ねている間は隠れる', wpOf(effective()), '配信の壁紙');
+const composed = effective();
+eq('重ねても土台は 1 バイトも変わらない', JSON.stringify(cfg), baseSnapshot);
+ok('重ねた結果は土台とは別の入れ物', composed !== cfg);
+composed.wallpapers.default.value = 'いじった';
+eq('重ねた結果をいじっても土台に響かない', cfg.settings.iconLayouts[0].wallpapers.default.value, '配信の壁紙');
+
 fg = '';
-eq('剥がれたら手で変えた壁紙が戻る', wpOf(effective()), '手で変えた壁紙');
+ok('何も効いていなければ土台をそのまま返す', effective() === cfg);
 
-// 8. 手動オンと条件は同時に持てない (起動時の掃除と同じ規則)。
-//    両方立っていた古い設定は、条件が主になる
+// ---------------- ウィジェットの表示 ----------------
 {
-  const l = { name: 'X', on: true, trigger: { type: 'app', apps: ['chrome.exe'] } };
-  if (l.trigger && l.on) l.on = false;      // main.js の起動時掃除と同じ式
-  fg = '';
-  cfg.settings.iconLayouts = [l];
-  eq('掃除後: 条件が外れていれば効かない', activeModes().length, 0);
-  fg = 'chrome.exe';
-  eq('掃除後: 条件が合えば効く', activeModes().length, 1);
-}
-
-// 9. ウィジェット表示の合成: 覚えているモードが効いている間だけ表示が変わり、
-//    土台の off (手動のしまう) はモードが外れれば戻る
-{
-  fg = '';
-  cfg = makeCfg();
-  cfg.widgets = [{ id: 'a', off: false }, { id: 'b', off: false }, { id: 'c', off: true }];
-  cfg.settings.iconLayouts = [
-    { name: 'ゲーム', trigger: { type: 'app', apps: ['game.exe'] }, linkWidgets: true, widgetsOn: ['a'] },
-  ];
-  const effW = () => {
-    const act = activeModes();
-    const wv = act.find(m => m.linkWidgets && (m.widgetsOn || []).length);
-    if (!wv) return cfg.widgets.map(w => !w.off);
-    const show = new Set(wv.widgetsOn);
-    return cfg.widgets.map(w => show.has(w.id));
+  const c = {
+    wallpapers: { default: { type: 'preset', value: 'w' } },
+    widgets: [{ id: 'a' }, { id: 'b' }, { id: 'c', off: true }],
+    settings: {
+      iconLayouts: [
+        { name: 'ゲーム', trigger: { type: 'app', apps: ['game.exe'] }, linkWidgets: true, widgetsOn: ['a'] },
+      ],
+    },
   };
-  eq('通常時: 土台の表示どおり', effW(), [true, true, false]);
-  fg = 'game.exe';
-  eq('モード中: a だけ表示', effW(), [true, false, false]);
+  const A = () => overlay.activeModes(c.settings, matches);
+  const E = () => overlay.compose(c, A());
+  const offMap = (x) => x.widgets.map(w => (w.off ? 1 : 0));
+
   fg = '';
-  eq('外れたら土台へ戻る (c は隠れたまま)', effW(), [true, true, false]);
-  eq('土台の off は書き換わっていない', cfg.widgets.map(w => !!w.off), [false, false, true]);
+  eq('効いていなければ土台の出し入れのまま', offMap(E()), [0, 0, 1]);
+  fg = 'game.exe';
+  eq('効いたら選んだものだけ出る', offMap(E()), [0, 1, 1]);
+  eq('土台の出し入れは変わらない', c.widgets.map(w => (w.off ? 1 : 0)), [0, 0, 1]);
+
+  // ひとつも選んでいない = 全部隠す (人が画面で選んだ指定)。
+  // ここが「何もしない」に戻ると、ゲーム中だけ何も出さない使い方ができなくなる
+  c.settings.iconLayouts[0].widgetsOn = [];
+  eq('ひとつも選んでいなければ全部隠す', offMap(E()), [1, 1, 1]);
+  eq('全部隠しても土台は無事', c.widgets.map(w => (w.off ? 1 : 0)), [0, 0, 1]);
+
+  // 連動そのものを切れば、ウィジェットには一切触らない
+  c.settings.iconLayouts[0].linkWidgets = false;
+  eq('連動を切れば土台のまま', offMap(E()), [0, 0, 1]);
+  ok('連動も壁紙も無ければ土台をそのまま返す', E() === c);
 }
 
-// 10. 手動オンの排他: 同じものを覚えるモードをオンにしたら、前のはオフ + 名前を知らせる
+// ---------------- 排他 ----------------
 {
   const list = [
     { name: 'A', on: true, wallpapers: { x: 1 } },
-    { name: 'B', on: false, wallpapers: { x: 2 } },
-    { name: 'C', on: true, linkWidgets: true, widgetsOn: ['w1'] },
+    { name: 'B', on: true, linkWidgets: true, widgetsOn: ['w1'] },
+    { name: 'C', on: true, linkWidgets: true, widgetsOn: [] },
+    { name: 'D', on: true },                                  // 何も覚えていない
+    { name: ICON_BACKUP_NAME, on: true, wallpapers: { x: 9 } },
+    { name: 'E', on: false, wallpapers: { x: 2 } },            // オフのものは巻き込まない
   ];
-  // main.js の setModeOn と同じ規則
-  const setOn = (name) => {
-    const me = list.find(l => l.name === name);
-    me.on = true; me.trigger = null;
-    const turnedOff = [];
-    const iWp = !!me.wallpapers, iWv = !!(me.linkWidgets && (me.widgetsOn || []).length);
-    for (const l of list) {
-      if (l === me || l.on !== true) continue;
-      const oWp = !!l.wallpapers, oWv = !!(l.linkWidgets && (l.widgetsOn || []).length);
-      if ((iWp && oWp) || (iWv && oWv)) { l.on = false; turnedOff.push(l.name); }
-    }
-    return turnedOff;
-  };
-  eq('B をオン -> 壁紙が競合する A だけオフ', setOn('B'), ['A']);
-  eq('C は残る (ウィジェットは競合しない)', list.find(l => l.name === 'C').on, true);
+  const names = (me) => overlay.exclusivityVictims(list, me).map(l => l.name);
+
+  eq('壁紙どうしはぶつかる', names({ name: '新', wallpapers: { x: 3 } }), ['A']);
+  eq('ウィジェット表示どうしはぶつかる (空選択も含む)',
+    names({ name: '新', linkWidgets: true, widgetsOn: ['w2'] }), ['B', 'C']);
+  eq('空選択のモードも相手を落とす',
+    names({ name: '新', linkWidgets: true, widgetsOn: [] }), ['B', 'C']);
+  eq('両方覚えていれば両方落とす',
+    names({ name: '新', wallpapers: { x: 3 }, linkWidgets: true, widgetsOn: [] }), ['A', 'B', 'C']);
+  eq('何も覚えていなければ誰も落とさない', names({ name: '新' }), []);
+  eq('自動退避は巻き込まない', names({ name: '新', wallpapers: { x: 3 } }).includes(ICON_BACKUP_NAME), false);
+  eq('自分自身は落とさない', names(list[0]), []);
+}
+
+// ---------------- 壊れた設定でも落ちない ----------------
+{
+  eq('iconLayouts が無くても平気', overlay.activeModes({}, matches), []);
+  eq('settings が無くても平気', overlay.modeList(undefined), []);
+  eq('null 混じりでも落ちない',
+    overlay.activeModes({ iconLayouts: [null, { name: 'x', on: true }] }, matches).map(m => m.name), ['x']);
+  const c2 = { widgets: null, wallpapers: {}, settings: {} };
+  ok('widgets が無い土台でも合成できる',
+    !!overlay.compose(c2, [{ name: 'z', linkWidgets: true, widgetsOn: [] }]));
 }
 
 console.log(fail ? `\n${fail} 件失敗 / ${pass + fail} 件` : `全 ${pass} 件 PASS`);

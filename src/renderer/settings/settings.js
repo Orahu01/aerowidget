@@ -3001,6 +3001,11 @@ function icModeCard(snap, allNames) {
   // 以前は「今すぐ効かせる」と「条件」を同時に立てられ、手動オンが常に勝つため
   // 条件を変えても何も起きなかった。選択肢を 1 本にして矛盾を作れなくする
   const trg = snap.trigger || null;
+  // trg は描画した瞬間の値。以降の編集 (アプリ名・時刻) は再描画せずに重ねていくので、
+  // このカードが開いている間ずっと trg を直接参照すると、あとから直したフィールドが
+  // 前に直したフィールドの値を巻き戻してしまう (from を直した直後に to を直すと、
+  // to の送信が古い from を道連れにして上書きする)。trgLive を都度更新して重ねる
+  let trgLive = trg ? { ...trg } : null;
   const stateNow = trg ? 'auto' : (snap.on ? 'always' : 'off');
   const trRow = document.createElement('div');
   trRow.className = 'ic-mode-tools';
@@ -3011,7 +3016,9 @@ function icModeCard(snap, allNames) {
     // 隣の欄 (from -> to へタブ移動して入力中など)を壊して打鍵を飲み込んでしまう。
     // touch() で、この後の config 配信による自動再描画も少し待たせる
     touch();
-    await window.api.setIconTrigger(snap.name, t);
+    trgLive = t;   // 次の編集はこの続きから重ねる (巻き戻し防止)
+    const r = await window.api.setIconTrigger(snap.name, t);
+    if (r && r.ok === false) icStatus(r.msg || T('保存できませんでした'));
   };
   trRow.appendChild(mkSelect(
     [['off', 'オフ'], ['always', '常に効かせる'],
@@ -3058,8 +3065,8 @@ function icModeCard(snap, allNames) {
     const tRow = document.createElement('div');
     tRow.className = 'ic-mode-tools';
     tRow.appendChild(mkLabelSpan('時間帯'));
-    const from = mkText(trg.from || '22:00', '22:00', (v) => setTrigger({ ...trg, from: v.trim() }));
-    const to = mkText(trg.to || '06:00', '06:00', (v) => setTrigger({ ...trg, to: v.trim() }));
+    const from = mkText(trg.from || '22:00', '22:00', (v) => setTrigger({ ...trgLive, from: v.trim() }));
+    const to = mkText(trg.to || '06:00', '06:00', (v) => setTrigger({ ...trgLive, to: v.trim() }));
     from.style.width = '80px'; from.style.flex = 'none';
     to.style.width = '80px'; to.style.flex = 'none';
     tRow.append(from, mkLabelSpan('〜'), to);

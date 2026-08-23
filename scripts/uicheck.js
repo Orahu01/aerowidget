@@ -506,6 +506,21 @@ app.whenReady().then(async () => {
   ok('時刻編集: フォーカスも保つ', !!(keep && keep.focused), keep);
   ok('時刻編集: setTrigger は飛ぶ', await fired('setIconTrigger("モードA改"'));
 
+  // 18b. from を確定してから to も確定すると、両方の変更が残る。
+  //      再描画をやめた副作用で、2 つ目の送信が古い trg を引きずって
+  //      1 つ目の変更を巻き戻す事故があった (from=23:00 の直後に to を確定すると、
+  //      to の送信に古い from が道連れにされて 23:00 が消えていた)
+  await reset();
+  await step('to も確定する', inCard('モードA改', `
+    const box = [...card.querySelectorAll('input[type=text]')].filter(i => i.placeholder === '22:00' || i.placeholder === '06:00');
+    const to = box[1];
+    to.value = '07:30';
+    to.dispatchEvent(new Event('change'));
+    await sleep(600); return true;`));
+  const lastSetTrigger = (await win.webContents.executeJavaScript(`window.__test.find('setIconTrigger("モードA改"')`)).pop();
+  ok('時刻編集: to の確定に from の変更が残る', !!(lastSetTrigger && lastSetTrigger.includes('23:00')), lastSetTrigger);
+  ok('時刻編集: to 自体も反映される', !!(lastSetTrigger && lastSetTrigger.includes('07:30')), lastSetTrigger);
+
   // 19. 排他の知らせが実際に画面へ出る (黙ってオフにしない約束)。
   //     先に「モードB」を常にオンにしてから「モードA改」を常にオンにすると、
   //     B が落ちるので、その名前がトーストに出るはず

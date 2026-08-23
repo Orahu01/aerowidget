@@ -152,6 +152,25 @@ app.whenReady().then(async () => {
   ok('編集中は隠れているものも触れる', JSON.stringify(editing) === JSON.stringify(['w1', 'w2', 'w5']), editing);
   ok('編集中でも「しまう」は隠れたまま', !editing.includes('w4'), editing);
 
+  // 4b. 編集中の当たり判定 (右クリックでロック) は、描画と同じ土台のオブジェクトに
+  //     書き込まなければならない。重ねが効いている間、config (見えているもの) と
+  //     baseCfg (編集対象) は id が同じでも別のオブジェクトなので、片方だけ書き込むと
+  //     「画面には一瞬反映されるが、次に描き直すと消える」偽の成功になる
+  await js(`
+    const el = document.querySelector('[data-id="w1"]');
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    return true;`);
+  await sleep(300);
+  const lockedNow = await js(`return document.querySelector('[data-id="w1"]').classList.contains('locked');`);
+  ok('ロックはすぐ画面に反映される', lockedNow === true, lockedNow);
+  // 描き直しを強制する (編集の出入りは renderWidgets を呼び直す)。
+  // ここで土台そのものが書き換わっていなければ、ロックは消える
+  await js('window.__test.setEdit(false); window.__test.setEdit(true); return true;');
+  await sleep(500);
+  const lockedAfterRerender = await js(`return document.querySelector('[data-id="w1"]').classList.contains('locked');`);
+  ok('ロックは描き直しても土台に残る (当たり判定と描画が同じ物を指す)',
+    lockedAfterRerender === true, lockedAfterRerender);
+
   // 5. 編集を抜けたら重ねの結果に戻る (配置を変えていなくても)
   await js('window.__test.setEdit(false); return true;');
   await sleep(500);

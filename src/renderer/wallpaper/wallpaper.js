@@ -124,13 +124,19 @@ function mine(w) {
   return (w.display || 0) === DISPLAY;
 }
 
+// 編集中は土台 (env.base) を見る。モードの重ねで隠れているだけのウィジェットや
+// 追加した直後でどのモードの一覧にもまだ入っていないウィジェットも、
+// 位置編集の対象にできないと「追加したのに触れない」ことになる。
+// 描画 (myWidgets) だけでなく、当たり判定 (findWidget) ・ドラッグ対象・選択・
+// undo もすべてここを通す。片方だけ土台を見て、もう片方が重ねを見ていると、
+// 「見えているものを掴んだつもりが違うオブジェクトを動かしていた」事故になる —
+// 実際に、重ねが効いている間に undo すると編集内容ごと消える形で起きていた
+function widgetSrc() {
+  return (editing && baseCfg) ? baseCfg : config;
+}
+
 function myWidgets() {
-  // 編集中は土台 (env.base) を見る。モードの重ねで隠れているだけのウィジェットや
-  // 追加した直後でどのモードの一覧にもまだ入っていないウィジェットも、
-  // 位置編集の対象にできないと「追加したのに触れない」ことになる。
-  // off (しまってある) だけは土台でも編集中でも変わらず描かない
-  const src = (editing && baseCfg) ? baseCfg : config;
-  return (src.widgets || []).filter(w => !w.off && mine(w));
+  return (widgetSrc().widgets || []).filter(w => !w.off && mine(w));
 }
 
 function customCss(v) {
@@ -1105,7 +1111,7 @@ let arrowSnapAt = 0;
 function findWidget(el) {
   const box = el && el.closest ? el.closest('.widget') : null;
   if (!box) return null;
-  const w = config.widgets.find(x => x.id === box.dataset.id);
+  const w = widgetSrc().widgets.find(x => x.id === box.dataset.id);
   return w ? { w, el: box } : null;
 }
 
@@ -1162,7 +1168,7 @@ function undo() {
   const snap = undoStack.pop();
   if (!snap) return;
   for (const g of snap) {
-    const w = config.widgets.find(x => x.id === g.id);
+    const w = widgetSrc().widgets.find(x => x.id === g.id);
     if (w) applyGeom(w, g);
   }
   showBadge('取り消しました', innerWidth / 2, 80);
@@ -1193,7 +1199,7 @@ widgetsBox.addEventListener('pointerdown', (e) => {
   const isHandle = e.target.classList && e.target.classList.contains('rs-handle');
   pushUndo();
   const items = [...selectedIds]
-    .map(id => ({ w: config.widgets.find(x => x.id === id), el: (widgetEls.get(id) || {}).el }))
+    .map(id => ({ w: widgetSrc().widgets.find(x => x.id === id), el: (widgetEls.get(id) || {}).el }))
     .filter(it => it.w && it.el && !it.w.locked)
     .map(it => ({ ...it, startX: it.w.x, startY: it.w.y }));
   const rect = hit.el.getBoundingClientRect();
@@ -1333,7 +1339,7 @@ window.addEventListener('wheel', (e) => {
 
 // ---- 整列 / 等間隔 ----
 function selectedWidgets() {
-  return [...selectedIds].map(id => config.widgets.find(x => x.id === id)).filter(w => w && !w.locked);
+  return [...selectedIds].map(id => widgetSrc().widgets.find(x => x.id === id)).filter(w => w && !w.locked);
 }
 
 function alignSelection(kind) {

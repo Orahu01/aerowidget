@@ -62,6 +62,25 @@ let fail = 0;
     if (re.test(src)) console.log(`静的ガード OK: ${label}`);
     else { fail++; console.log(`✗ 静的ガード失敗: ${label}`); }
   }
+
+  // config:import / backup:restore は必ず「配る前に統合」の順でなければならない。
+  // config.replace() は読み込んだ瞬間に 'change' を配ってしまうので、
+  // unifyModes(parsed) が config.replace(parsed の後ろにあると、
+  // 統合前の (scenes.enabled な) 旧シーンエンジンが一瞬だけ動いて土台を書き換える。
+  // これはダイアログを開く経路なので実起動では検証できず、順序を文字列の出現位置で見張る
+  const orderGuards = [
+    ['取り込みは配る前に統合する', /ipcMain\.handle\('config:import'/],
+    ['復元は配る前に統合する', /ipcMain\.handle\('backup:restore'/],
+  ];
+  for (const [label, marker] of orderGuards) {
+    const start = src.search(marker);
+    if (start < 0) { fail++; console.log(`✗ 静的ガード失敗 (見つからない): ${label}`); continue; }
+    const body = src.slice(start, start + 1200);
+    const iUnify = body.indexOf('unifyModes(parsed)');
+    const iReplace = body.indexOf('config.replace(parsed');
+    if (iUnify >= 0 && iReplace >= 0 && iUnify < iReplace) console.log(`静的ガード OK: ${label}`);
+    else { fail++; console.log(`✗ 静的ガード失敗: ${label} (unify=${iUnify}, replace=${iReplace})`); }
+  }
 }
 
 // ---------------- 実起動検査の共通処理 ----------------
@@ -104,7 +123,12 @@ runSelftest('B: 既定の構成', {
     language: 'ja',
     currentIconMode: '', iconAutoRestore: '削除対象',
     // まだ統合前のふりをする -> 起動時マイグレーションの検証になる
-    layouts: [{ name: '昼プリセット', wallpapers: wallA, widgets: [{ id: 'w1' }] }],
+    layouts: [
+      { name: '昼プリセット', wallpapers: wallA, widgets: [{ id: 'w1' }] },
+      // どの現行ウィジェットとも id が一致しない (テーマ適用などで id が総入れ替えされた想定)。
+      // 移行が「一致ゼロ」を「ウィジェット連動・全部隠す」と誤解釈しないことの検査用
+      { name: '幽霊プリセット', wallpapers: wallB, widgets: [{ id: 'th-old-ghost' }] },
+    ],
     scenes: {
       enabled: true,
       defaultIcons: '削除対象',

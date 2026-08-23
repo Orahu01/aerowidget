@@ -1,6 +1,6 @@
 {
   "name": "aerowidget",
-  "version": "5.9.34",
+  "version": "5.9.35",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "Orahu01",

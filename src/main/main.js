@@ -21,6 +21,7 @@ const updater = require('./updater');
 const audio = require('./audio');
 const hotkeys = require('./hotkeys');
 const scenes = require('./scenes');
+const overlay = require('./overlay');
 const icons = require('./icons');
 const sysinfo = require('./sysinfo');
 const ics = require('./ics');
@@ -101,32 +102,19 @@ function broadcast(channel, payload) {
 // これまで「切り替え = 保存済みの写しで上書き」だったため、
 // 写しを取ったあとに足したものが消える事故が何度も起きた。
 // 重ねる方式なら、土台に触らないので構造的に起きない。
+// 重ねの規則そのものは overlay.js が持つ。ここはそれに設定を渡すだけ —
+// 規則を 2 か所に書くと必ずずれる (検査が写しを持っていて実装の穴を見逃した前例あり)
 function modeList() {
-  return (config.get().settings.iconLayouts || []).filter(l => l.name !== ICON_BACKUP_NAME);
+  return overlay.modeList(config.get().settings);
 }
 
-// いま効いているモード (一覧の上から順に優先)
 function activeModes() {
-  return modeList().filter(m => m.on === true || (m.trigger && scenes.matches(m.trigger)));
+  return overlay.activeModes(config.get().settings, (t) => scenes.matches(t));
 }
 
-// 土台に、効いているモードを重ねた結果。
-// 壁紙・ウィジェット表示とも「一覧の上にある、それを覚えているモード」が勝つ。
-// 土台 (config) は一切書き換えない — ここが安定性の要
+// 土台に、効いているモードを重ねた結果。土台 (config) は一切書き換えない
 function effectiveConfig() {
-  const base = config.get();
-  const act = activeModes();
-  const wp = act.find(m => m.wallpapers);
-  const wv = act.find(m => m.linkWidgets);   // 空でも「全部隠す」という意思表示 (bug: 以前は空だと何もしなかった)
-  if (!wp && !wv) return base;
-  const out = { ...base };
-  if (wp) out.wallpapers = JSON.parse(JSON.stringify(wp.wallpapers));
-  if (wv) {
-    const show = new Set(wv.widgetsOn);
-    // 表示だけ差し替える。位置・設定は土台のまま
-    out.widgets = base.widgets.map(w => ({ ...w, off: !show.has(w.id) }));
-  }
-  return out;
+  return overlay.compose(config.get(), activeModes());
 }
 
 function configEnvelope() {
@@ -152,14 +140,20 @@ function refreshOverlay() {
   }
   catch (_) { return; }
   if (key === lastOverlayKey) return;
-  lastOverlayKey = key;
   if (process.env.WW_DEBUG) console.log('[modes] 重ねが変わった -> ' + activeModes().map(m => m.name).join(', '));
   try { broadcast('config', configEnvelope()); } catch (_) {}
   // 壁紙レンダラは配られた config を描き直すだけで済むが、フォルダなどの対話ウィジェットは
   // 別窓なので、重ねの結果 (off) に合わせて窓そのものを作る/消すところまでここでやる。
   // 手動操作 (config.update 経由) は 'change' -> syncFolders で既に効いていたが、
-  // 条件トリガーだけの重ね直しはここを通らず、窓が古いまま残っていた
-  if (!editMode) { try { syncFolders(); } catch (_) {} }
+  // 条件トリガーだけの重ね直しはここを通らず、窓が古いまま残っていた。
+  //
+  // 編集中は窓を触らない (掴んでいる最中に生成/破棄すると事故になる) が、
+  // 鍵はここで進めてはいけない — 進めてしまうと、編集を抜けたときに
+  // effectiveConfig が同じ鍵のままなら二度と呼ばれず、窓の同期が永久に取り残される。
+  // 編集を抜けた時点の再同期は exitEditMode 側の syncFolders 呼び出しに任せる
+  if (editMode) return;
+  lastOverlayKey = key;
+  try { syncFolders(); } catch (_) {}
 }
 
 function weatherWidget() {
@@ -671,13 +665,10 @@ function exitEditMode() {
     attachWall(idx);
   }
   placedKey.clear(); // 編集で位置が変わった可能性があるため全対話ウィジェットを配置し直す
-  for (const w of effectiveConfig().widgets.filter(x => INTERACTIVE_TYPES.has(x.type) && !x.off && pairForWidget(x))) {
-    const win = folderWins.get(w.id);
-    if (win && !win.isDestroyed()) {
-      win.showInactive();
-      placeFolder(w.id);
-    }
-  }
+  // 編集中に重ねの状態が変わっていた (refreshOverlay が窓の同期を保留していた) 分を
+  // まとめて回収する。既存窓の再表示だけでなく、生成・破棄もここで一度に済ませる
+  try { syncFolders(); } catch (_) {}
+  lastOverlayKey = '';   // 次の変化を必ず拾えるように、鍵も一緒にリセットしておく
   // 編集中の一時的なアイコン切替を、通常時の設定値へ戻す
   attach.setDesktopIconsVisible(config.get().settings.showDesktopIcons !== false);
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.restore();
@@ -1175,11 +1166,20 @@ function toggleWidgetsVisible() {
 // 呼ばないと、統合前の古い設定ファイルを読み込んだ瞬間だけ、退役させたはずの
 // シーンエンジンが (scenes.enabled: true のまま) その場限りで動き出してしまう
 function migrateModes() {
-  // レイアウトは壁紙+ウィジェット一式の写しだったので、
-  // 壁紙とウィジェットの表示だけをモードに引き継ぐ (位置は土台に一本化)。
-  // シーンのルールは、指していたレイアウトから作られたモードの条件になる
-  config.update(c => {
-    if (c.settings.modesUnified) return;
+  config.update(c => unifyModes(c));
+}
+
+// 素の設定オブジェクトに対する統合処理 (副作用なし)。
+// 取り込み・復元では、設定を配る前にこれを通す必要がある —
+// config.replace() は読み込んだ瞬間に 'change' を配ってしまい、
+// 統合前の設定でシーンエンジンが動き出す (壁紙を書き換え、アイコンを動かす) ため
+function unifyModes(c) {
+  {
+    // レイアウトは壁紙+ウィジェット一式の写しだったので、
+    // 壁紙とウィジェットの表示だけをモードに引き継ぐ (位置は土台に一本化)。
+    // シーンのルールは、指していたレイアウトから作られたモードの条件になる
+    if (!c || !c.settings) return c;
+    if (c.settings.modesUnified) return c;
     c.settings.modesUnified = true;
     const modes = c.settings.iconLayouts || (c.settings.iconLayouts = []);
     const skip = new Set(['シーン切替前 (自動)', '適用前の構成 (自動)', 'テーマ適用前 (自動)']);
@@ -1187,11 +1187,17 @@ function migrateModes() {
       if (!lay || !lay.name || skip.has(lay.name)) continue;
       if (modes.some(m => m.name === lay.name)) continue;
       const ids = new Set((lay.widgets || []).map(w => w.id));
+      const keep = (c.widgets || []).filter(w => ids.has(w.id)).map(w => w.id);
+      // 「一部だけ出すプリセットだった」ときにだけ表示も引き継ぐ。
+      // ひとつも一致しないなら、それは古いウィジェットを指した写しであって
+      // 「全部隠す」という指定ではない。ここで linkWidgets を立てると、
+      // 空の widgetsOn が「全部隠す」と解釈されて画面から何もかも消える
+      const partial = keep.length > 0 && (c.widgets || []).some(w => !ids.has(w.id));
       modes.push({
         name: lay.name, savedAt: Date.now(), icons: [], hidden: [],
         wallpapers: lay.wallpapers ? JSON.parse(JSON.stringify(lay.wallpapers)) : null,
-        linkWidgets: (c.widgets || []).some(w => !ids.has(w.id)),
-        widgetsOn: (c.widgets || []).filter(w => ids.has(w.id)).map(w => w.id),
+        linkWidgets: partial,
+        widgetsOn: partial ? keep : [],
         trigger: null, on: false,
       });
     }
@@ -1206,16 +1212,15 @@ function migrateModes() {
       }
     }
     sc.enabled = false;                       // シーンは役目を終える (データは残す)
-  });
+  }
 
   // モードの状態はどちらか一方だけ: 「常に効かせる (on)」か「条件で効かせる (trigger)」。
   // 両方立っていると手動オンが常に勝ち、条件を変えても何も起きず
   // 「条件が効かない」ようにしか見えない。条件がある方を残す
-  config.update(c => {
-    for (const l of (c.settings.iconLayouts || [])) {
-      if (l.trigger && l.on) l.on = false;
-    }
-  });
+  for (const l of (c.settings.iconLayouts || [])) {
+    if (l.trigger && l.on) l.on = false;
+  }
+  return c;
 }
 
 function onReady() {
@@ -1401,6 +1406,16 @@ function onReady() {
         chk('シーンのルールが条件になる', !!(day && day.trigger && day.trigger.type === 'app'), day && day.trigger);
         chk('シーン自体は引退する', !(st.scenes && st.scenes.enabled));
 
+        // 1b. 移行の推測が暴走して「全部隠す」を作らないこと。
+        //     現行のどのウィジェット id とも一致しないプリセットは、
+        //     ウィジェット連動なしのモード (壁紙だけ) になるべき —
+        //     linkWidgets:true + widgetsOn:[] は「全部隠す」という人の意思表示のための状態で、
+        //     一致がゼロだったという偶然でここに落ちてはいけない
+        const ghost = modes.find(m => m.name === '幽霊プリセット');
+        chk('id が丸ごと変わったプリセットもモードになる', !!ghost);
+        chk('一致ゼロは連動なしとして移行する', !!(ghost && ghost.linkWidgets !== true), ghost);
+        chk('一致ゼロでも壁紙は引き継ぐ', !!(ghost && ghost.wallpapers));
+
         // 2. 矛盾の掃除: on と trigger の両立ちは条件が主
         const both = modes.find(m => m.name === '矛盾モード');
         chk('on+条件の両立ちは掃除される', !!(both && both.trigger && both.on === false), both && { on: both.on, trg: !!both.trigger });
@@ -1467,6 +1482,28 @@ function onReady() {
           !!(added && aMode && (aMode.widgetsOn || []).includes(added.id)), aMode && aMode.widgetsOn);
         chk('追加したウィジェットは合成でも出る',
           !!effectiveConfig().widgets.find(w => w.id === added.id && !w.off));
+
+        // 10b. 複製 (Ctrl+D) も追加と同じ扱い。ここが漏れると、複製した直後
+        //      連動モードが効いていれば複製したウィジェットだけ見えなくなる
+        config.update(c => {
+          const m = (c.settings.iconLayouts || []).find(x => x.name === '壁紙モードA');
+          if (m) m.widgetsOn = ['w1'];
+        });
+        setModeOn('壁紙モードA', true);
+        let duplicated = null;
+        config.update(c => {
+          const src = c.widgets.find(w => w.id === 'w1');
+          duplicated = JSON.parse(JSON.stringify(src));
+          duplicated.id = 'w-dup-test';
+          duplicated.x = Math.min(97, src.x + 2.5);
+          c.widgets.push(duplicated);
+          joinLinkedWidgetsOn(c, duplicated.id);
+        });
+        const aMode2 = (config.get().settings.iconLayouts || []).find(x => x.name === '壁紙モードA');
+        chk('複製したウィジェットも選択中のモードに入る',
+          !!(duplicated && aMode2 && (aMode2.widgetsOn || []).includes(duplicated.id)), aMode2 && aMode2.widgetsOn);
+        chk('複製したウィジェットは合成でも出る',
+          !!effectiveConfig().widgets.find(w => w.id === 'w-dup-test' && !w.off));
         setModeOn('壁紙モードA', false);
 
         // 11. 名前の変更が、他の場所の参照もまとめて追いかける
@@ -1558,6 +1595,60 @@ function onReady() {
             icons.visibleList = realVisible; icons.strandedNames = realStranded;
           }
         }
+
+        // 16. 取り込み・復元と同じ手順: 配る前に統合しないと、
+        //     config.replace() が読み込んだ瞬間に 'change' を配ってしまい、
+        //     統合前の (まだ scenes.enabled な) 旧シーンエンジンが一度動いて
+        //     土台の壁紙を直接書き換えてしまう。ここでは import/restore の
+        //     ハンドラと同じ順番 (unifyModes -> replace -> migrateModes) を再現する
+        {
+          const ghostWall = { default: { type: 'custom', value: { kind: 'solid', colors: ['#ff00ff'] }, dim: 0, blur: 0 }, byDisplay: {} };
+          const legacyPayload = JSON.parse(JSON.stringify({
+            version: 2,
+            wallpapers: config.get().wallpapers,
+            widgets: config.get().widgets,
+            settings: {
+              ...config.get().settings,
+              modesUnified: false,          // 統合前の設定ファイルのふり
+              layouts: [{ name: 'ゴーストレイアウト', wallpapers: ghostWall, widgets: [] }],
+              scenes: { enabled: true, defaultLayout: 'ゴーストレイアウト', defaultIcons: '', rules: [] },
+            },
+          }));
+          unifyModes(legacyPayload);
+          config.replace(legacyPayload, 'テスト用の取り込み');
+          migrateModes();   // 正規化などで印が落ちていた場合の保険
+          const wpAfter = JSON.stringify(config.get().wallpapers);
+          chk('取り込みで旧シーンに土台を書き換えさせない',
+            wpAfter !== JSON.stringify(ghostWall), wpAfter.slice(0, 90));
+          chk('取り込み後は統合済みになる', config.get().settings.modesUnified === true);
+          chk('取り込み後はシーンが引退している', !(config.get().settings.scenes && config.get().settings.scenes.enabled));
+        }
+
+        // 17. 編集中は対話ウィジェットの窓を触らない。ただし触らなかった分は、
+        //     編集を抜けたときに必ず一度で回収されること (取りこぼしたまま固まらない)
+        {
+          config.update(c => {
+            c.settings.iconLayouts.push({
+              name: '編集中モード', savedAt: 0, icons: [], hidden: [],
+              on: false, trigger: null, linkWidgets: true, widgetsOn: ['w1'],   // フォルダ (w3) を除外
+            });
+          });
+          chk('素の状態ではフォルダの窓がある', folderWins.has('w3'), [...folderWins.keys()]);
+
+          setModeOn('編集中モード', true);
+          chk('編集を伴わない重ね直しは即座にフォルダの窓を消す', !folderWins.has('w3'), [...folderWins.keys()]);
+          setModeOn('編集中モード', false);
+          chk('モードを外せば窓は戻る', folderWins.has('w3'), [...folderWins.keys()]);
+
+          enterEditMode();
+          setModeOn('編集中モード', true);   // 編集中に重ねを変える (トリガー発火や他ウィンドウからの操作を想定)
+          chk('編集中は重ねが変わっても窓に触らない', folderWins.has('w3'), [...folderWins.keys()]);
+          exitEditMode();
+          chk('編集を抜けたら取りこぼした同期を回収する', !folderWins.has('w3'), [...folderWins.keys()]);
+
+          setModeOn('編集中モード', false);   // 後始末
+          chk('後始末で窓も戻る', folderWins.has('w3'), [...folderWins.keys()]);
+        }
       } catch (err) {
         stFail++;
         console.log('SELFTEST FAIL: 例外 :: ' + (err && err.stack || err));
@@ -1634,16 +1725,20 @@ function addWidget(type) {
   config.update(c => {
     created = config.newWidget(type);
     c.widgets.push(created);
-    // 「特定のウィジェットだけ出す」モードが効いている間に追加すると、
-    // 重ねの対象外 (=隠れる) になって「追加したのに出ない」ように見える。
-    // 何も選んでいない (= 全部隠す意思表示の) モードは対象外にする
-    for (const l of (c.settings.iconLayouts || [])) {
-      if (l.linkWidgets && (l.widgetsOn || []).length) l.widgetsOn.push(created.id);
-    }
+    joinLinkedWidgetsOn(c, created.id);
   });
   return created;
 }
 ipcMain.handle('widget:add', (e, type) => addWidget(type));
+
+// 新しいウィジェット (追加・複製) を、いま「一部だけ出す」設定にしている
+// モードすべての表示対象に加える。何も選んでいない (= 全部隠す意思表示の) モードは
+// 対象外にする — そこへ足すと「全部隠す」という選択を上書きしてしまう
+function joinLinkedWidgetsOn(c, id) {
+  for (const l of (c.settings.iconLayouts || [])) {
+    if (l.linkWidgets && (l.widgetsOn || []).length) l.widgetsOn.push(id);
+  }
+}
 
 ipcMain.handle('widget:remove', (e, id) => config.update(c => {
   c.widgets = c.widgets.filter(w => w.id !== id);
@@ -1957,6 +2052,10 @@ ipcMain.handle('widget:duplicate', (e, id) => {
     created.x = Math.min(97, src.x + 2.5);
     created.y = Math.min(97, src.y + 2.5);
     c.widgets.push(created);
+    // addWidget と同じ理由: 複製した直後は、選択中のモードにも入れておかないと
+    // 複製した瞬間 (連動モードが効いていれば) 見えなくなる。Ctrl+D は編集中しか
+    // 押せないが、複製後に重ねへ戻ったときに消えて見える事故を防ぐ
+    joinLinkedWidgetsOn(c, created.id);
   });
   return created;
 });
@@ -2072,8 +2171,11 @@ ipcMain.handle('config:import', async () => {
       return { ok: false, msg: `${brand.NAME} の設定ファイルではありません` };
     }
     placedKey.clear();
+    // 配る前に統合しておく。config.replace() は読み込んだ瞬間に 'change' を
+    // 配ってしまうので、後から統合したのでは旧シーンが一度動いてしまう
+    unifyModes(parsed);
     config.replace(parsed, 'インポートの前');
-    migrateModes();
+    migrateModes();          // 正規化で印が落ちていた場合の保険
     return { ok: true, msg: 'インポートしました (元の設定はバックアップ済み)' };
   } catch (e) {
     return { ok: false, msg: '読み込みに失敗: ' + e.message };
@@ -2104,8 +2206,9 @@ ipcMain.handle('backup:restore', async (e, file) => {
   try {
     const parsed = backup.read(file);
     placedKey.clear();
+    unifyModes(parsed);      // 配る前に統合する (インポートと同じ理由)
     config.replace(parsed, '復元の前');
-    migrateModes();
+    migrateModes();          // 正規化で印が落ちていた場合の保険
     return { ok: true, msg: `${when} の状態に復元しました` };
   } catch (err) {
     return { ok: false, msg: '復元に失敗: ' + err.message };
@@ -2174,7 +2277,7 @@ ipcMain.handle('hotkeys:failed', () => hotkeys.failed());
 // ボタンを押した瞬間は設定画面自身が前面なので、他のアプリが前面に来るまで
 // 最大 6 秒待って、最初に取れた exe 名を返す。
 // ---- デスクトップアイコンの保存 / 復元 ----
-const ICON_BACKUP_NAME = '復元前 (自動)';
+const ICON_BACKUP_NAME = overlay.ICON_BACKUP_NAME;
 
 // 「最後に見えていた位置」。隠す前の住所をここに貯めておき、
 // 呼び戻すときの帰り先にする。隠したまま保存を繰り返しても失われない。
@@ -2532,16 +2635,9 @@ function setModeOn(name, on) {
     me.on = !!on;
     if (on) {
       me.trigger = null;                 // 手動オンにしたら条件は外す (排他)
-      const iWp = !!me.wallpapers;
-      const iWv = !!me.linkWidgets;
-      for (const l of list) {
-        if (l === me || l.name === ICON_BACKUP_NAME || l.on !== true) continue;
-        const oWp = !!l.wallpapers;
-        const oWv = !!l.linkWidgets;
-        if ((iWp && oWp) || (iWv && oWv)) {
-          l.on = false;
-          turnedOff.push(l.name);
-        }
+      for (const l of overlay.exclusivityVictims(list, me)) {
+        l.on = false;
+        turnedOff.push(l.name);
       }
     }
   });
