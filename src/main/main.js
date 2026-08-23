@@ -1499,6 +1499,65 @@ function onReady() {
           (config.get().settings.currentIconMode) === '新しい名前');
         setModeOn('壁紙モードB', false);
         config.update(c => { c.settings.currentIconMode = ''; });
+
+        // 14. 並び替え: 一覧の順番が「どのモードが勝つか」を決めるので、
+        //     指定した通りに並び、指定に無いもの (自動退避など) は後ろへ回る
+        {
+          const before = (config.get().settings.iconLayouts || []).map(l => l.name);
+          config.update(c => {
+            c.settings.iconLayouts.push({ name: ICON_BACKUP_NAME, savedAt: 0, icons: [], hidden: [] });
+          });
+          const want = ['壁紙モードB', '壁紙モードA', '矛盾モード'];
+          ipcReorder(want);
+          const after = (config.get().settings.iconLayouts || []).map(l => l.name);
+          chk('指定した順に並ぶ', JSON.stringify(after.slice(0, 3)) === JSON.stringify(want), after);
+          chk('指定に無いものは後ろへ回る', after.slice(3).includes(ICON_BACKUP_NAME), after);
+          chk('並び替えで数は変わらない', after.length === before.length + 1, { before: before.length, after: after.length });
+          ipcReorder([]);
+          chk('空の指定は断る (全部消さない)',
+            (config.get().settings.iconLayouts || []).length === after.length);
+          ipcReorder(['存在しない名前']);
+          chk('知らない名前だけでも消えない',
+            (config.get().settings.iconLayouts || []).length === after.length);
+        }
+
+        // 15. 覚え直す (同じ名前で保存し直す) の契約。
+        //     実デスクトップは読まずに済むよう、読み取りだけ偽物に差し替える
+        //     (書き込み側 icons.apply はそもそも呼ばない)
+        {
+          const realList = icons.list, realOrigin = icons.origin;
+          const realVisible = icons.visibleList, realStranded = icons.strandedNames;
+          icons.list = () => [{ name: 'A', x: 10, y: 20 }, { name: 'B', x: 10, y: 150 }];
+          icons.origin = () => ({ x: 0, y: 0 });
+          icons.visibleList = () => [];
+          icons.strandedNames = () => [];
+          try {
+            const idxBefore = (config.get().settings.iconLayouts || []).findIndex(l => l.name === '壁紙モードA');
+            config.update(c => {
+              const m = (c.settings.iconLayouts || []).find(x => x.name === '壁紙モードA');
+              if (m) { m.trigger = { type: 'battery' }; m.on = false; }
+            });
+            const r = saveIconSnapshot('壁紙モードA', ['B']);
+            chk('覚え直せる', !!(r && r.ok), r);
+            const list = config.get().settings.iconLayouts || [];
+            const idxAfter = list.findIndex(l => l.name === '壁紙モードA');
+            const m2 = list[idxAfter];
+            chk('覚え直しても同じ位置のまま (優先順位が変わらない)', idxAfter === idxBefore, { idxBefore, idxAfter });
+            chk('覚え直すと隠す一覧が入れ替わる', JSON.stringify(m2.hidden) === JSON.stringify(['B']), m2.hidden);
+            chk('覚え直しても条件は残る', !!(m2.trigger && m2.trigger.type === 'battery'), m2.trigger);
+            chk('覚え直しても壁紙は残る', !!m2.wallpapers);
+            chk('覚え直しても連動は残る', m2.linkWidgets === true);
+            chk('覚え直すと数は増えない',
+              list.filter(l => l.name === '壁紙モードA').length === 1);
+            // 新しい名前で保存すれば末尾に増える
+            const n0 = list.length;
+            saveIconSnapshot('あたらしい保存', []);
+            chk('新しい名前なら増える', (config.get().settings.iconLayouts || []).length === n0 + 1);
+          } finally {
+            icons.list = realList; icons.origin = realOrigin;
+            icons.visibleList = realVisible; icons.strandedNames = realStranded;
+          }
+        }
       } catch (err) {
         stFail++;
         console.log('SELFTEST FAIL: 例外 :: ' + (err && err.stack || err));
@@ -2338,7 +2397,7 @@ ipcMain.handle('icons:restore', (e, name) => applyIconSnapshot(name));
 
 // モードの名前を変える。名前で参照している設定も一緒に付け替える
 // モードの並び替え (名前の配列で新しい順序を受け取る)
-ipcMain.handle('icons:reorder', (e, names) => {
+function ipcReorder(names) {
   const order = Array.isArray(names) ? names.filter(Boolean) : [];
   if (!order.length) return { ok: false };
   config.update(cfg => {
@@ -2349,7 +2408,8 @@ ipcMain.handle('icons:reorder', (e, names) => {
     cfg.settings.iconLayouts = [...listed, ...rest];
   });
   return { ok: true };
-});
+}
+ipcMain.handle('icons:reorder', (e, names) => ipcReorder(names));
 
 function renameIconMode(from, to) {
   const clean = String(to || '').trim().slice(0, 40);

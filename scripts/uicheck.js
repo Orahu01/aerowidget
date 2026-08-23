@@ -31,9 +31,12 @@ const ok = (label, cond, detail) => {
 function buildPreload() {
   const src = fs.readFileSync(path.join(ROOT, 'src/renderer/settings/settings.js'), 'utf8');
   const names = [...new Set([...src.matchAll(/window\.api\.([a-zA-Z]+)/g)].map(m => m[1]))];
-  const lines = names.map(n => n.startsWith('on')
-    ? `  ${n}: () => {},`
-    : `  ${n}: (...a) => { log('${n}', a); return (O.${n} ? O.${n}(...a) : Promise.resolve([])); },`);
+  const lines = names.map(n => (n === 'onConfig')
+    // 配信の入口だけは控えておく。検査から「重ねが効いた envelope」を流すため
+    ? `  ${n}: (cb) => { H.config = cb; },`
+    : n.startsWith('on')
+      ? `  ${n}: () => {},`
+      : `  ${n}: (...a) => { log('${n}', a); return (O.${n} ? O.${n}(...a) : Promise.resolve([])); },`);
   const body = `
 'use strict';
 const { contextBridge } = require('electron');
@@ -70,13 +73,27 @@ const CFG = {
 };
 const ICON_NAMES = ['Icon1', 'Icon2', 'Icon3', 'ごみ箱'];
 
+// 重ねが効いているときに配られる「見えているもの」。土台とは別の壁紙を持つ。
+// 設定画面がこちらを掴んでしまうと「変えたのに戻る」事故になるので、
+// 検査では必ず base 側を見ていることを確かめる
+const OVERLAID = {
+  ...CFG,
+  wallpapers: { default: { type: 'custom', value: { kind: 'solid', colors: ['#992200'] }, dim: 7, blur: 0 }, byDisplay: {} },
+};
+const H = {};
+
 const snapshotsOut = () => ({
   saved: CFG.settings.iconLayouts.map(l => ({ ...l, hidden: (l.hidden || []).slice(), widgetsOn: (l.widgetsOn || []).slice() })),
   auto: { name: '復元前 (自動)', savedAt: 3, count: 4 },
 });
 
 const O = {
-  getConfig: async () => ({ config: CFG, base: CFG, activeModes: [], wallpapers: [], presets: [] }),
+  getConfig: async () => ({
+    config: CFG.__overlaid ? OVERLAID : CFG,
+    base: CFG,
+    activeModes: CFG.__overlaid ? ['重ね中モード'] : [],
+    wallpapers: [], presets: [],
+  }),
   getFontsCss: async () => '',
   listThemes: async () => [],
   listDisplays: async () => [
@@ -107,6 +124,16 @@ const O = {
   flushIconImages: async () => true,
 
   // ---- 書き込み系: 偽の器の中で本当に反映する (再描画の確認のため) ----
+  // 本物の wallpaper:set と同じ契約。ここを空にしておくと、画面が
+  // 「土台を見ているか重ねを見ているか」を確かめられない (どちらも同じに見えてしまう)
+  setWallpaper: async (patch, displayIndex) => {
+    if (displayIndex == null) Object.assign(CFG.wallpapers.default, patch);
+    else {
+      const k = String(displayIndex);
+      CFG.wallpapers.byDisplay[k] = Object.assign({}, CFG.wallpapers.default, CFG.wallpapers.byDisplay[k] || {}, patch);
+    }
+    return true;
+  },
   addWidget: async (type) => {
     const w = { id: 'w-new-' + type, type, display: 0, x: 50, y: 50, size: 20, color: '#fff', opacity: 1, shadow: 'none', letterSpacing: 0, font: 'Segoe UI', options: {} };
     CFG.widgets.push(w);
@@ -190,6 +217,13 @@ contextBridge.exposeInMainWorld('__test', {
   calls: () => calls.slice(),
   reset: () => { calls.length = 0; },
   find: (needle) => calls.filter(c => c.includes(needle)),
+  // 重ね (モードが効いている状態) の入り切りと、main からの配信の再現
+  overlay: (v) => { CFG.__overlaid = !!v; },
+  fireConfig: () => H.config && H.config({
+    config: CFG.__overlaid ? OVERLAID : CFG,
+    base: CFG,
+    activeModes: CFG.__overlaid ? ['重ね中モード'] : [],
+  }),
 });
 `;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aw-uicheck-'));
@@ -483,6 +517,59 @@ app.whenReady().then(async () => {
   // ================= 他タブが素で描けるか =================
   await tab('wallpaper');
   ok('壁紙タブが描けた', !!await step('壁紙タブ', `return !!document.querySelector('#tab-wallpaper.active');`));
+  // ---- 壁紙タブ: つまみの宛先と、重ね中の編集先 ----
+  // 20. 暗さのつまみが保存まで届く
+  await reset();
+  await step('暗さを変える', `
+    const el = await wf(() => document.getElementById('wp-dim'));
+    el.value = '40';
+    el.dispatchEvent(new Event('input'));
+    el.dispatchEvent(new Event('change'));
+    await sleep(400); return true;`);
+  ok('暗さ: setWallpaper が飛ぶ', await fired('"dim":40'));
+
+  // 21. モニタを選ぶと、そのモニタ宛てになる (すべて共通を書き換えない)
+  const chips = await step('モニタの選択', `
+    const row = document.getElementById('wp-target-chips');
+    return row ? [...row.querySelectorAll('button')].map(b => b.textContent) : [];`);
+  ok('モニタの選択肢が出る', Array.isArray(chips) && chips.length >= 2, chips);
+  await reset();
+  await step('2 枚目を選んでぼかす', `
+    const row = document.getElementById('wp-target-chips');
+    [...row.querySelectorAll('button')][1].click();
+    await sleep(300);
+    const el = document.getElementById('wp-blur');
+    el.value = '7';
+    el.dispatchEvent(new Event('input'));
+    el.dispatchEvent(new Event('change'));
+    await sleep(400); return true;`);
+  const c21 = await win.webContents.executeJavaScript(`window.__test.find('setWallpaper(')`);
+  ok('モニタ指定つきで飛ぶ', !!(c21[0] && /,\s*\d+\)$/.test(c21[0])), c21[0]);
+  await step('すべて共通へ戻す', `
+    const row = document.getElementById('wp-target-chips');
+    [...row.querySelectorAll('button')][0].click();
+    await sleep(300); return true;`);
+
+  // 22. 重ねが効いている間は、編集先が土台であることを知らせる。
+  //     知らせが無いと「変えたのに変わらない」に見える
+  await step('重ねを効かせる', `
+    window.__test.overlay(true); window.__test.fireConfig();
+    await sleep(700); return true;`);
+  ok('重ね中は編集先の説明が出る', !!await step('知らせの確認', `
+    const el = document.getElementById('wp-overlay-note');
+    return !!(el && el.style.display !== 'none' && el.textContent.includes('重ね中モード'));`));
+  const dimNow = await step('土台編集の確認', `
+    // 重ねの壁紙は dim 7。土台は 40。7 を掴んでいたら取り違えている
+    const el = document.getElementById('wp-dim');
+    return el && el.value;`);
+  ok('重ね中でも画面は土台を見ている', Number(dimNow) === 40, { dim: dimNow });
+  await step('重ねを外す', `
+    window.__test.overlay(false); window.__test.fireConfig();
+    await sleep(600); return true;`);
+  ok('重ねが外れたら知らせも消える', !!await step('知らせが消える', `
+    const el = document.getElementById('wp-overlay-note');
+    return !el || el.style.display === 'none';`));
+
   await tab('scenes');
   ok('シーンタブは案内だけ', !!await step('シーンタブ', `
     return document.querySelector('#tab-scenes').textContent.includes('統合されました');`));
