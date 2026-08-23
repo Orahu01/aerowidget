@@ -116,7 +116,7 @@ const O = {
   strandedIcons: async () => [],
   parkedWidgets: async () => CFG.widgets.filter(w => w.off).length,
   iconNames: async () => ICON_NAMES,
-  iconAliases: async () => ({}),
+  iconAliases: async () => ({ ...(CFG.settings.iconAlias || {}) }),
   iconImage: async () => null,
   iconSnapshots: async () => snapshotsOut(),
   audioDevices: async () => ({ current: 'devA', devices: [{ id: 'devA', name: 'スピーカー' }, { id: 'devB', name: 'ヘッドホン' }] }),
@@ -204,7 +204,15 @@ const O = {
   },
   restoreIcons: async () => ({ ok: true, moved: 4, hidden: 1, skipped: 0, rescued: 0, celled: 0, widgets: 0, widgetsRestored: 0, turnedOff: [] }),
   reorderIconModes: async () => ({ ok: true }),
-  setIconAlias: async () => ({ ok: true, label: '' }),
+  setIconAlias: async (name, label) => {
+    // 本物の icons:setAlias と同じ契約。空文字なら消す、40 字まで、前後の空白は落とす
+    const key = String(name || '');
+    if (!key) return { ok: false };
+    const txt = String(label || '').trim().slice(0, 40);
+    CFG.settings.iconAlias = CFG.settings.iconAlias || {};
+    if (txt) CFG.settings.iconAlias[key] = txt; else delete CFG.settings.iconAlias[key];
+    return { ok: true, label: txt };
+  },
   showAllWidgets: async () => { for (const w of CFG.widgets) w.off = false; return { ok: true, shown: 1 }; },
   showAllIcons: async () => ({ ok: true, restored: 0, placed: 0 }),
   setSettings: async (patch) => { Object.assign(CFG.settings, patch); return true; },
@@ -517,6 +525,53 @@ app.whenReady().then(async () => {
   // ================= 他タブが素で描けるか =================
   await tab('wallpaper');
   ok('壁紙タブが描けた', !!await step('壁紙タブ', `return !!document.querySelector('#tab-wallpaper.active');`));
+  // 23. ウィジェットの削除 (取り返しがつかない操作なので、狙ったものだけ消えること)
+  await tab('widgets');
+  const del = await step('削除', `
+    const cards = [...document.querySelectorAll('#widget-list .widget-card')];
+    const before = cards.length;
+    const target = cards[1];
+    const others = cards.filter(c => c !== target).length;
+    target.querySelector('.wc-del').click();
+    await wf(() => document.querySelectorAll('#widget-list .widget-card').length === before - 1);
+    return { before, after: document.querySelectorAll('#widget-list .widget-card').length, others };`);
+  ok('削除: 1 枚だけ減る', !!(del && del.after === del.before - 1), del);
+  ok('削除: removeWidget が飛ぶ', await fired('removeWidget('));
+
+  // 24. アイコンの呼び名 (実際の名前は変えない。変えると保存済みモードが迷子になる)
+  await tab('icons');
+  await reset();
+  const alias = await step('呼び名を付ける', inCard('モードA改', `
+    const row = await wf(() => card.querySelector('.ic-item:not(.w-item)'));
+    const real = row.querySelector('.nm').textContent;
+    row.querySelector('.ic-edit').click();
+    const inp = await wf(() => document.querySelector('.ic-alias-in'));
+    inp.value = 'よびな';
+    inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(700);
+    return { real };`));
+  ok('呼び名: setIconAlias がちょうど 1 回',
+    (await win.webContents.executeJavaScript(`window.__test.find('setIconAlias(')`)).length === 1);
+  ok('呼び名: 実際の名前で保存する',
+    await fired('setIconAlias("' + (alias && alias.real) + '","よびな")'), alias);
+  ok('呼び名: 画面に反映される', !!await step('呼び名の表示', `
+    return [...document.querySelectorAll('.ic-item .nm')].some(n => n.textContent.includes('よびな'));`));
+
+  // 25. F5 で読み直しても、どのタブも生きている (途中で止まらない)
+  await reset();
+  await step('F5', `
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F5', bubbles: true }));
+    await sleep(1500); return true;`);
+  ok('F5: 読み直しの IPC が飛ぶ', await fired('flushIconImages'));
+  ok('F5: モード一覧が描き直される', !!await step('F5 後のモード', `
+    return document.querySelectorAll('#ic-modes .ic-mode').length > 0;`));
+  ok('F5: 知らせが出る', !!await step('F5 のトースト', `
+    const el = document.getElementById('toast');
+    return !!(el && el.textContent.includes('読み直しました'));`));
+  await tab('widgets');
+  ok('F5: ウィジェット一覧も生きている', !!await step('F5 後のウィジェット', `
+    return document.querySelectorAll('#widget-list .widget-card').length > 0;`));
+
   // ---- 壁紙タブ: つまみの宛先と、重ね中の編集先 ----
   // 20. 暗さのつまみが保存まで届く
   await reset();

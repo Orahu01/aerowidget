@@ -378,6 +378,11 @@ function reportError(kind, err) {
 window.addEventListener('error', (e) => reportError('error', e.error || e));
 window.addEventListener('unhandledrejection', (e) => reportError('rejection', e.reason || e));
 
+// 描画関数を「転んでも他を巻き込まない」形で、終わるまで待って呼ぶ
+async function safeRenderAsync(name, fn) {
+  try { await fn(); } catch (err) { reportError(name, err); }
+}
+
 // 描画関数を「転んでも他を巻き込まない」形で呼ぶ
 function safeRender(name, fn) {
   try {
@@ -3674,14 +3679,17 @@ async function refreshAll() {
     try { await window.api.flushIconImages(); } catch (_) {}   // main 側の画像キャッシュも
     const env = await window.api.getConfig();
     cfg = env.base || env.config;   // 設定画面は土台を編集する
+    if (Array.isArray(env.activeModes)) activeModeNames = env.activeModes;
     sysWall = env.systemWallpaper || '';
     if (env.osLocale) osLocale = env.osLocale;
     displays = await window.api.listDisplays();
-    renderWallpaperTab();
-    renderWidgetList();
-    await renderGeneral();
-    await renderIconLayouts();       // アイコンページ (モード・地図) も読み直す
-    injectFonts();
+    // ここも 1 か所ずつ隔離する。読み直しの途中で転ぶと、下書きだけ捨てて
+    // 描き直しは半分で止まる — 画面は生きているのに中身が古い、いちばん困る状態になる
+    safeRender('wallpaper', () => renderWallpaperTab());
+    safeRender('widgets', () => renderWidgetList());
+    await safeRenderAsync('general', () => renderGeneral());
+    await safeRenderAsync('icons', () => renderIconLayouts());
+    safeRender('fonts', () => injectFonts());
     toast(T('読み直しました'));
   } finally {
     refreshing = false;
