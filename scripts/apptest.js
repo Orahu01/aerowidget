@@ -47,16 +47,16 @@ let fail = 0;
 }
 
 // ---------------- A2. 実行時に検証できない分岐の静的ガード ----------------
-// onDisplayChanged() の自動復元と switcher:applyIcons のオフ側は、どちらも
+// onDisplayChanged() の自動復元と switcher:applyIcons は、どちらも
 // applyIconSnapshot() を経由し、これが icons.apply() で実デスクトップのアイコンを
 // 動かす。ここを本当に起動して確かめることはできない (アイコンには絶対に触れない) ので、
-// せめて「意図した引数で呼んでいるか」だけソースの文字列一致で見張る。
+// せめて「意図した形で呼んでいるか」だけソースの文字列一致で見張る。
 // どちらも過去に一度壊れた実装 (5.9.28 時点のバグハントで確定) の再発防止線
 {
   const src = fs.readFileSync(path.join(ROOT, 'src/main/main.js'), 'utf8');
   const guards = [
     ['自動復元は activate:false で呼ぶ (人操作でないので条件を壊さない)', /applyIconSnapshot\(cur\.iconAutoRestore,\s*false\)/],
-    ['切り替えボタンのオフは復元(元に戻す)を呼ぶ (物理的に隠したままにしない)', /applyIconSnapshot\(ICON_BACKUP_NAME\)\.ok/],
+    ['切り替えボタンは押されたモードを当てるだけ (解除の分岐を持たない)', /switcher:applyIcons[\s\S]{0,400}?return !!applyIconSnapshot\(name\)\.ok;\s*\}\);/],
   ];
   for (const [label, re] of guards) {
     if (re.test(src)) console.log(`静的ガード OK: ${label}`);

@@ -65,6 +65,7 @@ jobs:
       #   apptest     - 本物の main プロセスで不変条件を検証 (IPC の対応漏れも)
       #   uicheck     - 設定画面の全操作を実際にクリックして回す
       #   wallcheck   - 壁紙レンダラ (実際に描かれる面) の担当判定と重ね/編集
+      #   switchcheck - 切り替えボタン (実アイコンを動かす唯一の面) の押下経路
       - name: Run test suites
         shell: pwsh
         run: npm test

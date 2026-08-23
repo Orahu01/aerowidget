@@ -2653,12 +2653,10 @@ ipcMain.handle('switcher:iconModes', () =>
 ipcMain.handle('switcher:currentIcons', () => config.get().settings.currentIconMode || '');
 
 ipcMain.handle('switcher:applyIcons', (e, name) => {
-  // トグル式: 今まさに適用中のものをもう一度押したら、当てる前の状態に戻す。
-  // まだなら適用する。旧実装は on フラグを消すだけでアイコンを物理的に
-  // 戻していなかったため、隠していたアイコンが保護されないまま隠れ続けた
-  if (config.get().settings.currentIconMode === name) {
-    return !!applyIconSnapshot(ICON_BACKUP_NAME).ok;
-  }
+  // 押されたモードを当てるだけ。「戻す」は別のモード (通常など) を押して行う。
+  // かつてはここに「同じものをもう一度押したら解除」があったが、
+  // 光っているボタンは画面側が押させないので永久に届かない死んだ道だった。
+  // 解除の意味も曖昧 (アイコンは戻す? 戻さない?) で、事故のもとでしかない
   return !!applyIconSnapshot(name).ok;
 });
 
