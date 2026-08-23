@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.29 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.30 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,22 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.30 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.30</div><div class="when">先行版・検査</div></div>
+    <div>
+      <h4>デスクトップに実際に描かれる面の自動検査を追加しました</h4>
+      <ul>
+        <li>壁紙とウィジェットを描いている部分は、これまで<b>どの検査も通っていませんでした</b>。
+          「再起動したらウィジェットが全部消えた」も「モードで隠したウィジェットに触れない」も、
+          すべてこの部分が原因でした</li>
+        <li>どのモニタが担当するかの判定 (再起動で変わらない鍵を使っているか)、
+          モードの重ね、配置編集中の見え方を、実際に描かせて確かめる検査を追加しました</li>
+        <li>検査は 110 項目から 121 項目になりました</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.29 -->

@@ -1,6 +1,6 @@
 {
   "name": "aerowidget",
-  "version": "5.9.29",
+  "version": "5.9.30",
   "description": "ウィジェットを自由に配置できる、おしゃれなライブ壁紙アプリ",
   "main": "src/main/main.js",
   "author": "Orahu01",
@@ -13,7 +13,7 @@
   "scripts": {
     "start": "electron .",
     "genicon": "node scripts/genicon.js",
-    "test": "node scripts/plantest.js && node scripts/overlaytest.js && node scripts/apptest.js && electron scripts/uicheck.js",
+    "test": "node scripts/plantest.js && node scripts/overlaytest.js && node scripts/apptest.js && electron scripts/uicheck.js && electron scripts/wallcheck.js",
     "dist": "electron-builder --win"
   },
   "build": {
