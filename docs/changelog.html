@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>更新履歴 — AeroWidget</title>
-<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.37 まで。">
+<meta name="description" content="AeroWidget のバージョンごとの変更点。v1.0.0 から最新の v5.9.38 まで。">
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -36,6 +36,31 @@
       マイナーが<b>奇数なら新機能の先行版</b> (5.3 / 5.5)、<b>偶数なら安定版</b> (5.2 / 6.0)、
       3 つめが残っていた不具合の修正 (5.2.1) です。先行版は設定で受け取りを ON にした方にだけ届きます。
     </p>
+  </section>
+
+  <!-- v5.9.38 -->
+  <section class="rel">
+    <div class="rail"><div class="v">5.9.38</div><div class="when">先行版・修正</div></div>
+    <div>
+      <h4>ボタンを押した後にオレンジの枠が出る問題を修正しました</h4>
+      <ul>
+        <li>クリック後のボタンに OS 既定の縁取りがそのまま出てしまい、環境によっては
+          Windows のアクセント色 (オレンジなど) が配色と噛み合っていませんでした。
+          明示的に指定し、キーボード操作のときだけ見えるようにしました</li>
+        <li>ARGB のアクセント色を選んだときの「縁を虹色が流れる」効果を、
+          帯の中によりはっきり複数の色が同時に見えるよう詰め直しました</li>
+      </ul>
+
+      <h4>自動起動をタスクスケジューラ方式にして、出遅れを直しました</h4>
+      <ul>
+        <li>これまでの自動起動はレジストリの Run キーを使っていましたが、これは
+          Windows がログオン時の負荷分散のためにわざと起動を遅らせる対象になっており、
+          体感で数十秒〜1 分ほど出遅れることがありました</li>
+        <li>タスクスケジューラの「ログオン時」トリガーに切り替えました。管理者権限は要求しません</li>
+        <li>すでに自動起動を有効にしている方は、次回起動時に自動で新方式へ切り替わります
+          (レジストリ側は消し、二重に起動しないようにしています)</li>
+      </ul>
+    </div>
   </section>
 
   <!-- v5.9.37 -->

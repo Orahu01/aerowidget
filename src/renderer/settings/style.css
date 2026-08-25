@@ -71,6 +71,8 @@ body {
 }
 
 button { font-family: inherit; color: inherit; }
+button:focus { outline: none; }
+button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
 .ic {
   width: 15px;
@@ -174,11 +176,11 @@ button { font-family: inherit; color: inherit; }
 :root[data-accent="argb"] .nav-item.active::before {
   content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 3px;
   background: linear-gradient(180deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a);
-  background-size: 100% 400%;
+  background-size: 100% 220%;
   animation: argb-flow-v 3s linear infinite;
 }
-@keyframes argb-flow-v { to { background-position: 0 -400%; } }
-@keyframes argb-flow-h { to { background-position: 0 0, -400% 0; } }
+@keyframes argb-flow-v { to { background-position: 0 -220%; } }
+@keyframes argb-flow-h { to { background-position: 0 0, -220% 0; } }
 @media (prefers-reduced-motion: reduce) {
   :root[data-accent="argb"] .nav-item.active::before,
   :root[data-accent="argb"] .btn.primary,
@@ -216,7 +218,7 @@ button { font-family: inherit; color: inherit; }
   background:
     linear-gradient(var(--bg1), var(--bg1)) padding-box,
     linear-gradient(90deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a) border-box;
-  background-size: 100% 100%, 400% 100%;
+  background-size: 100% 100%, 220% 100%;
   animation: argb-flow-h 3s linear infinite;
 }
 
@@ -1105,7 +1107,7 @@ input[type="text"].bad {
   background:
     linear-gradient(var(--bg1), var(--bg1)) padding-box,
     linear-gradient(180deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a) border-box;
-  background-size: 100% 100%, 100% 400%;
+  background-size: 100% 100%, 100% 220%;
   animation: argb-flow-v 3s linear infinite;
 }
 

@@ -792,19 +792,43 @@ function autostartExePath() {
   return process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
 }
 
+// レジストリの Run キー (Electron の setLoginItemSettings が使う方式) は、
+// Windows がログオン時の負荷分散のためにわざと起動を遅らせる対象になる —
+// 体感で数十秒〜1 分ほど出遅れることがある。タスクスケジューラの「ログオン時」
+// トリガーはその遅延の対象外なので、そちらへ乗り換える
+const AUTOSTART_TASK = 'AeroWidgetAutostart';
+
+function schtasks(args) {
+  try {
+    return require('child_process').execFileSync('schtasks.exe', args, { windowsHide: true, encoding: 'utf8' });
+  } catch (_) {
+    return null;   // タスクが無い、権限が無い、など。呼び出し側は「無い」扱いにする
+  }
+}
+
+function taskAutostartEnabled() {
+  return schtasks(['/query', '/tn', AUTOSTART_TASK]) !== null;
+}
+
 function getAutostart() {
   if (!app.isPackaged) return { enabled: false, supported: false };
-  const s = app.getLoginItemSettings({ path: autostartExePath(), args: ['--autostart'] });
-  return { enabled: s.openAtLogin, supported: true };
+  // 旧方式 (レジストリ) がまだ残っている人にも、切り替えるまでは正しい状態を見せる
+  const legacy = app.getLoginItemSettings({ path: autostartExePath(), args: ['--autostart'] }).openAtLogin;
+  return { enabled: taskAutostartEnabled() || legacy, supported: true };
 }
 
 function setAutostart(enabled) {
   if (!app.isPackaged) return getAutostart();
-  app.setLoginItemSettings({
-    openAtLogin: enabled,
-    path: autostartExePath(),
-    args: ['--autostart'],
-  });
+  // 新旧どちらの方式も一度きれいにしてから、必要な方だけ作り直す
+  app.setLoginItemSettings({ openAtLogin: false, path: autostartExePath(), args: ['--autostart'] });
+  schtasks(['/delete', '/tn', AUTOSTART_TASK, '/f']);
+  if (enabled) {
+    schtasks([
+      '/create', '/tn', AUTOSTART_TASK,
+      '/tr', `"${autostartExePath()}" --autostart`,
+      '/sc', 'onlogon', '/rl', 'limited', '/f',
+    ]);
+  }
   if (tray && tray.rebuild) tray.rebuild();
   return getAutostart();
 }
@@ -1265,6 +1289,18 @@ function onReady() {
   rebuildWallWindows();
 
   migrateModes();
+
+  // 一度だけ: 旧方式 (レジストリ) で自動起動が有効な人を、遅延の対象にならない
+  // タスクスケジューラ方式へ黙って移行する。壁紙が出たあとまで遅らせて、
+  // 起動そのものを (直そうとしている自動起動の遅さで) 逆に遅くしないようにする
+  if (app.isPackaged) {
+    setTimeout(() => {
+      if (config.get().settings.autostartMigrated) return;
+      config.update(c => { c.settings.autostartMigrated = true; });
+      const legacy = app.getLoginItemSettings({ path: autostartExePath(), args: ['--autostart'] }).openAtLogin;
+      if (legacy && !taskAutostartEnabled()) setAutostart(true);
+    }, 4000);
+  }
 
   // 既存ウィジェットに、再起動でも変わらないモニタの鍵を覚えさせる。
   // 5.9.18 が書いた displayId は再起動で無効になるため、ここで鍵へ移行する。

@@ -57,6 +57,12 @@ let fail = 0;
   const guards = [
     ['自動復元は activate:false で呼ぶ (人操作でないので条件を壊さない)', /applyIconSnapshot\(cur\.iconAutoRestore,\s*false\)/],
     ['切り替えボタンは押されたモードを当てるだけ (解除の分岐を持たない)', /switcher:applyIcons[\s\S]{0,400}?return !!applyIconSnapshot\(name\)\.ok;\s*\}\);/],
+    // 自動起動: タスクは管理者権限を要求しない (/rl limited)。/rl highest だと
+    // 通常ユーザーでは登録に失敗したり、壁紙の WorkerW 貼り付けと権限が食い違ったりする
+    ['自動起動タスクは非管理者権限で作る', /'\/rl',\s*'limited'/],
+    // 新しいタスクを作る前に、旧方式 (レジストリ) と旧タスクの両方を必ず消す。
+    // 消さずに作ると、次回ログオンで二重起動する
+    ['自動起動: 新規作成の前に旧方式を両方とも消す', /setLoginItemSettings\(\{ openAtLogin: false[\s\S]{0,200}schtasks\(\['\/delete'/],
   ];
   for (const [label, re] of guards) {
     if (re.test(src)) console.log(`静的ガード OK: ${label}`);
