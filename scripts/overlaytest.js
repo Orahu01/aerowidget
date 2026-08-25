@@ -57,15 +57,25 @@ cfg.settings.iconLayouts[1].on = true;
 eq('手動オンでも重なる', wpOf(effective()), '仕事の壁紙');
 
 fg = 'chrome.exe';
-eq('両方効いたら一覧の上が勝つ', wpOf(effective()), '配信の壁紙');
-eq('効いているのは 2 つ', act().map(m => m.name), ['配信用', '仕事']);
+// 人が押して選んだ (on:true) ほうが、一覧の位置に関係なく条件より勝つ。
+// 「一覧の上が勝つ」だけだと、条件が成立している間はボタンを押しても
+// 見た目が変わらず「ボタンより条件の方が強い」ように見える事故になる (実際の不具合報告あり)
+eq('両方効いても手動が条件より勝つ', wpOf(effective()), '仕事の壁紙');
+eq('効いているのは 2 つ (両方とも一覧には残る)', act().map(m => m.name), ['配信用', '仕事']);
 
-// 一覧の順を入れ替えると勝ち負けも入れ替わる
+// 一覧の順を入れ替えても、手動優先は変わらない (並びに依存しない)
 cfg.settings.iconLayouts = [cfg.settings.iconLayouts[1], cfg.settings.iconLayouts[0], cfg.settings.iconLayouts[2]];
-eq('並べ替えると勝ち負けも変わる', wpOf(effective()), '仕事の壁紙');
+eq('並べ替えても手動が勝ち続ける', wpOf(effective()), '仕事の壁紙');
+
+// 同じ種類どうし (手動 vs 手動) なら、これまでどおり一覧の上が勝つ
+cfg.settings.iconLayouts[1].trigger = null;   // 配信用を条件でなく手動にする
+cfg.settings.iconLayouts[1].on = true;
+eq('手動どうしなら一覧の上が勝つ', wpOf(effective()), '仕事の壁紙');
+cfg.settings.iconLayouts = [cfg.settings.iconLayouts[1], cfg.settings.iconLayouts[0], cfg.settings.iconLayouts[2]];
+eq('手動どうしの並べ替えは効く', wpOf(effective()), '配信の壁紙');
 
 // ---------------- 土台の不変 ----------------
-cfg = makeCfg();
+cfg = makeCfg();   // ここで作り直すので、上の手入れは後続のケースに影響しない
 fg = 'chrome.exe';
 const composed = effective();
 eq('重ねても土台は 1 バイトも変わらない', JSON.stringify(cfg), baseSnapshot);
@@ -104,9 +114,36 @@ ok('何も効いていなければ土台をそのまま返す', effective() === 
   eq('全部隠しても土台は無事', c.widgets.map(w => (w.off ? 1 : 0)), [0, 0, 1]);
 
   // 連動そのものを切れば、ウィジェットには一切触らない
+  c.settings.iconLayouts[0].widgetsOn = ['a'];
   c.settings.iconLayouts[0].linkWidgets = false;
   eq('連動を切れば土台のまま', offMap(E()), [0, 0, 1]);
   ok('連動も壁紙も無ければ土台をそのまま返す', E() === c);
+}
+
+// 報告された不具合の再現: 条件 (ゲーム中) が当たっている間に、切り替えボタンで
+// 別のウィジェット構成を選んでも、これまでは一覧の上にある条件付きモードが勝ち続けて
+// ボタンを押した効果が画面に出なかった。手動が条件より優先されることを確認する
+{
+  const c = {
+    wallpapers: { default: { type: 'preset', value: 'w' } },
+    widgets: [{ id: 'a' }, { id: 'b' }],
+    settings: {
+      iconLayouts: [
+        { name: 'ゲーム', trigger: { type: 'app', apps: ['game.exe'] }, linkWidgets: true, widgetsOn: ['a'] },   // 条件、一覧の先頭
+        { name: '配信', on: false, linkWidgets: true, widgetsOn: ['b'] },                                        // 手動、一覧の後ろ
+      ],
+    },
+  };
+  const A = () => overlay.activeModes(c.settings, matches);
+  const E = () => overlay.compose(c, A());
+  const offMap = (x) => x.widgets.map(w => (w.off ? 1 : 0));
+
+  fg = 'game.exe';
+  eq('ボタンを押す前は条件のモードのまま', offMap(E()), [0, 1]);
+  c.settings.iconLayouts[1].on = true;   // 切り替えボタンを押した想定 (setModeOn と同じ)
+  eq('ボタンを押したら (一覧の位置に関係なく) そちらに切り替わる', offMap(E()), [1, 0]);
+  eq('条件のモードも一覧には残ったまま (消えても壊れてもいない)', A().map(m => m.name), ['ゲーム', '配信']);
+  fg = '';
 }
 
 // ---------------- 排他 ----------------

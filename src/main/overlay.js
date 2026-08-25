@@ -35,12 +35,23 @@ function ownsWidgets(m) {
   return !!(m && m.linkWidgets);
 }
 
+// 人が押して選んだモードを、常に条件まかせのモードより優先する。
+// 「一覧の上が勝つ」だけだと、条件が当たっている間はボタンを押しても
+// 見た目が一切変わらない (ボタンより条件の方が強く見える) 事故になる。
+// 人の操作を最優先にしても、一覧の並びは書き換えない — あくまで重ねる時の選び方だけを変える
+function byManualFirst(act) {
+  const manual = (act || []).filter(m => m.on === true);
+  const auto = (act || []).filter(m => m.on !== true);
+  return [...manual, ...auto];
+}
+
 // 土台に、効いているモードを重ねた結果を返す。
 // 土台そのものは絶対に書き換えない (ここが安定性の要)。
 // 何も重なっていなければ土台をそのまま返す
 function compose(base, act) {
-  const wp = (act || []).find(ownsWallpaper);
-  const wv = (act || []).find(ownsWidgets);
+  const ordered = byManualFirst(act);
+  const wp = ordered.find(ownsWallpaper);
+  const wv = ordered.find(ownsWidgets);
   if (!wp && !wv) return base;
   const out = { ...base };
   if (wp) out.wallpapers = JSON.parse(JSON.stringify(wp.wallpapers));
