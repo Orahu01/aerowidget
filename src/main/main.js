@@ -1204,12 +1204,17 @@ function migrateModes() {
 // config.replace() は読み込んだ瞬間に 'change' を配ってしまい、
 // 統合前の設定でシーンエンジンが動き出す (壁紙を書き換え、アイコンを動かす) ため
 function unifyModes(c) {
-  {
+  if (!c || !c.settings) return c;
+
+  // ここから下の「一度だけ」ブロックは modesUnified 済みなら丸ごと飛ばすが、
+  // これはあくまで一度きりの移行処理をスキップするだけであって、関数全体を
+  // 抜けるわけではない。以前は return で関数ごと抜けていたため、
+  // すでに移行済みのほとんどのユーザーで、下にある「毎回直す」掃除
+  // (on+条件の矛盾・on の多重) が一度も実行されないという、この関数自体の不具合があった
+  if (!c.settings.modesUnified) {
     // レイアウトは壁紙+ウィジェット一式の写しだったので、
     // 壁紙とウィジェットの表示だけをモードに引き継ぐ (位置は土台に一本化)。
     // シーンのルールは、指していたレイアウトから作られたモードの条件になる
-    if (!c || !c.settings) return c;
-    if (c.settings.modesUnified) return c;
     c.settings.modesUnified = true;
     const modes = c.settings.iconLayouts || (c.settings.iconLayouts = []);
     const skip = new Set(['シーン切替前 (自動)', '適用前の構成 (自動)', 'テーマ適用前 (自動)']);
@@ -1249,6 +1254,19 @@ function unifyModes(c) {
   // 「条件が効かない」ようにしか見えない。条件がある方を残す
   for (const l of (c.settings.iconLayouts || [])) {
     if (l.trigger && l.on) l.on = false;
+  }
+
+  // 「常に効かせる」は同時に 1 つだけ。以前は壁紙・ウィジェットを持つモードどうしでしか
+  // ぶつからなかったため、それらを持たないモードを on にしても衝突と見なされず、
+  // 気づかないうちに何個も on が重なっていた。ウィジェットを持つ別のモードが
+  // 先に on のままだと、それがずっと勝ち続けて切り替えボタンが効かなく見える不具合になる。
+  // 一覧の上から順に、最初の 1 つだけを残す (setModeOn の排他と同じ基準)
+  {
+    let kept = false;
+    for (const l of (c.settings.iconLayouts || [])) {
+      if (l.on !== true) continue;
+      if (kept) l.on = false; else kept = true;
+    }
   }
   return c;
 }
@@ -1440,6 +1458,21 @@ function onReady() {
           return;
         }
 
+        // 別ケース: すでに modesUnified な (=ほとんどの実ユーザーと同じ) 構成でも、
+        // 「毎回直す」掃除がちゃんと動くこと。以前は一度きりの移行と同じ if で
+        // 早期 return していたため、すでに統合済みのユーザーではここが
+        // 一度も実行されず、on の重複がずっと残ってしまっていた (実際の不具合)
+        if (process.env.WW_SELFTEST_CASE === 'already-unified') {
+          chk('統合済みならもう移行はしない (印は変わらずそのまま)', st.modesUnified === true);
+          const bx = modes.find(m => m.name === '裸モードX');
+          const by = modes.find(m => m.name === '裸モードY');
+          chk('統合済みでも先の裸モードは on のまま', !!(bx && bx.on === true), bx);
+          chk('統合済みでも後の裸モードは off へ倒される', !!(by && by.on === false), by);
+          console.log(stFail ? `SELFTEST: ${stFail} 件失敗 / ${stPass + stFail} 件` : `SELFTEST: 全 ${stPass} 件 PASS`);
+          app.exit(stFail ? 1 : 0);
+          return;
+        }
+
         // 1. マイグレーション: 印・プリセットの変換・シーンの引退
         chk('統合の印が立つ', st.modesUnified === true);
         const day = modes.find(m => m.name === '昼プリセット');
@@ -1461,6 +1494,13 @@ function onReady() {
         // 2. 矛盾の掃除: on と trigger の両立ちは条件が主
         const both = modes.find(m => m.name === '矛盾モード');
         chk('on+条件の両立ちは掃除される', !!(both && both.trigger && both.on === false), both && { on: both.on, trg: !!both.trigger });
+
+        // 2b. 「常に効かせる」は持ち物に関係なく同時に 1 つだけ (実際の不具合の再現)。
+        // 一覧の上から見て最初の 1 つだけが残る
+        const bx = modes.find(m => m.name === '裸モードX');
+        const by = modes.find(m => m.name === '裸モードY');
+        chk('先の裸モードは on のまま残る', !!(bx && bx.on === true), bx);
+        chk('後の裸モードは起動時に off へ倒される', !!(by && by.on === false), by);
 
         // 3. 土台の不変: effectiveConfig は config を 1 バイトも書き換えない
         const before = JSON.stringify(config.get());

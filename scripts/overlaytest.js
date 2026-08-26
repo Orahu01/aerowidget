@@ -147,6 +147,10 @@ ok('何も効いていなければ土台をそのまま返す', effective() === 
 }
 
 // ---------------- 排他 ----------------
+// 「常に効かせる」は持ち物 (壁紙・ウィジェット) に関係なく同時に 1 つだけ。
+// 以前は同じ持ち物どうしでしか衝突と見なさなかったため、何も持たないモードを
+// on にしても衝突扱いされず、ウィジェットを持つ別のモードがずっと居座り続けて
+// 切り替えボタンが効かないように見える実際の不具合があった
 {
   const list = [
     { name: 'A', on: true, wallpapers: { x: 1 } },
@@ -158,16 +162,13 @@ ok('何も効いていなければ土台をそのまま返す', effective() === 
   ];
   const names = (me) => overlay.exclusivityVictims(list, me).map(l => l.name);
 
-  eq('壁紙どうしはぶつかる', names({ name: '新', wallpapers: { x: 3 } }), ['A']);
-  eq('ウィジェット表示どうしはぶつかる (空選択も含む)',
-    names({ name: '新', linkWidgets: true, widgetsOn: ['w2'] }), ['B', 'C']);
-  eq('空選択のモードも相手を落とす',
-    names({ name: '新', linkWidgets: true, widgetsOn: [] }), ['B', 'C']);
-  eq('両方覚えていれば両方落とす',
-    names({ name: '新', wallpapers: { x: 3 }, linkWidgets: true, widgetsOn: [] }), ['A', 'B', 'C']);
-  eq('何も覚えていなければ誰も落とさない', names({ name: '新' }), []);
-  eq('自動退避は巻き込まない', names({ name: '新', wallpapers: { x: 3 } }).includes(ICON_BACKUP_NAME), false);
-  eq('自分自身は落とさない', names(list[0]), []);
+  eq('新しく on にすると、持ち物に関係なく他の on 全部とぶつかる',
+    names({ name: '新', wallpapers: { x: 3 } }), ['A', 'B', 'C', 'D']);
+  eq('新しいモードが何も覚えていなくても同じ (実際の不具合の再現)',
+    names({ name: '新' }), ['A', 'B', 'C', 'D']);
+  eq('オフのものは巻き込まない', names({ name: '新' }).includes('E'), false);
+  eq('自動退避は巻き込まない', names({ name: '新' }).includes(ICON_BACKUP_NAME), false);
+  eq('自分自身は落とさない', names(list[0]), ['B', 'C', 'D']);
 }
 
 // ---------------- 壊れた設定でも落ちない ----------------

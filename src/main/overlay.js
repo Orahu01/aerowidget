@@ -63,16 +63,18 @@ function compose(base, act) {
   return out;
 }
 
-// me を手動でオンにしたとき、同時にオンにしておけないモード。
-// 同じもの (壁紙 / ウィジェット表示) を覚えているモード同士は取り合いになるため、
+// me を手動でオンにしたとき、同時にオンにしておけないモード = 他のすべての on:true。
+// 以前は壁紙 / ウィジェットを両方とも覚えていないモードどうしは「取り合いにならない」
+// として見逃していたが、それだと「常に効かせる」を何個も重ねられてしまい、
+// 一番最初に on にしたものが (何を持っているかに関係なく) ずっと居座り続け、
+// 切り替えボタンを押しても何も変わらないように見える不具合になっていた。
+// モードは「切り替えて使うもの」なので、持ち物に関係なく同時に 1 つだけにする。
 // 黙って裏で決めずに、オフにする相手を名指しで返して画面に知らせる
 function exclusivityVictims(list, me) {
-  const iWp = ownsWallpaper(me);
-  const iWv = ownsWidgets(me);
   const out = [];
   for (const l of (list || [])) {
     if (l === me || l.name === ICON_BACKUP_NAME || l.on !== true) continue;
-    if ((iWp && ownsWallpaper(l)) || (iWv && ownsWidgets(l))) out.push(l);
+    out.push(l);
   }
   return out;
 }

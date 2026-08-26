@@ -148,6 +148,11 @@ runSelftest('B: 既定の構成', {
     },
     iconLayouts: [
       { name: '矛盾モード', savedAt: 1, count: 0, icons: [], hidden: [], on: true, trigger: { type: 'battery' } },
+      // 報告された不具合の再現: 何も持たない (壁紙もウィジェットも無い) モードが
+      // 2 つとも「常に効かせる」のまま起動する。以前はこれが衝突と見なされず、
+      // 実際のユーザー環境で 3 つのモードが同時に on: true のまま残っていた
+      { name: '裸モードX', savedAt: 1.1, count: 0, icons: [], hidden: [], on: true, trigger: null },
+      { name: '裸モードY', savedAt: 1.2, count: 0, icons: [], hidden: [], on: true, trigger: null },
       { name: '壁紙モードA', savedAt: 2, count: 0, icons: [], hidden: [], on: false, trigger: { type: 'time', from: '22:00', to: '06:00' }, wallpapers: wallA, linkWidgets: true, widgetsOn: ['w1'] },
       { name: '壁紙モードB', savedAt: 3, count: 0, icons: [], hidden: [], on: false, trigger: null, wallpapers: wallB },
       { name: '名前変更対象', savedAt: 4, count: 0, icons: [], hidden: [], on: false, trigger: null },
@@ -172,6 +177,29 @@ runSelftest('C: シーン無効の構成', {
     scheduleEnabled: false,
   },
 }, { WW_SELFTEST_CASE: 'scenes-disabled' });
+
+// ---------------- D. 実起動検査 (統合済みの構成) ----------------
+// modesUnified が最初から true (=ほとんどの実ユーザーと同じ状態) でも、
+// 「毎回直す」掃除がちゃんと動くことを見る。これを既定の構成 (B) だけに
+// 頼っていると、B は毎回「未統合→初回移行」経路しか通らないため、
+// この不具合 (統合済みだと掃除ごと丸ごと飛ばされる) を検出できない
+runSelftest('D: 統合済みの構成', {
+  version: 2,
+  wallpapers: { default: { type: 'custom', value: { kind: 'solid', colors: ['#141821'] }, dim: 0, blur: 0 }, byDisplay: {} },
+  widgets: [],
+  settings: {
+    language: 'ja',
+    currentIconMode: '', iconAutoRestore: '',
+    modesUnified: true,
+    layouts: [],
+    scenes: { enabled: false, rules: [] },
+    iconLayouts: [
+      { name: '裸モードX', savedAt: 1, count: 0, icons: [], hidden: [], on: true, trigger: null },
+      { name: '裸モードY', savedAt: 2, count: 0, icons: [], hidden: [], on: true, trigger: null },
+    ],
+    scheduleEnabled: false,
+  },
+}, { WW_SELFTEST_CASE: 'already-unified' });
 
 console.log(fail ? `apptest: ${fail} 部で失敗` : 'apptest: 全部 PASS');
 process.exit(fail ? 1 : 0);
