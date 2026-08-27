@@ -92,6 +92,7 @@ const O = {
     config: CFG.__overlaid ? OVERLAID : CFG,
     base: CFG,
     activeModes: CFG.__overlaid ? ['重ね中モード'] : [],
+    wallpaperModeName: CFG.__overlaid ? '重ね中モード' : '',
     wallpapers: [], presets: [],
   }),
   getFontsCss: async () => '',
@@ -231,6 +232,7 @@ contextBridge.exposeInMainWorld('__test', {
     config: CFG.__overlaid ? OVERLAID : CFG,
     base: CFG,
     activeModes: CFG.__overlaid ? ['重ね中モード'] : [],
+    wallpaperModeName: CFG.__overlaid ? '重ね中モード' : '',
   }),
 });
 `;

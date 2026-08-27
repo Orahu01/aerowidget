@@ -80,6 +80,6 @@ function exclusivityVictims(list, me) {
 }
 
 module.exports = {
-  ICON_BACKUP_NAME, modeList, activeModes, compose,
+  ICON_BACKUP_NAME, modeList, activeModes, compose, byManualFirst,
   ownsWallpaper, ownsWidgets, exclusivityVictims,
 };

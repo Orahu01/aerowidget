@@ -117,16 +117,34 @@ function effectiveConfig() {
   return overlay.compose(config.get(), activeModes());
 }
 
+// いま実際に画面へ出ている壁紙を覚えているモード (無ければ null)。
+// compose() と同じ優先順位 (人が選んだものが条件より勝つ) で選ぶ
+function wallpaperOwner() {
+  return overlay.byManualFirst(activeModes()).find(overlay.ownsWallpaper) || null;
+}
+
 function configEnvelope() {
+  const wpOwner = wallpaperOwner();
   return {
     config: effectiveConfig(),          // 描画側は重ねた結果を見る
     base: config.get(),                 // 設定画面は土台を編集する
     activeModes: activeModes().map(m => m.name),
+    wallpaperModeName: wpOwner ? wpOwner.name : '',
     systemWallpaper: attach.getSystemWallpaperPath(),
     onlineWallpaper: onlinewall.getCurrent(),
     osLocale: app.getLocale() || 'ja',
     brand: brand.NAME,
   };
+}
+
+// 壁紙タブを編集している間、いま画面に出ているのが特定のモードの壁紙なら、
+// そのモード自身の記憶も一緒に更新する。以前は編集内容が土台にしか届かず、
+// モードの覚えている壁紙は「壁紙も覚える」を最初にチェックした瞬間のまま
+// 凍り付いていた — 変えたのに、そのモードに戻ると元の壁紙のままに見える原因だった
+function syncActiveWallpaperMode(cfg) {
+  const owner = overlay.byManualFirst(overlay.activeModes(cfg.settings, (t) => scenes.matches(t)))
+    .find(overlay.ownsWallpaper);
+  if (owner) owner.wallpapers = JSON.parse(JSON.stringify(cfg.wallpapers));
 }
 
 // 条件の成立状況が変わったとき、重ねた結果が変わっていれば描き直す。
@@ -1531,6 +1549,23 @@ function onReady() {
         const eff2 = effectiveConfig();
         chk('全オフなら土台そのもの', JSON.stringify(eff2.wallpapers) === JSON.stringify(config.get().wallpapers));
 
+        // 6b. 壁紙タブでの編集は、いま画面に出しているモードの記憶にも届く。
+        // 以前は土台にしか届かず、モードの記憶は「壁紙も覚える」を最初にチェックした
+        // 瞬間のまま凍り付いていた (「変えたのに、モードに戻ると元のまま」の原因)
+        setModeOn('壁紙モードA', true);
+        setWallpaper({ type: 'custom', value: { kind: 'solid', colors: ['#ABCDEF'] }, dim: 0, blur: 0 }, null);
+        const aAfterEdit = (config.get().settings.iconLayouts || []).find(m => m.name === '壁紙モードA');
+        chk('表示中のモードは編集にあわせて記憶も更新される (本物の IPC 経路)',
+          !!(aAfterEdit && aAfterEdit.wallpapers && aAfterEdit.wallpapers.default.value.colors[0] === '#ABCDEF'),
+          aAfterEdit && aAfterEdit.wallpapers);
+
+        setModeOn('壁紙モードA', false);
+        setWallpaper({ type: 'custom', value: { kind: 'solid', colors: ['#000000'] }, dim: 0, blur: 0 }, null);
+        const aAfterOff = (config.get().settings.iconLayouts || []).find(m => m.name === '壁紙モードA');
+        chk('表示していないモードの記憶は編集で書き換わらない',
+          !!(aAfterOff && aAfterOff.wallpapers && aAfterOff.wallpapers.default.value.colors[0] === '#ABCDEF'),
+          aAfterOff && aAfterOff.wallpapers);
+
         // 7. 窓が実際に立っている
         chk('壁紙の窓がある', wallWins.size >= 1, wallWins.size);
 
@@ -1779,18 +1814,26 @@ ipcMain.handle('config:get', () => configEnvelope());
 
 ipcMain.handle('displays:list', () => monitors.describe(screen));
 
-ipcMain.handle('wallpaper:set', (e, patch, displayIndex) => config.update(c => {
-  if (displayIndex == null) {
-    Object.assign(c.wallpapers.default, patch);
-  } else {
-    const k = String(displayIndex);
-    c.wallpapers.byDisplay[k] = Object.assign({}, c.wallpapers.default, c.wallpapers.byDisplay[k] || {}, patch);
-  }
-}));
+function setWallpaper(patch, displayIndex) {
+  return config.update(c => {
+    if (displayIndex == null) {
+      Object.assign(c.wallpapers.default, patch);
+    } else {
+      const k = String(displayIndex);
+      c.wallpapers.byDisplay[k] = Object.assign({}, c.wallpapers.default, c.wallpapers.byDisplay[k] || {}, patch);
+    }
+    syncActiveWallpaperMode(c);
+  });
+}
+ipcMain.handle('wallpaper:set', (e, patch, displayIndex) => setWallpaper(patch, displayIndex));
 
-ipcMain.handle('wallpaper:clearOverride', (e, displayIndex) => config.update(c => {
-  delete c.wallpapers.byDisplay[String(displayIndex)];
-}));
+function clearWallpaperOverride(displayIndex) {
+  return config.update(c => {
+    delete c.wallpapers.byDisplay[String(displayIndex)];
+    syncActiveWallpaperMode(c);
+  });
+}
+ipcMain.handle('wallpaper:clearOverride', (e, displayIndex) => clearWallpaperOverride(displayIndex));
 
 ipcMain.handle('settings:set', (e, patch) => config.update(c => Object.assign(c.settings, patch)));
 

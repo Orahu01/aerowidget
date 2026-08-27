@@ -176,8 +176,8 @@ const JA_EN = {
   'オフ': 'Off', '常に効かせる': 'Always on',
   '条件: アプリが前面のとき': 'When an app is in front', '条件: 全画面のアプリがあるとき': 'When an app is fullscreen',
   '条件: バッテリー駆動のとき': 'When on battery', '条件: 時間帯': 'During a time of day',
-  'いまモード「{n}」が効いていて、その壁紙が上に重なっています。ここで変えた内容は土台に保存され、モードが外れたときに表示されます。':
-    'Mode "{n}" is active and its wallpaper is layered on top. Changes made here are saved to the base and appear when the mode turns off.',
+  'いまモード「{n}」の壁紙が表示されています。ここで変えると、このモードが覚えている壁紙も一緒に更新されます。':
+    'Mode "{n}"\'s wallpaper is showing right now. Changes made here also update what this mode remembers.',
   '壁紙を覚えています': 'remembers a wallpaper', '壁紙は覚えていません': 'no wallpaper remembered',
   'このモードを今すぐ効かせる': 'Turn this mode on now', '壁紙も覚える': 'Remember the wallpaper too',
   'いまの壁紙を覚えました': 'Current wallpaper remembered', '壁紙を忘れました': 'Wallpaper forgotten',
@@ -767,10 +767,10 @@ function renderWallpaperTab() {
       if (host) host.after(el);
       return el;
     })();
-    if (activeModeNames.length) {
+    if (wallpaperModeName) {
       note.style.display = '';
-      note.textContent = T('いまモード「{n}」が効いていて、その壁紙が上に重なっています。ここで変えた内容は土台に保存され、モードが外れたときに表示されます。')
-        .replace('{n}', activeModeNames.join('・'));
+      note.textContent = T('いまモード「{n}」の壁紙が表示されています。ここで変えると、このモードが覚えている壁紙も一緒に更新されます。')
+        .replace('{n}', wallpaperModeName);
     } else {
       note.style.display = 'none';
     }
@@ -1835,6 +1835,7 @@ const NO_FONT_TYPES = new Set(['line', 'image', 'analog']);
 const NO_SHADOW_TYPES = new Set(['line']);
 
 let activeModeNames = [];           // いま効いている (重なっている) モード名
+let wallpaperModeName = '';         // いま画面の壁紙を覚えているモード (無ければ '')
 let widgetQuery = '';               // ウィジェットの絞り込み文字列
 // 名前を付ける鉛筆 (ウィジェットの見出しとアイコン一覧で共用)
 const PEN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
@@ -3726,6 +3727,7 @@ async function refreshAll() {
     const env = await window.api.getConfig();
     cfg = env.base || env.config;   // 設定画面は土台を編集する
     if (Array.isArray(env.activeModes)) activeModeNames = env.activeModes;
+    wallpaperModeName = env.wallpaperModeName || '';
     sysWall = env.systemWallpaper || '';
     if (env.osLocale) osLocale = env.osLocale;
     displays = await window.api.listDisplays();
@@ -3767,6 +3769,7 @@ document.addEventListener('keydown', (e) => {
 window.api.onConfig((env) => {
   cfg = env.base || env.config;   // 設定画面は土台を編集する
   if (Array.isArray(env.activeModes)) activeModeNames = env.activeModes;
+  wallpaperModeName = env.wallpaperModeName || '';
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
   if (env.brand) BRAND = env.brand;
@@ -3784,6 +3787,7 @@ window.api.onFontsChanged(() => injectFonts());
   const env = await window.api.getConfig();
   cfg = env.base || env.config;   // 設定画面は土台を編集する
   if (Array.isArray(env.activeModes)) activeModeNames = env.activeModes;
+  wallpaperModeName = env.wallpaperModeName || '';
   sysWall = env.systemWallpaper || '';
   if (env.osLocale) osLocale = env.osLocale;
   if (env.brand) BRAND = env.brand;
