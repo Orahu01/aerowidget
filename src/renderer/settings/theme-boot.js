@@ -6,6 +6,10 @@
   const p = new URLSearchParams(location.search);
   const theme = p.get('theme');
   const accent = p.get('accent');
+  const mica = p.get('mica');
   if (theme) document.documentElement.dataset.theme = theme;
   if (accent) document.documentElement.dataset.accent = accent;
+  // Mica は「システムが窓の地を描く」ので、CSS 側は地を透明にして譲る必要がある。
+  // 使えない環境で透明にすると背景が真っ黒になるため、main の判定をそのまま使う
+  if (mica === '1') document.documentElement.dataset.mica = 'on';
 })();

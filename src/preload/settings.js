@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('api', {
   setWallpaper: (patch, displayIndex) => ipcRenderer.invoke('wallpaper:set', patch, displayIndex),
   clearWallpaperOverride: (displayIndex) => ipcRenderer.invoke('wallpaper:clearOverride', displayIndex),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  setMica: (on) => ipcRenderer.invoke('ui:setMica', on),
+  onMica: (cb) => ipcRenderer.on('mica', (_e, v) => cb(v)),
   saveCustomPreset: (v) => ipcRenderer.invoke('custompreset:save', v),
   removeCustomPreset: (i) => ipcRenderer.invoke('custompreset:remove', i),
 

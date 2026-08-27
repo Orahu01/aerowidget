@@ -70,6 +70,27 @@ body {
     radial-gradient(120% 150% at 8% -12%, #1c231b 0%, #171d15 45%, #10140d 100%);
 }
 
+/* ---- Mica (Windows 11) ----
+   システムが窓の地に「壁紙をぼかして色を混ぜたもの」を描く。CSS 側が地を塗ると
+   その上に乗って何も見えなくなるので、地は透明にして譲る。
+   代わりに、文字が乗る面 (カード類) は不透明のままにして読みやすさを守る。
+   data-mica は main 側が「本当に Mica が効く環境か」を判定して付けている —
+   効かない環境で透明にすると、ただの真っ黒な窓になってしまうため */
+:root[data-mica="on"] body { background: transparent; }
+
+/* ナビは Mica を透かす薄い膜にする (完全に透明にすると本文と地続きに見えて境界が消える) */
+:root[data-mica="on"] { --glass: rgba(255, 255, 255, .34); }
+:root[data-mica="on"][data-theme="dark"] { --glass: rgba(28, 35, 26, .32); }
+
+/* カードと浮きもの (ドロップダウン・ウィザード) は不透明を保つ。
+   ここが透けると、文字が壁紙の模様に重なって一気に読めなくなる */
+:root[data-mica="on"] .group,
+:root[data-mica="on"] .widget-card,
+:root[data-mica="on"] .ic-mode,
+:root[data-mica="on"] .theme-card,
+:root[data-mica="on"] #font-dropdown,
+:root[data-mica="on"] #wizard-card { background: var(--bg1); }
+
 button { font-family: inherit; color: inherit; }
 button:focus { outline: none; }
 button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }

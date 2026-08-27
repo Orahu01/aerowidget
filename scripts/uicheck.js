@@ -34,6 +34,8 @@ function buildPreload() {
   const lines = names.map(n => (n === 'onConfig')
     // 配信の入口だけは控えておく。検査から「重ねが効いた envelope」を流すため
     ? `  ${n}: (cb) => { H.config = cb; },`
+    : (n === 'onMica')
+    ? `  ${n}: (cb) => { H.mica = cb; },`
     : n.startsWith('on')
       ? `  ${n}: () => {},`
       : `  ${n}: (...a) => { log('${n}', a); return (O.${n} ? O.${n}(...a) : Promise.resolve([])); },`);
@@ -217,6 +219,7 @@ const O = {
   showAllWidgets: async () => { for (const w of CFG.widgets) w.off = false; return { ok: true, shown: 1 }; },
   showAllIcons: async () => ({ ok: true, restored: 0, placed: 0 }),
   setSettings: async (patch) => { Object.assign(CFG.settings, patch); return true; },
+  setMica: async (on) => ({ ok: true, supported: true, on: !!on }),
   saveLayout: async () => [],
   applyLayout: async () => true,
   checkUpdate: async () => ({ state: 'idle' }),
@@ -228,6 +231,7 @@ contextBridge.exposeInMainWorld('__test', {
   find: (needle) => calls.filter(c => c.includes(needle)),
   // 重ね (モードが効いている状態) の入り切りと、main からの配信の再現
   overlay: (v) => { CFG.__overlaid = !!v; },
+  fireMica: (on) => H.mica && H.mica({ on: !!on }),
   fireConfig: () => H.config && H.config({
     config: CFG.__overlaid ? OVERLAID : CFG,
     base: CFG,
@@ -255,7 +259,8 @@ app.whenReady().then(async () => {
   win.webContents.on('console-message', (e, level, message) => {
     if (level >= 3 || /Uncaught|TypeError|ReferenceError|内部エラー/.test(String(message))) pageErrors.push(String(message).slice(0, 160));
   });
-  await win.loadFile(path.join(ROOT, 'src/renderer/settings/index.html'));
+  await win.loadFile(path.join(ROOT, 'src/renderer/settings/index.html'),
+    { query: { micaok: '1', mica: '1' } });
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   // step(): 1 手順 = 1 ページ内スクリプト。中で例外が出ても検査全体は続ける。
@@ -692,6 +697,38 @@ app.whenReady().then(async () => {
     };`);
   ok('ARGB を選べる', !!(argbR && argbR.accent === 'argb'), argbR);
   ok('ARGB でも光るのは 1 つだけ', argbR && argbR.onCount === 1, argbR);
+
+  // 30. Mica: 使える環境なら項目が出て、初期状態は「入」
+  const micaInit = await step('Mica の初期状態', `
+    const row = document.getElementById('mica-row');
+    return {
+      shown: !!(row && row.style.display !== 'none'),
+      checked: !!document.getElementById('ui-mica').checked,
+      attr: document.documentElement.dataset.mica || '',
+    };`);
+  ok('Mica: 使える環境では項目が出る', !!(micaInit && micaInit.shown), micaInit);
+  ok('Mica: 入っていれば入で表示される', !!(micaInit && micaInit.checked && micaInit.attr === 'on'), micaInit);
+
+  // 31. 切ると main へ伝わる
+  await reset();
+  await step('Mica を切る', `
+    const c = document.getElementById('ui-mica');
+    c.checked = false;
+    c.dispatchEvent(new Event('change'));
+    await sleep(400); return true;`);
+  ok('Mica: 切ると setMica(false) が飛ぶ', await fired('setMica(false)'));
+
+  // 32. main からの通知で、CSS 側の地の譲り方もそろう
+  const micaOff = await step('main から切った通知', `
+    window.__test.fireMica(false);
+    await sleep(200);
+    return { attr: document.documentElement.dataset.mica || '', checked: document.getElementById('ui-mica').checked };`);
+  ok('Mica: 切ると地を譲るのをやめる', !!(micaOff && micaOff.attr === '' && micaOff.checked === false), micaOff);
+  const micaOn2 = await step('main から入れた通知', `
+    window.__test.fireMica(true);
+    await sleep(200);
+    return { attr: document.documentElement.dataset.mica || '', checked: document.getElementById('ui-mica').checked };`);
+  ok('Mica: 入れ直すと地を譲る', !!(micaOn2 && micaOn2.attr === 'on' && micaOn2.checked === true), micaOn2);
 
   // ================= 総合: レンダラ例外ゼロ =================
   ok('レンダラ例外ゼロ', pageErrors.length === 0, pageErrors.slice(0, 4));

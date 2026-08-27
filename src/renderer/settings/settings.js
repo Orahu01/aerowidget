@@ -276,6 +276,9 @@ const JA_EN = {
   'ゾーン (色分け枠)': 'Zone (colored frame)', 'ライン (線)': 'Line', 'フォルダ (アプリまとめ)': 'Folder (app launcher)',
   'この画面の見た目': 'This window’s appearance', '明るさ': 'Brightness', 'ライト': 'Light', 'ダーク': 'Dark',
   'アクセント色': 'Accent color',
+  '背景に壁紙を透かす (Mica)': 'Show the wallpaper through the background (Mica)',
+  'Windows 11 の質感です。デスクトップの壁紙がうっすら透けます。読みにくいと感じたらオフにしてください。':
+    'The Windows 11 look — your desktop wallpaper shows faintly through this window.',
   'ARGB を選ぶと、ナビの帯やボタンの縁だけが虹色に流れ続けます。':
     'Pick ARGB and just the edges — the nav bar and button borders — keep cycling through the rainbow.',
   'デスクトップ': 'Desktop', 'デスクトップアイコンを表示': 'Show desktop icons', '言語 / Language': 'Language',
@@ -2214,6 +2217,28 @@ function syncAppearanceUI() {
 
 function wireAppearance() {
   syncAppearanceUI();
+
+  // Mica は Windows 11 でしか効かない。使えない環境では項目自体を出さない —
+  // 押しても何も起きないスイッチほど分かりにくいものはない
+  const micaOk = new URLSearchParams(location.search).get('micaok') === '1';
+  const micaRow = $('#mica-row');
+  const micaNote = $('#mica-note');
+  const micaChk = $('#ui-mica');
+  if (micaOk && micaRow && micaChk) {
+    micaRow.style.display = '';
+    if (micaNote) micaNote.style.display = '';
+    micaChk.checked = document.documentElement.dataset.mica === 'on';
+    micaChk.addEventListener('change', async () => {
+      const r = await window.api.setMica(micaChk.checked);
+      if (!r || !r.ok) micaChk.checked = document.documentElement.dataset.mica === 'on';
+    });
+  }
+  // main から「切り替えたよ」と来たら、CSS 側の地の譲り方もそろえる
+  window.api.onMica(({ on }) => {
+    if (on) document.documentElement.dataset.mica = 'on';
+    else delete document.documentElement.dataset.mica;
+    if (micaChk) micaChk.checked = !!on;
+  });
   const segEl = $('#theme-mode-seg');
   const swEl = $('#accent-swatches');
   segEl && segEl.addEventListener('click', (e) => {

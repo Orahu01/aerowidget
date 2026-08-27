@@ -693,6 +693,20 @@ function exitEditMode() {
 }
 
 // ---------------------------------------------------------------- 設定ウィンドウ
+// Mica (壁紙がうっすら透ける Windows 11 の質感) が使えるか。
+// Mica は Windows 11 (ビルド 22000 以降) だけの機能で、Windows 10 以前では
+// 指定しても効かない — 効かないのに CSS だけ透明にすると背景が真っ黒になるので、
+// 使えるかどうかをここで一度だけ判定して、画面側にもそのまま渡す
+function micaSupported() {
+  if (process.platform !== 'win32') return false;
+  const build = Number((require('os').release() || '').split('.')[2] || 0);
+  return build >= 22000;
+}
+
+function micaOn() {
+  return micaSupported() && config.get().settings.uiMica !== false;
+}
+
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) {
     settingsWin.show();
@@ -702,10 +716,14 @@ function openSettings() {
   const wa = screen.getPrimaryDisplay().workArea;
   const sw = Math.min(1060, wa.width - 80);
   const sh = Math.min(740, wa.height - 80);
+  const mica = micaOn();
   settingsWin = new BrowserWindow({
     width: sw, height: sh, minWidth: 700, minHeight: 520,
     frame: false, show: false,
-    backgroundColor: '#141518',
+    // Mica のときは、システムが描く材質が見えるように窓の地を透明にしておく。
+    // 使わないときは明暗にあわせた不透明色 (読み込み中の一瞬だけ見える色)
+    backgroundColor: mica ? '#00000000' : (config.get().settings.uiTheme === 'dark' ? '#12160f' : '#eef2f0'),
+    ...(mica ? { backgroundMaterial: 'mica' } : {}),
     icon: path.join(ASSETS, 'icon.png'),
     webPreferences: {
       preload: PRELOAD('settings.js'),
@@ -722,7 +740,11 @@ function openSettings() {
     // 明暗・アクセント色は、設定を読み終わるまで待つと最初の一瞬だけ既定色で
     // 表示されてしまう (ちらつき)。起動時点でわかっている値は URL 越しに渡しておく
     const st = config.get().settings;
-    const query = { theme: st.uiTheme || 'light', accent: st.uiAccent || 'teal' };
+    const query = {
+      theme: st.uiTheme || 'light', accent: st.uiAccent || 'teal',
+      mica: mica ? '1' : '0',
+      micaok: micaSupported() ? '1' : '0',   // 使える環境かどうか (設定項目を出すかの判断に使う)
+    };
     if (process.env.WW_TEST_TAB) query.tab = process.env.WW_TEST_TAB;
     settingsWin.loadFile(RENDERER(path.join('settings', 'index.html')), { query });
   }
@@ -1836,6 +1858,23 @@ function clearWallpaperOverride(displayIndex) {
 ipcMain.handle('wallpaper:clearOverride', (e, displayIndex) => clearWallpaperOverride(displayIndex));
 
 ipcMain.handle('settings:set', (e, patch) => config.update(c => Object.assign(c.settings, patch)));
+
+// Mica の入り切り。窓を作り直さずにその場で切り替える —
+// システム側の材質と、CSS 側の「地を譲るかどうか」の両方を同時に変える必要がある
+ipcMain.handle('ui:setMica', (e, on) => {
+  if (!micaSupported()) return { ok: false, supported: false };
+  config.update(c => { c.settings.uiMica = !!on; });
+  const win = settingsWin;
+  if (win && !win.isDestroyed()) {
+    try {
+      win.setBackgroundMaterial(on ? 'mica' : 'none');
+      win.setBackgroundColor(on ? '#00000000'
+        : (config.get().settings.uiTheme === 'dark' ? '#12160f' : '#eef2f0'));
+      win.webContents.send('mica', { on: !!on });
+    } catch (_) { /* 効かない環境なら見た目が変わらないだけ */ }
+  }
+  return { ok: true, supported: true, on: !!on };
+});
 
 ipcMain.handle('custompreset:save', (e, value) => config.update(c => {
   c.settings.customPresets = [value, ...c.settings.customPresets].slice(0, 12);
