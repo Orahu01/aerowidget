@@ -3,15 +3,15 @@
    角丸と柔らかい影で奥行きを作る。グラデーションの主張・発光・絵文字は使わない。 */
 
 :root {
-  --bg0: #eef2f0;          /* ウィンドウ地 (下の body でグラデーションにする) */
+  --bg0: #EEEFF1;          /* ウィンドウ地 (下の body でグラデーションにする) */
   --bg1: #ffffff;          /* パネル / カード */
-  --bg2: #f4f6f5;          /* ホバー / 入力 */
-  --bg3: #e8ece9;          /* アクティブ */
-  --line: rgba(18, 28, 24, 0.08);
-  --line-strong: rgba(18, 28, 24, 0.14);
-  --text: #1c211e;
-  --dim: #5c655f;
-  --faint: #838d86;
+  --bg2: #F4F5F6;          /* ホバー / 入力 */
+  --bg3: #E9EAEC;          /* アクティブ */
+  --line: rgba(16, 17, 19, 0.09);
+  --line-strong: rgba(16, 17, 19, 0.16);
+  --text: #101113;
+  --dim: #5B5D62;
+  --faint: #7D7F84;
   --acc: #0f6e63;
   --acc-text: #ffffff;
   --acc-dim: rgba(15, 110, 99, 0.10);
@@ -19,26 +19,32 @@
   --r: 8px;
   --r-lg: 12px;
   --r-pill: 999px;
-  --shadow-card: 0 1px 2px rgba(18, 28, 24, .04), 0 10px 24px -18px rgba(18, 28, 24, .28);
-  --shadow-pop: 0 20px 48px -16px rgba(18, 28, 24, .32);
+  --shadow-card: none;
+  --shadow-pop: 0 30px 60px -24px rgba(16, 17, 19, .22), 0 4px 14px rgba(16, 17, 19, .08);
   --glass: rgba(255, 255, 255, .58);
+  --wash: rgba(16, 17, 19, 0.045);
+  --wash-soft: rgba(16, 17, 19, 0.03);
+  --wash-strong: rgba(16, 17, 19, 0.08);
 }
 
 /* ダーク (設定 > この画面の見た目)。html[data-theme="dark"] は起動時に main.js が
    query 経由で、以後は theme-boot.js の代わりに JS が直接付け外しする */
 :root[data-theme="dark"] {
-  --bg0: #12160f;
-  --bg1: #1c231b;
-  --bg2: #242c22;
-  --bg3: #2e3729;
+  --bg0: #14161A;
+  --bg1: #1B1D21;
+  --bg2: #202226;
+  --bg3: #2A2D32;
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
-  --text: #eef1ea;
-  --dim: #a3ac9d;
-  --faint: #74806e;
-  --glass: rgba(28, 35, 26, .55);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 24px -18px rgba(0, 0, 0, .6);
-  --shadow-pop: 0 20px 48px -16px rgba(0, 0, 0, .65);
+  --text: #EDEEF0;
+  --dim: #9C9FA5;
+  --faint: #75787E;
+  --glass: rgba(27, 29, 33, .55);
+  --shadow-card: none;
+  --shadow-pop: 0 30px 60px -24px rgba(0, 0, 0, .55), 0 4px 14px rgba(0, 0, 0, .28);
+  --wash: rgba(255, 255, 255, 0.055);
+  --wash-soft: rgba(255, 255, 255, 0.035);
+  --wash-strong: rgba(255, 255, 255, 0.09);
 }
 
 /* アクセント色 (設定 > この画面の見た目)。既定 (無指定 / teal) は :root のティールのまま */
@@ -55,7 +61,7 @@ html, body { height: 100%; }
 
 body {
   background:
-    radial-gradient(120% 150% at 8% -12%, #f4f7f5 0%, #eef2f0 45%, #e6e9e2 100%);
+    radial-gradient(120% 150% at 8% -12%, #f7f7f8 0%, #eef0f1 45%, #e6e7e9 100%);
   color: var(--text);
   font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Meiryo', sans-serif;
   font-size: 13px;
@@ -67,7 +73,7 @@ body {
 }
 :root[data-theme="dark"] body {
   background:
-    radial-gradient(120% 150% at 8% -12%, #1c231b 0%, #171d15 45%, #10140d 100%);
+    radial-gradient(120% 150% at 8% -12%, #1c1e22 0%, #16181b 45%, #101114 100%);
 }
 
 /* ---- Mica (Windows 11) ----
@@ -80,7 +86,7 @@ body {
 
 /* ナビは Mica を透かす薄い膜にする (完全に透明にすると本文と地続きに見えて境界が消える) */
 :root[data-mica="on"] { --glass: rgba(255, 255, 255, .34); }
-:root[data-mica="on"][data-theme="dark"] { --glass: rgba(28, 35, 26, .32); }
+:root[data-mica="on"][data-theme="dark"] { --glass: rgba(27, 29, 33, .32); }
 
 /* カードと浮きもの (ドロップダウン・ウィザード) は不透明を保つ。
    ここが透けると、文字が壁紙の模様に重なって一気に読めなくなる */
@@ -180,9 +186,9 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   transition: background .12s ease, color .12s ease;
 }
 .nav-item .ic { color: var(--faint); transition: color .12s ease; }
-.nav-item:hover { background: rgba(255, 255, 255, .55); color: var(--text); }
+.nav-item:hover { background: var(--wash); color: var(--text); }
 .nav-item.active {
-  background: rgba(255, 255, 255, .88);
+  background: var(--wash-strong);
   color: var(--text);
   font-weight: 600;
   border-left-color: var(--acc);
@@ -206,7 +212,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   :root[data-accent="argb"] .nav-item.active::before,
   :root[data-accent="argb"] .btn.primary,
   :root[data-accent="argb"] #btn-edit-layout,
-  :root[data-accent="argb"] .ic-mode.is-now { animation: none; }
+  :root[data-accent="argb"] .ic-mode.is-now .ic-mode-head::before { animation: none; }
 }
 
 .side-spacer { flex: 1; }
@@ -224,7 +230,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   color: var(--acc-text);
   background: var(--acc);
   cursor: pointer;
-  box-shadow: 0 8px 20px -8px rgba(15, 110, 99, .55);
+  box-shadow: none;
   transition: filter .12s ease, transform .12s ease;
 }
 #btn-edit-layout:hover { filter: brightness(1.08); }
@@ -367,8 +373,8 @@ h2 {
 .btn .ic { width: 13px; height: 13px; }
 .btn.primary {
   background: var(--acc); border-color: transparent; color: var(--acc-text); font-weight: 600;
-  border-radius: var(--r-pill); padding: 6px 16px;
-  box-shadow: 0 6px 16px -8px rgba(15, 110, 99, .55);
+  border-radius: var(--r); padding: 6px 16px;
+  box-shadow: none;
 }
 .btn.primary:hover { filter: brightness(1.08); background: var(--acc); }
 .btn.danger { color: var(--danger); border-color: rgba(200, 67, 75, 0.3); background: transparent; }
@@ -818,7 +824,7 @@ input[type=checkbox]:checked::after {
   cursor: pointer;
   font-size: 12px;
 }
-.city-item:hover { border-color: var(--acc); background: var(--acc-dim); }
+.city-item:hover { border-color: var(--line-strong); background: var(--wash); }
 .city-item .adm { color: var(--faint); font-size: 10.5px; margin-left: 8px; }
 
 /* LHM バッジ */
@@ -1008,18 +1014,43 @@ input[type="text"].bad {
 }
 .scn-row .dim { color: var(--dim); font-size: 13px; }
 
-/* ---- モードごとのアイコン設定 ---- */
-.ic-mode { border: 1px solid var(--line); border-radius: var(--r-lg); margin-bottom: 8px; background: var(--bg1); box-shadow: var(--shadow-card); }
+/* ---- モードごとのアイコン設定 (コンフィギュレーター風: 罫線区切りの行、箱と影は使わない) ----
+   見出し行は 色見本 | 名前+条件 | 状態+操作 の 3 列グリッド (承認済みモックアップと同じ骨格) */
+#ic-modes { border-top: 1px solid var(--line-strong); }
+.ic-mode { border: none; border-radius: 0; margin-bottom: 0; background: transparent; }
 .ic-mode-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 14px; cursor: pointer; user-select: none;
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center; gap: 14px;
+  padding: 12px 4px; cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--line);
 }
-.ic-mode-head:hover { background: var(--bg2); border-radius: 10px; }
-.ic-mode.open .ic-mode-head { border-radius: 10px 10px 0 0; border-bottom: 1px solid var(--line); }
-.ic-mode-name { font-weight: 600; font-size: 13.5px; }
-.ic-mode-meta { color: var(--dim); font-size: 11.5px; margin-left: auto; }
-.ic-mode-chev { color: var(--dim); transition: transform .15s; width: 14px; height: 14px; }
+.ic-mode-head:hover { background: var(--bg2); border-radius: var(--r); }
+.ic-mode.open .ic-mode-head { border-bottom: 1px solid var(--line); }
+
+.ic-mode-swatch { width: 40px; height: 40px; border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+.ic-mode-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ic-mode-toprow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ic-mode-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-mode-meta { color: var(--dim); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-mode-meta .mono {
+  font-family: Consolas, 'Cascadia Code', 'SFMono-Regular', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--text); font-weight: 600;
+}
+.ic-mode-chev { color: var(--dim); transition: transform .15s; width: 14px; height: 14px; flex: none; }
 .ic-mode.open .ic-mode-chev { transform: rotate(90deg); }
+
+.ic-mode-status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.ic-mode-state { font-size: 11px; color: var(--dim); letter-spacing: .02em; }
+.ic-mode-action {
+  appearance: none; border: none; background: none; padding: 0; margin: 0;
+  font-size: 12px; font-weight: 600; color: var(--acc); cursor: pointer;
+  border-bottom: 1px solid transparent;
+}
+.ic-mode-action:hover { border-bottom-color: var(--acc); }
+.ic-mode-action:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 2px; }
 
 .ic-mode-body { display: none; padding: 12px 14px 14px; }
 .ic-mode.open .ic-mode-body { display: block; }
@@ -1037,7 +1068,7 @@ input[type="text"].bad {
   cursor: pointer; user-select: none;
 }
 .ic-item:hover { background: var(--bg2); }
-.ic-item.hidden-on { background: var(--acc-dim); border-color: var(--acc); }
+.ic-item.hidden-on { background: var(--wash-strong); border-color: transparent; }
 .ic-item img { width: 20px; height: 20px; flex: none; image-rendering: auto; }
 .ic-item .ph { width: 20px; height: 20px; flex: none; border-radius: 4px; background: var(--bg3); }
 .ic-item .nm {
@@ -1122,13 +1153,30 @@ input[type="text"].bad {
   color: var(--acc); background: var(--acc-dim);
   border: 1px solid var(--acc); font-weight: 600;
 }
-.ic-mode.is-now { border-color: var(--acc); }
-:root[data-accent="argb"] .ic-mode.is-now {
-  border: 2px solid transparent;
-  background:
-    linear-gradient(var(--bg1), var(--bg1)) padding-box,
-    linear-gradient(180deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a) border-box;
-  background-size: 100% 100%, 100% 220%;
+/* 「効いています / いま適用中」の行は、箱の縁ではなく見出しの淡いウォッシュで示す。
+   バッジ自体 (.ic-now) がアクセント色を担うので、行の背景は中立に留める */
+.ic-mode.is-now .ic-mode-head {
+  background: var(--wash-soft);
+  border-radius: var(--r);
+  border-bottom-color: transparent;
+}
+/* 開いているときは、下の本文との境目が要る (閉じた行だけ縁を消す)。
+   .ic-mode.open .ic-mode-head の border-bottom と同じ詳細度 (クラス3つ) だと
+   ソース順で is-now 側が勝って区切り線が消えてしまうため、.open.is-now で
+   詳細度を上げて確実に勝たせる */
+.ic-mode.open.is-now .ic-mode-head { border-bottom-color: var(--line); }
+/* ARGB: 箱の縁ではなく見出し左端の帯が虹色に流れ続ける (.nav-item.active と同じ考え方) */
+:root[data-accent="argb"] .ic-mode.is-now .ic-mode-head {
+  position: relative;
+  background: var(--wash-soft);
+  border-bottom-color: transparent;
+  padding-left: 12px;
+}
+:root[data-accent="argb"] .ic-mode.open.is-now .ic-mode-head { border-bottom-color: var(--line); }
+:root[data-accent="argb"] .ic-mode.is-now .ic-mode-head::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 3px;
+  background: linear-gradient(180deg, #e6453a, #e8a53a, #d8d43c, #4bc46a, #3aa0e8, #8a5ce8, #d84fc0, #e6453a);
+  background-size: 100% 220%;
   animation: argb-flow-v 3s linear infinite;
 }
 
@@ -1136,13 +1184,13 @@ input[type="text"].bad {
 #toast {
   position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
   padding: 9px 18px; border-radius: 999px;
-  background: #24302b; color: #fff;
+  background: #1f2124; color: #fff;
   border: 1px solid rgba(255, 255, 255, .1);
   font-size: 12.5px; box-shadow: var(--shadow-pop);
   opacity: 0; pointer-events: none; transition: opacity .16s, transform .16s;
   z-index: 60;
 }
-:root[data-theme="dark"] #toast { background: #3d4a38; }
+:root[data-theme="dark"] #toast { background: #2a2c30; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* 自動整列の警告 */

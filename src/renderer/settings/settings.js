@@ -176,6 +176,7 @@ const JA_EN = {
   'オフ': 'Off', '常に効かせる': 'Always on',
   '条件: アプリが前面のとき': 'When an app is in front', '条件: 全画面のアプリがあるとき': 'When an app is fullscreen',
   '条件: バッテリー駆動のとき': 'When on battery', '条件: 時間帯': 'During a time of day',
+  '編集': 'Edit', '条件で自動切替': 'Switches automatically',
   'いまモード「{n}」の壁紙が表示されています。ここで変えると、このモードが覚えている壁紙も一緒に更新されます。':
     'Mode "{n}"\'s wallpaper is showing right now. Changes made here also update what this mode remembers.',
   '壁紙を覚えています': 'remembers a wallpaper', '壁紙は覚えていません': 'no wallpaper remembered',
@@ -2912,6 +2913,63 @@ function icItem(name, hideSet, onToggle) {
   return row;
 }
 
+// モードの色見本 (保存された色は無いので、名前から毎回同じ色を作って見分けやすくする。
+// 装飾だけの値で、どこにも保存しない)
+function swatchGradient(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const hue2 = (hue + 44) % 360;
+  return 'linear-gradient(135deg, hsl(' + hue + ' 68% 56%), hsl(' + hue2 + ' 55% 38%))';
+}
+
+// 見出し行に出す「条件」の短い説明 (アコーディオンを開かなくても分かるように)。
+// 時刻やアプリ名は等幅 (.mono) で挟んで、実際の値まで見出しだけで分かるようにする
+function appendConditionText(el, stateNow, trg) {
+  const mono = (text) => {
+    const m = document.createElement('span');
+    m.className = 'mono';
+    m.textContent = text;
+    el.appendChild(m);
+  };
+  const plain = (text) => el.appendChild(document.createTextNode(text));
+  if (stateNow === 'off') { plain(T('オフ')); return; }
+  if (stateNow === 'always') { plain(T('常に効かせる')); return; }
+  if (!trg) { plain(T('オフ')); return; }
+  if (trg.type === 'app') {
+    plain(T('条件: アプリが前面のとき'));
+    const apps = (trg.apps || []).filter(Boolean);
+    if (apps.length) { plain(' ・ '); mono(apps.join(', ')); }
+    return;
+  }
+  if (trg.type === 'time') {
+    plain(T('条件: 時間帯') + ' ・ ');
+    mono((trg.from || '22:00') + '–' + (trg.to || '06:00'));
+    return;
+  }
+  if (trg.type === 'fullscreen') { plain(T('条件: 全画面のアプリがあるとき')); return; }
+  if (trg.type === 'battery') { plain(T('条件: バッテリー駆動のとき')); return; }
+  plain(T('オフ'));
+}
+
+// 「適用」の実処理。行の右列 (開かなくても押せるボタン) と、開いた中の
+// 「このモードを適用」ボタンの両方から呼ぶ (uicheck.js はそちらのボタンの
+// テキスト/クラスを見ているので、ボタン自体は残したまま中身だけ共有する)
+async function applyIconModeNow(snap) {
+  const r = await window.api.restoreIcons(snap.name);
+  if (!r.ok) { icStatus(r.msg); return; }
+  let m = T('適用しました');
+  if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
+  if (r.rescued) m += ' ・ ' + T('画面に無い保存位置だった {n} 個は前の場所へ').replace('{n}', r.rescued);
+  if (r.celled) m += ' ・ ' + T('行き先の分からない {n} 個は空きへ').replace('{n}', r.celled);
+  if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
+  if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
+  icStatus(m);
+  cfg = await baseConfig();
+  renderWidgetList();
+  renderIconLayouts();
+}
+
 // 1 モードぶんのカード
 function icModeCard(snap, allNames) {
   const open = icOpenModes.has(snap.name);
@@ -2932,35 +2990,95 @@ function icModeCard(snap, allNames) {
   card.className = 'ic-mode' + (open ? ' open' : '');
   card.dataset.mode = snap.name;
 
+  // 動作 (常に/条件/オフ) は閉じた見出し行の「条件」表示にも要るので先に確定する
+  // (以前はアコーディオンを開いてからしか求めていなかった)
+  const trg = snap.trigger || null;
+  const stateNow = trg ? 'auto' : (snap.on ? 'always' : 'off');
+
   const head = document.createElement('div');
   head.className = 'ic-mode-head';
-  head.innerHTML = '<svg class="ic-mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+
+  // 色見本 | 名前+条件 | 状態+操作、の 3 列 (コンフィギュレーター風レイアウト)
+  const swatch = document.createElement('div');
+  swatch.className = 'ic-mode-swatch';
+  swatch.style.background = swatchGradient(snap.name);
+  head.appendChild(swatch);
+
+  const main = document.createElement('div');
+  main.className = 'ic-mode-main';
+  const topRow = document.createElement('div');
+  topRow.className = 'ic-mode-toprow';
+  topRow.innerHTML = '<svg class="ic-mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
   const nm = document.createElement('span');
   nm.className = 'ic-mode-name';
   nm.textContent = snap.name;
-  head.append(nm);
+  topRow.appendChild(nm);
+  main.appendChild(topRow);
+
+  const meta = document.createElement('div');
+  meta.className = 'ic-mode-meta';
+  const condSpan = document.createElement('span');
+  condSpan.className = 'ic-mode-cond';
+  appendConditionText(condSpan, stateNow, trg);
+  meta.appendChild(condSpan);
+  meta.appendChild(document.createTextNode(' ・ '));
+  const countsSpan = document.createElement('span');
+  meta.appendChild(countsSpan);
+  main.appendChild(meta);
+  head.appendChild(main);
+
+  // 右列: 状態 (効いています/いま適用中/それ以外は動作の説明) と、
+  // 開かなくても押せる「適用」(いま当たっているモードは代わりに「編集」で開閉する)
+  const status = document.createElement('div');
+  status.className = 'ic-mode-status';
+  let anyBadge = false;
   if (activeModeNames.includes(snap.name)) {
     const live = document.createElement('span');
     live.className = 'ic-now';
     live.textContent = T('効いています');
-    head.appendChild(live);
+    status.appendChild(live);
     card.classList.add('is-now');
+    anyBadge = true;
   }
-  if (snap.name === (cfg.settings || {}).currentIconMode) {
+  const isCurrent = snap.name === (cfg.settings || {}).currentIconMode;
+  if (isCurrent) {
     const now = document.createElement('span');
     now.className = 'ic-now';
     now.textContent = T('いま適用中');
-    head.appendChild(now);
+    status.appendChild(now);
     card.classList.add('is-now');
+    anyBadge = true;
   }
-  const meta = document.createElement('span');
-  meta.className = 'ic-mode-meta';
+  if (!anyBadge) {
+    const st = document.createElement('span');
+    st.className = 'ic-mode-state';
+    st.textContent = stateNow === 'off' ? T('オフ')
+      : stateNow === 'always' ? T('常に効かせる')
+      : T('条件で自動切替');
+    status.appendChild(st);
+  }
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className = 'ic-mode-action';
+  action.textContent = isCurrent ? T('編集') : T('適用');
+  action.onclick = (ev) => {
+    ev.stopPropagation();
+    if (isCurrent) {
+      if (open) icOpenModes.delete(snap.name); else icOpenModes.add(snap.name);
+      renderIconPicker();
+    } else {
+      applyIconModeNow(snap);
+    }
+  };
+  status.appendChild(action);
+  head.appendChild(status);
+
   // 数の表示はチェックのたびに書き直す (一覧そのものは作り直さない)
   let iconsSubMeta = null;
   let widgetsSubMeta = null;
   let updateCounts = () => {
     const h = hideNow();
-    meta.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
+    countsSpan.textContent = T('全部で ') + allNames.length + T(' 個') + ' ・ '
       + T('隠す ') + h + T(' 個') + ' ・ '
       + T('見えるのは ') + (allNames.length - h) + T(' 個')
       + (wd.link ? ' ・ ' + T('ウィジェット ') + wOn() + '/' + allWidgets.length : '');
@@ -2971,7 +3089,6 @@ function icModeCard(snap, allNames) {
     }
   };
   updateCounts();
-  head.append(meta);
   head.onclick = () => {
     if (open) icOpenModes.delete(snap.name); else icOpenModes.add(snap.name);
     renderIconPicker();
@@ -3065,13 +3182,12 @@ function icModeCard(snap, allNames) {
   // 状態はひとつだけ選ぶ: オフ / 常に効かせる / 条件で効かせる。
   // 以前は「今すぐ効かせる」と「条件」を同時に立てられ、手動オンが常に勝つため
   // 条件を変えても何も起きなかった。選択肢を 1 本にして矛盾を作れなくする
-  const trg = snap.trigger || null;
+  // (trg / stateNow 自体は見出し行の条件表示のため、この関数の先頭で確定済み)
   // trg は描画した瞬間の値。以降の編集 (アプリ名・時刻) は再描画せずに重ねていくので、
   // このカードが開いている間ずっと trg を直接参照すると、あとから直したフィールドが
   // 前に直したフィールドの値を巻き戻してしまう (from を直した直後に to を直すと、
   // to の送信が古い from を道連れにして上書きする)。trgLive を都度更新して重ねる
   let trgLive = trg ? { ...trg } : null;
-  const stateNow = trg ? 'auto' : (snap.on ? 'always' : 'off');
   const trRow = document.createElement('div');
   trRow.className = 'ic-mode-tools';
   trRow.appendChild(mkLabelSpan('このモードの動作'));
@@ -3176,20 +3292,7 @@ function icModeCard(snap, allNames) {
         btn.disabled = false;
       }
     }),
-    mkBtn('このモードを適用', async () => {
-      const r = await window.api.restoreIcons(snap.name);
-      if (!r.ok) { icStatus(r.msg); return; }
-      let m = T('適用しました');
-      if (r.hidden) m += ' ・ ' + T('隠した: ') + r.hidden + T(' 個');
-      if (r.rescued) m += ' ・ ' + T('画面に無い保存位置だった {n} 個は前の場所へ').replace('{n}', r.rescued);
-      if (r.celled) m += ' ・ ' + T('行き先の分からない {n} 個は空きへ').replace('{n}', r.celled);
-      if (r.widgets) m += ' ・ ' + T('ウィジェット ') + r.widgets;
-      if (r.widgetsRestored) m += ' ・ ' + T('しまってあった ') + r.widgetsRestored + T(' 個を出しました');
-      icStatus(m);
-      cfg = await baseConfig();
-      renderWidgetList();
-      renderIconLayouts();
-    }),
+    mkBtn('このモードを適用', () => applyIconModeNow(snap)),
     // 並べ直したあとに、今のデスクトップの位置でこのモードを更新する
     mkBtn('今の並びを覚え直す', async (ev) => {
       const btn = ev.currentTarget;
