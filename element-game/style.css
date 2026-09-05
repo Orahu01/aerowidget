@@ -1,0 +1,519 @@
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f8;
+  --text: #1c2230;
+  --text-dim: #626c80;
+  --border: #dde2ee;
+  --accent: #4a6cf7;
+  --accent-2: #7fb4e8;
+  --hit: #4caf7d;
+  --hit-bg: #d9f2e4;
+  --close: #f0a833;
+  --close-bg: #fbe9c9;
+  --miss-bg: #e7e9ef;
+  --shadow: 0 8px 24px rgba(30, 40, 70, 0.08);
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12141c;
+    --surface: #1b1e29;
+    --surface-2: #232735;
+    --text: #eef0f6;
+    --text-dim: #a2a8bb;
+    --border: #323748;
+    --accent: #7d97ff;
+    --accent-2: #6fa3d8;
+    --hit: #4fbf8a;
+    --hit-bg: #163828;
+    --close: #e0a63f;
+    --close-bg: #3a2e14;
+    --miss-bg: #262a38;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Noto Sans JP", "Hiragino Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  margin: 0 0 6px;
+  font-weight: 900;
+}
+
+.hero h1 .grad-text {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.modes {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.mode-btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.92rem;
+  transition: all 0.15s ease;
+}
+
+.mode-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+  padding: 0 10px;
+}
+
+.status-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.status-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.stats-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.stats-btn:hover {
+  background: var(--surface-2);
+}
+
+.guess-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.autocomplete {
+  position: relative;
+  flex: 1 1 240px;
+}
+
+#guessInput {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+#guessInput:focus {
+  outline: 2px solid var(--accent);
+}
+
+.suggest-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.suggest-list li {
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+
+.suggest-list li .sym-chip {
+  font-weight: 800;
+  color: var(--text-dim);
+}
+
+.suggest-list li:hover,
+.suggest-list li.is-active {
+  background: var(--surface-2);
+}
+
+.submit-btn,
+.giveup-btn {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.submit-btn {
+  background: var(--accent);
+  color: #fff;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.giveup-btn {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.hint-line {
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 4px 2px 18px;
+}
+
+.board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.board-head,
+.guess-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 0.9fr 0.6fr 0.6fr 0.8fr 1fr 0.8fr;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.board-head {
+  background: var(--surface-2);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-weight: 700;
+  text-align: center;
+}
+
+.board-head span:first-child {
+  text-align: left;
+}
+
+.board-rows {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.guess-row {
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  animation: pop 0.25s ease;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.guess-row .cell {
+  text-align: center;
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-weight: 700;
+  position: relative;
+}
+
+.guess-row .cell.elname {
+  text-align: left;
+  font-weight: 600;
+  background: none !important;
+}
+
+.cell .arrow {
+  font-size: 0.75rem;
+  margin-left: 2px;
+  opacity: 0.75;
+}
+
+.cell.hit {
+  background: var(--hit-bg);
+  color: var(--hit);
+}
+
+.cell.close {
+  background: var(--close-bg);
+  color: var(--close);
+}
+
+.cell.miss {
+  background: var(--miss-bg);
+  color: var(--text-dim);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.swatch-hit {
+  background: var(--hit);
+}
+
+.swatch-close {
+  background: var(--close);
+}
+
+.swatch-miss {
+  background: var(--miss-bg);
+  border: 1px solid var(--border);
+}
+
+.result-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.result-panel h2 {
+  margin: 0 0 8px;
+}
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.share-btn,
+.again-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.share-btn {
+  background: var(--accent);
+  color: #fff;
+}
+
+.again-btn {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.footer {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin-top: 30px;
+}
+
+.footer-sub {
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 20, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  position: relative;
+  box-shadow: var(--shadow);
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  text-align: center;
+}
+
+.stats-grid strong {
+  display: block;
+  font-size: 1.6rem;
+}
+
+.stats-grid span {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 640px) {
+  .board-head {
+    display: none;
+  }
+
+  .guess-row {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-areas:
+      "name name name name"
+      "sym num per grp"
+      "block cat cat state";
+    padding: 12px;
+    row-gap: 6px;
+  }
+
+  .guess-row .elname {
+    grid-area: name;
+    font-size: 0.95rem;
+  }
+
+  .guess-row .c-sym {
+    grid-area: sym;
+  }
+  .guess-row .c-num {
+    grid-area: num;
+  }
+  .guess-row .c-per {
+    grid-area: per;
+  }
+  .guess-row .c-grp {
+    grid-area: grp;
+  }
+  .guess-row .c-block {
+    grid-area: block;
+  }
+  .guess-row .c-cat {
+    grid-area: cat;
+  }
+  .guess-row .c-state {
+    grid-area: state;
+  }
+}

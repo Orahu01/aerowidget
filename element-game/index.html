@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>元素当てゲーム</title>
+<meta name="description" content="周期表の元素をヒントを頼りに当てる無料のブラウザゲーム。毎日1問の「今日の元素」と、何度でも遊べる「ランダムモード」。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%237fb4e8'/%3E%3Ctext x='50' y='62' font-size='46' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'%3EEg%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1><span aria-hidden="true">⚛️</span> <span class="grad-text">元素当てゲーム</span></h1>
+    <p class="tagline">周期表のヒントを頼りに、今日の元素を当てよう</p>
+  </header>
+
+  <nav class="modes" role="tablist" aria-label="モード切り替え">
+    <button class="mode-btn is-active" data-mode="daily" role="tab" aria-selected="true">今日の元素</button>
+    <button class="mode-btn" data-mode="random" role="tab" aria-selected="false">ランダムモード</button>
+  </nav>
+
+  <section class="status-bar">
+    <div class="status-item">
+      <span class="status-label">残り回数</span>
+      <span class="status-value" id="triesLeft">8</span>
+    </div>
+    <div class="status-item" id="dayBadgeWrap">
+      <span class="status-label">Day</span>
+      <span class="status-value" id="dayBadge">-</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">連続正解</span>
+      <span class="status-value" id="streakValue">0</span>
+    </div>
+    <button class="stats-btn" id="statsBtn" title="統計を見る" aria-label="統計を見る">📊</button>
+  </section>
+
+  <section class="guess-form">
+    <div class="autocomplete">
+      <input
+        type="text"
+        id="guessInput"
+        placeholder="元素名または記号を入力 (例: 鉄, Fe, Iron)"
+        autocomplete="off"
+        aria-label="元素名を入力"
+      />
+      <ul id="suggestList" class="suggest-list" hidden></ul>
+    </div>
+    <button id="submitGuess" class="submit-btn">予想する</button>
+    <button id="giveUpBtn" class="giveup-btn">降参</button>
+  </section>
+  <p class="hint-line" id="hintLine"></p>
+
+  <section class="board" aria-live="polite">
+    <div class="board-head">
+      <span>元素</span>
+      <span>記号</span>
+      <span>原子番号</span>
+      <span>周期</span>
+      <span>族</span>
+      <span>ブロック</span>
+      <span>分類</span>
+      <span>状態</span>
+    </div>
+    <div id="guessRows" class="board-rows"></div>
+  </section>
+
+  <section class="legend">
+    <span class="legend-item"><i class="swatch swatch-hit"></i>一致</span>
+    <span class="legend-item"><i class="swatch swatch-close"></i>近い (数値のみ)</span>
+    <span class="legend-item"><i class="swatch swatch-miss"></i>不一致</span>
+    <span class="legend-item">↑/↓ = 答えはもっと大きい/小さい</span>
+  </section>
+
+  <section id="resultPanel" class="result-panel" hidden>
+    <h2 id="resultTitle"></h2>
+    <p id="resultBody"></p>
+    <div class="result-actions">
+      <button id="shareBtn" class="share-btn">結果をコピー 📋</button>
+      <button id="playAgainBtn" class="again-btn">ランダムでもう一度</button>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>全118元素対応。日本語名・英語名・元素記号のいずれでも入力できます。</p>
+    <p class="footer-sub">Made with Claude Code</p>
+  </footer>
+</div>
+
+<div id="statsModal" class="modal" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="statsClose" aria-label="閉じる">×</button>
+    <h2>統計</h2>
+    <div class="stats-grid">
+      <div><strong id="statPlayed">0</strong><span>プレイ回数</span></div>
+      <div><strong id="statWinRate">0%</strong><span>正解率</span></div>
+      <div><strong id="statStreak">0</strong><span>連続正解</span></div>
+      <div><strong id="statMaxStreak">0</strong><span>最高連続正解</span></div>
+    </div>
+  </div>
+</div>
+
+<script src="elements.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
